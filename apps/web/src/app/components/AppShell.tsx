@@ -198,7 +198,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           display: 'flex',
           justifyContent: 'flex-end',
           alignItems: 'center',
-          padding: '8px 24px',
+          padding: '10px 24px',
           borderBottom: '1px solid var(--color-border)',
           backgroundColor: 'var(--color-surface)',
         }}>
@@ -206,11 +206,13 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             onClick={() => { logout(); router.replace('/'); }}
             style={{
               background: 'none',
-              border: 'none',
-              color: 'var(--color-text-muted)',
+              border: '1px solid var(--color-border)',
+              borderRadius: 'var(--radius-md)',
+              color: 'var(--color-text-secondary)',
               fontSize: 13,
+              fontWeight: 500,
               cursor: 'pointer',
-              padding: '4px 8px',
+              padding: '6px 14px',
             }}
           >
             Sign Out
