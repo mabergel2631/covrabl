@@ -7,6 +7,7 @@ from .auth import get_current_user
 from .db import get_db
 from .models import CoverageItem, Policy, User
 from .schemas import CoverageItemCreate, CoverageItemUpdate, CoverageItemOut
+from .access import get_policy_for_user
 
 router = APIRouter(prefix="/policies/{policy_id}/coverage", tags=["coverage"])
 
@@ -20,7 +21,7 @@ def _get_user_policy(policy_id: int, db: Session, user: User) -> Policy:
 
 @router.get("", response_model=List[CoverageItemOut])
 def list_coverage(policy_id: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
-    _get_user_policy(policy_id, db, user)
+    get_policy_for_user(policy_id, db, user)
     rows = db.execute(
         select(CoverageItem).where(CoverageItem.policy_id == policy_id).order_by(CoverageItem.item_type, CoverageItem.id)
     ).scalars().all()

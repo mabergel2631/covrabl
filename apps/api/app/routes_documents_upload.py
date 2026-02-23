@@ -82,9 +82,8 @@ def download_document(document_id: int, db: Session = Depends(get_db), user: Use
 
 @router.get("/by-policy/{policy_id}")
 def list_docs(policy_id: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
-    policy = db.get(Policy, policy_id)
-    if not policy or policy.user_id != user.id:
-        raise HTTPException(status_code=404, detail="Policy not found")
+    from .access import get_policy_for_user
+    get_policy_for_user(policy_id, db, user)
 
     rows = db.execute(
         select(Document).where(Document.policy_id == policy_id).order_by(Document.id.desc())

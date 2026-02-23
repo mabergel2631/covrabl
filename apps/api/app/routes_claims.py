@@ -11,6 +11,7 @@ from .models_features import Claim
 from .schemas import ClaimCreate, ClaimUpdate, ClaimOut
 from .audit_helper import log_action
 from .extraction import get_extractor
+from .access import get_policy_for_user
 
 router = APIRouter(prefix="/policies/{policy_id}/claims", tags=["claims"])
 
@@ -24,7 +25,7 @@ def _get_user_policy(policy_id: int, db: Session, user: User) -> Policy:
 
 @router.get("", response_model=list[ClaimOut])
 def list_claims(policy_id: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
-    _get_user_policy(policy_id, db, user)
+    get_policy_for_user(policy_id, db, user)
     rows = db.execute(
         select(Claim).where(Claim.policy_id == policy_id).order_by(Claim.date_filed.desc())
     ).scalars().all()

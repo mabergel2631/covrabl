@@ -11,6 +11,7 @@ from .models_features import Premium, PolicyShare
 from .schemas import PolicyCreate, PolicyUpdate, PolicyOut, BusinessGroupRename
 from .audit_helper import log_action
 from .routes_reminders import ensure_reminders
+from .access import get_policy_for_user
 
 router = APIRouter(prefix="/policies", tags=["policies"])
 
@@ -209,30 +210,7 @@ def create_policy(payload: PolicyCreate, db: Session = Depends(get_db), user: Us
 
 @router.get("/{policy_id}", response_model=PolicyOut)
 def get_policy(policy_id: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
-    policy = db.get(Policy, policy_id)
-    if not policy:
-        raise HTTPException(status_code=404, detail="Policy not found")
-
-    # Owner access
-    if policy.user_id == user.id:
-        return policy
-
-    # Shared access (enforce expiration)
-    from datetime import date as date_type
-    today = date_type.today()
-    share = db.execute(
-        select(PolicyShare)
-        .where(PolicyShare.policy_id == policy_id)
-        .where(PolicyShare.shared_with_email == user.email)
-        .where(PolicyShare.accepted == True)  # noqa: E712
-        .where(
-            (PolicyShare.expires_at.is_(None)) | (PolicyShare.expires_at >= today)
-        )
-    ).scalar_one_or_none()
-    if share:
-        return policy
-
-    raise HTTPException(status_code=404, detail="Policy not found")
+    return get_policy_for_user(policy_id, db, user)
 
 
 @router.put("/{policy_id}", response_model=PolicyOut)
