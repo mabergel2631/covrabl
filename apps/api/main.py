@@ -139,6 +139,10 @@ def on_startup():
                 conn.execute(text("ALTER TABLE policy_shares ADD COLUMN role_label VARCHAR(30)"))
             if "expires_at" not in share_cols:
                 conn.execute(text("ALTER TABLE policy_shares ADD COLUMN expires_at DATE"))
+    # One-time migration: normalize all emails to lowercase
+    with engine.begin() as conn:
+        conn.execute(text("UPDATE users SET email = lower(email) WHERE email != lower(email)"))
+        conn.execute(text("UPDATE policy_shares SET shared_with_email = lower(shared_with_email) WHERE shared_with_email != lower(shared_with_email)"))
 
 
 app.include_router(files_router)
