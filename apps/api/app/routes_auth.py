@@ -64,9 +64,15 @@ def register(payload: UserCreate, db: Session = Depends(get_db)):
     if existing:
         raise HTTPException(status_code=400, detail="Email already registered")
 
+    hashed = hash_password(payload.password)
+    # Defensive: verify the hash round-trips before saving
+    if not verify_password(payload.password, hashed):
+        logger.error("Password hash round-trip failed during registration for %s", email)
+        raise HTTPException(status_code=500, detail="Registration error — please try again")
+
     user = User(
         email=email,
-        hashed_password=hash_password(payload.password),
+        hashed_password=hashed,
         plan="trial",
         trial_ends_at=datetime.now(timezone.utc) + timedelta(days=30),
     )
@@ -83,6 +89,7 @@ def login(payload: UserCreate, request: Request, db: Session = Depends(get_db)):
     user = db.execute(select(User).where(User.email == email)).scalar_one_or_none()
     if not user or not verify_password(payload.password, user.hashed_password):
         _record_failure(request)
+        logger.info("Login failed for %s (user_exists=%s)", email, user is not None)
         raise HTTPException(status_code=401, detail="Invalid credentials")
     _clear_failures(request)
     return Token(access_token=create_access_token(user.id))
@@ -141,7 +148,11 @@ def reset_password(payload: ResetPasswordRequest, db: Session = Depends(get_db))
     if not user:
         raise HTTPException(status_code=400, detail="Invalid or expired reset link")
 
-    user.hashed_password = hash_password(payload.password)
+    hashed = hash_password(payload.password)
+    if not verify_password(payload.password, hashed):
+        logger.error("Password hash round-trip failed during reset for user_id=%s", user.id)
+        raise HTTPException(status_code=500, detail="Password reset error — please try again")
+    user.hashed_password = hashed
     reset.used = True
     db.commit()
     return {"ok": True}
