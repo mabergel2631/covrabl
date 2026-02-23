@@ -383,6 +383,9 @@ export default function Home() {
               </div>
             ))}
           </div>
+          <p style={{ fontSize: 14, color: 'var(--color-text-muted)', textAlign: 'center', marginTop: 28, marginBottom: 0 }}>
+            We only analyze the documents you upload. No external data. No assumptions.
+          </p>
         </div>
       </section>
 

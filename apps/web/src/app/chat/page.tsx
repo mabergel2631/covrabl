@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useEffect, useRef, useCallback } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useEffect, useRef, useCallback, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import ReactMarkdown from 'react-markdown';
 import { useAuth } from '../../../lib/auth';
 import { chatApi, ChatConversation, ChatMessageData } from '../../../lib/api';
@@ -20,8 +20,13 @@ const SUGGESTED_QUESTIONS = [
 ];
 
 export default function ChatPage() {
+  return <Suspense><ChatPageInner /></Suspense>;
+}
+
+function ChatPageInner() {
   const { token } = useAuth();
   const router = useRouter();
+  const searchParams = useSearchParams();
 
   const [conversations, setConversations] = useState<ChatConversation[]>([]);
   const [activeConvoId, setActiveConvoId] = useState<number | null>(null);
@@ -30,6 +35,7 @@ export default function ChatPage() {
   const [isStreaming, setIsStreaming] = useState(false);
   const [streamingText, setStreamingText] = useState('');
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [policySeeded, setPolicySeeded] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const abortRef = useRef<AbortController | null>(null);
@@ -39,6 +45,18 @@ export default function ChatPage() {
     if (!token) { router.replace('/login'); return; }
     loadConversations();
   }, [token]);
+
+  // Handle deep-link from policy detail: ?policy=123&carrier=State+Farm
+  useEffect(() => {
+    if (policySeeded) return;
+    const policyId = searchParams.get('policy');
+    const carrier = searchParams.get('carrier');
+    if (policyId && carrier) {
+      setPolicySeeded(true);
+      setInput(`Tell me about my ${carrier} policy — what are the key details, coverage limits, and anything I should know?`);
+      router.replace('/chat', { scroll: false });
+    }
+  }, [searchParams, policySeeded]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -242,10 +260,10 @@ export default function ChatPage() {
             &#9776;
           </button>
           <span style={{ fontSize: 16, fontWeight: 600, color: 'var(--color-text)' }}>
-            Coverage Intelligence
+            Policy Insights
           </span>
           <span style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>
-            Ask about your policies in plain English
+            Insights generated directly from your uploaded policy documents
           </span>
         </div>
 
@@ -253,12 +271,12 @@ export default function ChatPage() {
         <div style={{ flex: 1, overflowY: 'auto', padding: '20px 20px 0' }}>
           {showEmptyState && (
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', gap: 24, paddingBottom: 60 }}>
-              <div style={{ fontSize: 48 }}>&#128172;</div>
+              <div style={{ fontSize: 48 }}>📄</div>
               <h2 style={{ fontSize: 22, fontWeight: 700, color: 'var(--color-text)', margin: 0 }}>
-                Ask about your coverage
+                Ask about your policies
               </h2>
               <p style={{ fontSize: 14, color: 'var(--color-text-muted)', margin: 0, textAlign: 'center', maxWidth: 440 }}>
-                Get instant answers about your coverage, limits, deductibles, and gaps — based on the policies you&apos;ve uploaded. For general insurance questions, I can help with that too.
+                Get answers about your coverage, limits, deductibles, and gaps — extracted directly from the documents you&apos;ve uploaded. No external data. No assumptions.
               </p>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, justifyContent: 'center', maxWidth: 500 }}>
                 {SUGGESTED_QUESTIONS.map(q => (
@@ -305,7 +323,12 @@ export default function ChatPage() {
                 }}
               >
                 {msg.role === 'assistant' ? (
-                  <div className="chat-markdown"><ReactMarkdown>{msg.content}</ReactMarkdown></div>
+                  <>
+                    <div className="chat-markdown"><ReactMarkdown>{msg.content}</ReactMarkdown></div>
+                    <div style={{ fontSize: 10, color: 'var(--color-text-muted)', marginTop: 8, opacity: 0.7 }}>
+                      Based on your uploaded policy documents
+                    </div>
+                  </>
                 ) : msg.content}
               </div>
             </div>
@@ -340,10 +363,10 @@ export default function ChatPage() {
           <div ref={messagesEndRef} />
         </div>
 
-        {/* Disclaimer */}
+        {/* Source-bound trust line */}
         <div style={{ padding: '4px 20px', textAlign: 'center', flexShrink: 0 }}>
           <span style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>
-            Answers about your coverage are based on uploaded policy data and should be confirmed against your actual documents. Not professional insurance advice.
+            Insights are extracted from your uploaded policy documents. Review against your original documents before making decisions.
           </span>
         </div>
 

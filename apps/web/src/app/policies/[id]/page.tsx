@@ -616,6 +616,7 @@ export default function PolicyDetailPage() {
               </div>
               <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', flexShrink: 0 }}>
                 <span className={`badge badge-${policy.scope}`}>{policy.scope}</span>
+                <button onClick={() => router.push(`/chat?policy=${policyId}&carrier=${encodeURIComponent(policy.carrier)}`)} className="btn btn-outline">Ask About This Policy</button>
                 <button onClick={() => setShowIdCard(!showIdCard)} className="btn btn-outline">{showIdCard ? 'Hide Card' : 'ID Card'}</button>
                 <button onClick={() => exportApi.singlePolicy(policyId)} className="btn btn-outline">Export CSV</button>
                 {canEdit && <button onClick={startEdit} className="btn btn-primary">Edit Policy</button>}
