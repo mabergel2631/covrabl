@@ -192,11 +192,8 @@ def get_business_entity_gaps(
 @router.get("/policy/{policy_id}")
 def get_policy_gaps(policy_id: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     """Get gaps specific to a single policy."""
-    policy = db.execute(
-        select(Policy).where(Policy.id == policy_id, Policy.user_id == user.id)
-    ).scalar_one_or_none()
-    if not policy:
-        raise HTTPException(status_code=404, detail="Policy not found")
+    from .access import get_policy_for_user
+    get_policy_for_user(policy_id, db, user)
 
     policies = _load_policies_eager(db, user.id)
     policy_data = _serialize_policies(policies)

@@ -111,9 +111,8 @@ def share_policy(policy_id: int, payload: ShareCreate, background_tasks: Backgro
 
 @router.get("/policies/{policy_id}/shares", response_model=list[ShareOut])
 def list_shares(policy_id: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
-    policy = db.get(Policy, policy_id)
-    if not policy or policy.user_id != user.id:
-        raise HTTPException(status_code=404, detail="Policy not found")
+    from .access import get_policy_for_user
+    get_policy_for_user(policy_id, db, user)
 
     rows = db.execute(
         select(PolicyShare).where(PolicyShare.policy_id == policy_id)

@@ -110,6 +110,11 @@ export default function PolicyDetailPage() {
   // Claims quick-start
   const [copiedPolicyNumber, setCopiedPolicyNumber] = useState(false);
 
+  // Permission: null/undefined = owner, "view" = view-only shared, "edit" = edit shared
+  const isOwner = !policy?.permission;
+  const isViewOnly = policy?.permission === 'view';
+  const canEdit = isOwner || policy?.permission === 'edit';
+
   const toggleDetailForm = () => {
     if (!showDetailForm && availableSuggestions.length > 0) {
       setDetailForm({ field_name: availableSuggestions[0], field_value: '' });
@@ -403,6 +408,14 @@ export default function PolicyDetailPage() {
 
       {error && <div className="alert alert-error">{error}</div>}
 
+      {/* View-Only Banner for shared users */}
+      {isViewOnly && (
+        <div style={{ padding: '10px 16px', marginBottom: 16, backgroundColor: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 'var(--radius-md)', display: 'flex', alignItems: 'center', gap: 8, fontSize: 14, color: '#1e40af' }}>
+          <span style={{ fontSize: 16 }}>👁</span>
+          <span><strong>View Only</strong> — This policy was shared with you in read-only mode.</span>
+        </div>
+      )}
+
       {/* Extraction Review Modal */}
       {reviewData && (
         <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
@@ -579,25 +592,27 @@ export default function PolicyDetailPage() {
                       </>
                     )}
                   </div>
-                  <button
-                    onClick={() => setShowShareForm(!showShareForm)}
-                    className="btn btn-outline"
-                    style={{ padding: '4px 12px', fontSize: 12 }}
-                  >
-                    {showShareForm ? 'Cancel' : shares.length > 0 ? 'Manage Access' : 'Share'}
-                  </button>
+                  {isOwner && (
+                    <button
+                      onClick={() => setShowShareForm(!showShareForm)}
+                      className="btn btn-outline"
+                      style={{ padding: '4px 12px', fontSize: 12 }}
+                    >
+                      {showShareForm ? 'Cancel' : shares.length > 0 ? 'Manage Access' : 'Share'}
+                    </button>
+                  )}
                 </div>
               </div>
               <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
                 <span className={`badge badge-${policy.scope}`}>{policy.scope}</span>
                 <button onClick={() => setShowIdCard(!showIdCard)} className="btn btn-outline">{showIdCard ? 'Hide Card' : 'ID Card'}</button>
                 <button onClick={() => exportApi.singlePolicy(policyId)} className="btn btn-outline">Export CSV</button>
-                <button onClick={startEdit} className="btn btn-primary">Edit Policy</button>
+                {canEdit && <button onClick={startEdit} className="btn btn-primary">Edit Policy</button>}
               </div>
             </div>
 
-            {/* Inline Share Form - appears below header when toggled */}
-            {showShareForm && (
+            {/* Inline Share Form - appears below header when toggled (owner only) */}
+            {showShareForm && isOwner && (
               <div style={{ marginTop: 20, padding: 20, backgroundColor: 'var(--color-bg)', borderRadius: 'var(--radius-md)', border: '1px solid var(--color-border)' }}>
                 <h3 style={{ margin: '0 0 16px', fontSize: 16, fontWeight: 600 }}>Share This Policy</h3>
                 <form onSubmit={async (e) => { e.preventDefault(); try { await sharingApi.share(policyId, shareForm); setShowShareForm(false); setShareForm({ shared_with_email: '', permission: 'view', role_label: null, expires_at: null }); setShares(await sharingApi.listShares(policyId)); toast('Invite sent', 'success'); } catch (err: any) { setError(err.message); } }}>
@@ -1113,22 +1128,24 @@ export default function PolicyDetailPage() {
         <div className="card" style={{ marginBottom: 32 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
             <h2 className="section-title" style={{ margin: 0 }}>Deductible Tracking</h2>
-            <button
-              onClick={() => {
-                if (!editingDeductible) {
-                  setDeductibleForm({
-                    type: policy.deductible_type || 'annual',
-                    period_start: policy.deductible_period_start || new Date().getFullYear() + '-01-01',
-                    applied: policy.deductible_applied || 0,
-                  });
-                }
-                setEditingDeductible(!editingDeductible);
-              }}
-              className="btn btn-outline"
-              style={{ padding: '6px 12px', fontSize: 13 }}
-            >
-              {editingDeductible ? 'Cancel' : 'Update'}
-            </button>
+            {canEdit && (
+              <button
+                onClick={() => {
+                  if (!editingDeductible) {
+                    setDeductibleForm({
+                      type: policy.deductible_type || 'annual',
+                      period_start: policy.deductible_period_start || new Date().getFullYear() + '-01-01',
+                      applied: policy.deductible_applied || 0,
+                    });
+                  }
+                  setEditingDeductible(!editingDeductible);
+                }}
+                className="btn btn-outline"
+                style={{ padding: '6px 12px', fontSize: 13 }}
+              >
+                {editingDeductible ? 'Cancel' : 'Update'}
+              </button>
+            )}
           </div>
 
           {/* Display Mode */}
@@ -1356,13 +1373,15 @@ export default function PolicyDetailPage() {
                 </p>
               )}
             </div>
-            <button
-              onClick={() => setShowAddPremiumHistory(!showAddPremiumHistory)}
-              className="btn btn-outline"
-              style={{ padding: '6px 12px', fontSize: 13 }}
-            >
-              {showAddPremiumHistory ? 'Cancel' : '+ Add Entry'}
-            </button>
+            {canEdit && (
+              <button
+                onClick={() => setShowAddPremiumHistory(!showAddPremiumHistory)}
+                className="btn btn-outline"
+                style={{ padding: '6px 12px', fontSize: 13 }}
+              >
+                {showAddPremiumHistory ? 'Cancel' : '+ Add Entry'}
+              </button>
+            )}
           </div>
 
           {/* Add Premium History Form */}
@@ -1508,15 +1527,17 @@ export default function PolicyDetailPage() {
       <div className="card" style={{ marginBottom: 32 }}>
         <h2 style={{ margin: '0 0 4px', fontSize: 18 }}>Documents</h2>
         <p style={{ margin: '0 0 16px', fontSize: 13, color: '#666' }}>Upload a policy PDF to auto-extract carrier, coverage, contacts and more.</p>
-        <div style={{ display: 'flex', gap: 8, marginBottom: 16, alignItems: 'center', flexWrap: 'wrap' }}>
-          <select value={docType} onChange={e => setDocType(e.target.value)} style={{ padding: '8px 10px', border: '1px solid #ddd', borderRadius: 4, fontSize: 13 }}>
-            {DOC_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
-          </select>
-          <input ref={fileRef} type="file" style={{ fontSize: 14, minWidth: 0 }} />
-          <button onClick={handleUpload} disabled={uploading} className="btn btn-accent">
-            {uploading ? 'Uploading...' : 'Upload'}
-          </button>
-        </div>
+        {canEdit && (
+          <div style={{ display: 'flex', gap: 8, marginBottom: 16, alignItems: 'center', flexWrap: 'wrap' }}>
+            <select value={docType} onChange={e => setDocType(e.target.value)} style={{ padding: '8px 10px', border: '1px solid #ddd', borderRadius: 4, fontSize: 13 }}>
+              {DOC_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+            </select>
+            <input ref={fileRef} type="file" style={{ fontSize: 14, minWidth: 0 }} />
+            <button onClick={handleUpload} disabled={uploading} className="btn btn-accent">
+              {uploading ? 'Uploading...' : 'Upload'}
+            </button>
+          </div>
+        )}
 
         {(uploading || extractingId) && (
           <div style={{ padding: 12, marginBottom: 12, backgroundColor: '#eff6ff', color: '#1e40af', borderRadius: 4, fontSize: 13 }}>
@@ -1553,7 +1574,7 @@ export default function PolicyDetailPage() {
                 </div>
                 <div style={{ display: 'flex', gap: 8 }}>
                   <button onClick={() => handleDownload(d.id)} className="btn btn-primary">Download</button>
-                  {d.content_type === 'application/pdf' && d.extraction_status !== 'pending' && (
+                  {canEdit && d.content_type === 'application/pdf' && d.extraction_status !== 'pending' && (
                     <button onClick={() => handleExtract(d.id)} disabled={extractingId === d.id} className="btn btn-accent">
                       {extractingId === d.id ? 'Extracting...' : d.extraction_status === 'done' ? 'Re-Extract' : d.extraction_status === 'failed' ? 'Retry Extract' : 'Extract'}
                     </button>
@@ -1592,7 +1613,7 @@ export default function PolicyDetailPage() {
                     </div>
                     <div style={{ display: 'flex', gap: 8 }}>
                       <button onClick={() => handleDownload(d.id)} className="btn btn-primary">Download</button>
-                      {d.content_type === 'application/pdf' && d.extraction_status !== 'pending' && (
+                      {canEdit && d.content_type === 'application/pdf' && d.extraction_status !== 'pending' && (
                         <button onClick={() => handleExtract(d.id)} disabled={extractingId === d.id} className="btn btn-accent">
                           {extractingId === d.id ? 'Extracting...' : d.extraction_status === 'done' ? 'Re-Extract' : d.extraction_status === 'failed' ? 'Retry Extract' : 'Extract'}
                         </button>
@@ -1610,7 +1631,7 @@ export default function PolicyDetailPage() {
       <div className="card" style={{ marginBottom: 32 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
           <h2 className="section-title" style={{ margin: 0 }}>Certificates of Insurance</h2>
-          <button onClick={() => router.push('/certificates')} className="btn btn-primary">+ Issue COI</button>
+          {canEdit && <button onClick={() => router.push('/certificates')} className="btn btn-primary">+ Issue COI</button>}
         </div>
         {policyCertificates.length === 0 ? (
           <p style={{ color: '#999', margin: 0, fontSize: 14 }}>No certificates linked to this policy.</p>
@@ -1651,9 +1672,11 @@ export default function PolicyDetailPage() {
       <div className="card" style={{ marginBottom: 32 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
           <h2 className="section-title" style={{ margin: 0 }}>Contacts</h2>
-          <button onClick={() => setShowContactForm(!showContactForm)} className="btn btn-primary">
-            {showContactForm ? 'Cancel' : '+ Add Contact'}
-          </button>
+          {canEdit && (
+            <button onClick={() => setShowContactForm(!showContactForm)} className="btn btn-primary">
+              {showContactForm ? 'Cancel' : '+ Add Contact'}
+            </button>
+          )}
         </div>
 
         {showContactForm && (
@@ -1706,7 +1729,7 @@ export default function PolicyDetailPage() {
                   </div>
                   {c.notes && <div style={{ marginTop: 2, fontSize: 12, color: '#999' }}>{c.notes}</div>}
                 </div>
-                <button onClick={() => handleDeleteContact(c.id)} className="btn btn-danger">Delete</button>
+                {canEdit && <button onClick={() => handleDeleteContact(c.id)} className="btn btn-danger">Delete</button>}
               </div>
             ))}
           </div>
@@ -1717,9 +1740,11 @@ export default function PolicyDetailPage() {
       <div className="card" style={{ marginBottom: 32 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
           <h2 className="section-title" style={{ margin: 0 }}>Inclusions &amp; Exclusions</h2>
-          <button onClick={() => setShowCoverageForm(!showCoverageForm)} className="btn btn-primary">
-            {showCoverageForm ? 'Cancel' : '+ Add Item'}
-          </button>
+          {canEdit && (
+            <button onClick={() => setShowCoverageForm(!showCoverageForm)} className="btn btn-primary">
+              {showCoverageForm ? 'Cancel' : '+ Add Item'}
+            </button>
+          )}
         </div>
 
         {showCoverageForm && (
@@ -1758,7 +1783,7 @@ export default function PolicyDetailPage() {
                       <span style={{ fontSize: 14 }}>{ci.description}</span>
                       {ci.limit && <span style={{ marginLeft: 12, fontSize: 12, color: '#666' }}>Limit: {ci.limit}</span>}
                     </div>
-                    <button onClick={async () => { await coverageApi.remove(policyId, ci.id); setCoverageItems(prev => prev.filter(x => x.id !== ci.id)); }} className="btn btn-danger">Delete</button>
+                    {canEdit && <button onClick={async () => { await coverageApi.remove(policyId, ci.id); setCoverageItems(prev => prev.filter(x => x.id !== ci.id)); }} className="btn btn-danger">Delete</button>}
                   </div>
                 ))}
               </div>
@@ -1769,7 +1794,7 @@ export default function PolicyDetailPage() {
                 {coverageItems.filter(ci => ci.item_type === 'exclusion').map(ci => (
                   <div key={ci.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: 10, marginBottom: 4, backgroundColor: '#fef2f2', borderRadius: 4 }}>
                     <span style={{ fontSize: 14 }}>{ci.description}</span>
-                    <button onClick={async () => { await coverageApi.remove(policyId, ci.id); setCoverageItems(prev => prev.filter(x => x.id !== ci.id)); }} className="btn btn-danger">Delete</button>
+                    {canEdit && <button onClick={async () => { await coverageApi.remove(policyId, ci.id); setCoverageItems(prev => prev.filter(x => x.id !== ci.id)); }} className="btn btn-danger">Delete</button>}
                   </div>
                 ))}
               </div>
@@ -1782,9 +1807,11 @@ export default function PolicyDetailPage() {
       <div className="card" style={{ marginBottom: 32 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
           <h2 className="section-title" style={{ margin: 0 }}>Policy Details</h2>
-          <button onClick={toggleDetailForm} className="btn btn-primary">
-            {showDetailForm ? 'Cancel' : '+ Add Detail'}
-          </button>
+          {canEdit && (
+            <button onClick={toggleDetailForm} className="btn btn-primary">
+              {showDetailForm ? 'Cancel' : '+ Add Detail'}
+            </button>
+          )}
         </div>
 
         {showDetailForm && (
@@ -1835,7 +1862,7 @@ export default function PolicyDetailPage() {
                   <span style={{ fontSize: 13, fontWeight: 600, color: '#555', marginRight: 8 }}>{d.field_name}:</span>
                   <span style={{ fontSize: 14 }}>{d.field_value}</span>
                 </div>
-                <button onClick={() => handleDeleteDetail(d.id)} className="btn btn-danger">Delete</button>
+                {canEdit && <button onClick={() => handleDeleteDetail(d.id)} className="btn btn-danger">Delete</button>}
               </div>
             ))}
           </div>
@@ -1846,55 +1873,57 @@ export default function PolicyDetailPage() {
       <div className="card" style={{ marginBottom: 32 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
           <h2 className="section-title" style={{ margin: 0 }}>Track Claims</h2>
-          <div style={{ display: 'flex', gap: 8 }}>
-            <input
-              type="file"
-              ref={claimFileRef}
-              accept=".pdf"
-              style={{ display: 'none' }}
-              onChange={async (e) => {
-                const file = e.target.files?.[0];
-                if (!file) return;
-                setClaimExtracting(true);
-                try {
-                  const result = await claimsApi.extractFromPdf(policyId, file);
-                  const ext = result.extraction;
-                  setClaimForm({
-                    claim_number: ext.claim_number || '',
-                    status: ext.status || 'open',
-                    date_filed: ext.date_filed || '',
-                    description: ext.description || '',
-                    date_resolved: ext.date_resolved || null,
-                    amount_claimed: ext.amount_claimed || null,
-                    amount_paid: ext.amount_paid || null,
-                    notes: ext.notes || null,
-                  });
-                  setShowClaimForm(true);
-                  toast('Claim data extracted — review and save', 'success');
-                } catch (err: any) {
-                  toast(err.message || 'Extraction failed', 'error');
-                } finally {
-                  setClaimExtracting(false);
-                  if (claimFileRef.current) claimFileRef.current.value = '';
-                }
-              }}
-            />
-            <button
-              onClick={() => claimFileRef.current?.click()}
-              className="btn btn-accent"
-              disabled={claimExtracting}
-              style={{ display: 'flex', alignItems: 'center', gap: 6 }}
-            >
-              {claimExtracting ? (
-                <><span className="spinner" style={{ width: 14, height: 14 }} /> Extracting...</>
-              ) : (
-                '+ Upload & Extract'
-              )}
-            </button>
-            <button onClick={() => { setShowClaimForm(!showClaimForm); if (showClaimForm) setClaimForm({ claim_number: '', status: 'open', date_filed: '', description: '' }); }} className="btn btn-primary">
-              {showClaimForm ? 'Cancel' : '+ Add Manually'}
-            </button>
-          </div>
+          {canEdit && (
+            <div style={{ display: 'flex', gap: 8 }}>
+              <input
+                type="file"
+                ref={claimFileRef}
+                accept=".pdf"
+                style={{ display: 'none' }}
+                onChange={async (e) => {
+                  const file = e.target.files?.[0];
+                  if (!file) return;
+                  setClaimExtracting(true);
+                  try {
+                    const result = await claimsApi.extractFromPdf(policyId, file);
+                    const ext = result.extraction;
+                    setClaimForm({
+                      claim_number: ext.claim_number || '',
+                      status: ext.status || 'open',
+                      date_filed: ext.date_filed || '',
+                      description: ext.description || '',
+                      date_resolved: ext.date_resolved || null,
+                      amount_claimed: ext.amount_claimed || null,
+                      amount_paid: ext.amount_paid || null,
+                      notes: ext.notes || null,
+                    });
+                    setShowClaimForm(true);
+                    toast('Claim data extracted — review and save', 'success');
+                  } catch (err: any) {
+                    toast(err.message || 'Extraction failed', 'error');
+                  } finally {
+                    setClaimExtracting(false);
+                    if (claimFileRef.current) claimFileRef.current.value = '';
+                  }
+                }}
+              />
+              <button
+                onClick={() => claimFileRef.current?.click()}
+                className="btn btn-accent"
+                disabled={claimExtracting}
+                style={{ display: 'flex', alignItems: 'center', gap: 6 }}
+              >
+                {claimExtracting ? (
+                  <><span className="spinner" style={{ width: 14, height: 14 }} /> Extracting...</>
+                ) : (
+                  '+ Upload & Extract'
+                )}
+              </button>
+              <button onClick={() => { setShowClaimForm(!showClaimForm); if (showClaimForm) setClaimForm({ claim_number: '', status: 'open', date_filed: '', description: '' }); }} className="btn btn-primary">
+                {showClaimForm ? 'Cancel' : '+ Add Manually'}
+              </button>
+            </div>
+          )}
         </div>
 
         {showClaimForm && (
@@ -1967,7 +1996,7 @@ export default function PolicyDetailPage() {
                     </div>
                     {cl.notes && <div style={{ fontSize: 12, color: '#888', marginTop: 2, fontStyle: 'italic' }}>{cl.notes}</div>}
                   </div>
-                  <button onClick={async () => { await claimsApi.remove(policyId, cl.id); setClaims(prev => prev.filter(x => x.id !== cl.id)); toast('Claim deleted', 'success'); }} className="btn btn-danger">Delete</button>
+                  {canEdit && <button onClick={async () => { await claimsApi.remove(policyId, cl.id); setClaims(prev => prev.filter(x => x.id !== cl.id)); toast('Claim deleted', 'success'); }} className="btn btn-danger">Delete</button>}
                 </div>
               );
             })}

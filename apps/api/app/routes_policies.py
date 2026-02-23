@@ -208,9 +208,15 @@ def create_policy(payload: PolicyCreate, db: Session = Depends(get_db), user: Us
     return policy
 
 
-@router.get("/{policy_id}", response_model=PolicyOut)
+@router.get("/{policy_id}")
 def get_policy(policy_id: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
-    return get_policy_for_user(policy_id, db, user)
+    from .access import get_policy_with_permission
+    policy, permission = get_policy_with_permission(policy_id, db, user)
+    out = PolicyOut.model_validate(policy)
+    result = out.model_dump()
+    # permission: null = owner (full access), "view" or "edit" = shared access
+    result["permission"] = permission
+    return result
 
 
 @router.put("/{policy_id}", response_model=PolicyOut)

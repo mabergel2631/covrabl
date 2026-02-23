@@ -36,9 +36,8 @@ def list_premium_history(
     user: User = Depends(get_current_user)
 ):
     """Get premium history for a policy, ordered by date."""
-    policy = db.get(Policy, policy_id)
-    if not policy or policy.user_id != user.id:
-        raise HTTPException(status_code=404, detail="Policy not found")
+    from .access import get_policy_for_user
+    get_policy_for_user(policy_id, db, user)
 
     history = db.execute(
         select(PremiumHistory)

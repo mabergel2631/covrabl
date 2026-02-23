@@ -72,9 +72,8 @@ def download_document(document_id: int, db: Session = Depends(get_db), user: Use
     if not doc:
         raise HTTPException(status_code=404, detail="Document not found")
 
-    policy = db.get(Policy, doc.policy_id)
-    if not policy or policy.user_id != user.id:
-        raise HTTPException(status_code=404, detail="Document not found")
+    from .access import get_policy_for_user
+    get_policy_for_user(doc.policy_id, db, user)
 
     download_url = presign_get_url(doc.object_key)
     return {"download_url": download_url}
