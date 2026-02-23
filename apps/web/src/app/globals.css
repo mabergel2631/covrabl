@@ -356,13 +356,15 @@ h1, h2, h3, h4, h5, h6 {
 .sidebar-overlay { display: none !important; }
 .desktop-topbar { display: flex !important; }
 
+/* ── Hamburger menu (hidden on desktop) ───────────── */
+.hamburger-btn { display: none !important; }
+
 /* ── Mobile responsive ──────────────────────────────── */
 @media (max-width: 768px) {
   /* Landing page: compact header on mobile */
   .landing-header { padding: 10px 16px !important; }
-  .landing-nav-links > span { display: none; }
-  .landing-nav-links { gap: 0; }
-  .landing-nav-links button { padding: 8px 16px !important; font-size: 13px !important; }
+  .landing-nav-links { display: none !important; }
+  .hamburger-btn { display: flex !important; }
   .mobile-header { display: flex !important; }
   .desktop-topbar { display: none !important; }
   body { font-size: 15px; }
@@ -432,6 +434,38 @@ h1, h2, h3, h4, h5, h6 {
   /* Landing page: stack feature grids */
   .landing-steps { grid-template-columns: 1fr !important; gap: 24px !important; }
   .landing-trust { grid-template-columns: 1fr 1fr !important; }
+}
+
+/* ── Print styles ──────────────────────────────────── */
+@media print {
+  /* Hide non-essential UI */
+  .sidebar, .mobile-header, .desktop-topbar, .sidebar-overlay { display: none !important; }
+  .print-hide { display: none !important; }
+
+  /* SOS floating button */
+  button[aria-label="Emergency access"] { display: none !important; }
+
+  /* Layout: full width */
+  .main-content { margin-left: 0 !important; }
+  body { background: #fff !important; font-size: 12px; }
+
+  /* Show all content expanded */
+  details[open] summary ~ * { display: block !important; }
+
+  /* Clean formatting */
+  .card { box-shadow: none !important; border: 1px solid #ddd !important; break-inside: avoid; }
+
+  /* Print header */
+  body::before {
+    content: "Covrabl Emergency Card — Printed " attr(data-print-date);
+    display: block;
+    text-align: center;
+    font-size: 14px;
+    font-weight: 700;
+    padding: 12px 0;
+    border-bottom: 2px solid #333;
+    margin-bottom: 16px;
+  }
 }
 
 /* Safe area padding for notched phones */

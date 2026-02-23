@@ -57,9 +57,9 @@ export default function LoginPage() {
           </div>
           <div style={{ marginTop: 40, display: 'flex', flexDirection: 'column', gap: 16 }}>
             {[
-              ['Upload & extract', 'Automatically pull data from policy PDFs'],
-              ['Track premiums', 'Never miss a payment or renewal date'],
-              ['Share securely', 'Grant family or team members access'],
+              ['Never search again', 'All your policies organized in one secure place'],
+              ['Spot gaps before they cost you', 'See exactly what\'s covered and what\'s missing'],
+              ['Be ready for anything', 'Emergency cards, claims steps, and renewal alerts'],
             ].map(([title, desc]) => (
               <div key={title} style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
                 <div style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: 'var(--color-accent-light)', marginTop: 6, flexShrink: 0 }} />

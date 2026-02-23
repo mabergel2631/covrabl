@@ -622,6 +622,20 @@ export default function PolicyDetailPage() {
               </div>
             </div>
 
+            {/* Last extracted timestamp */}
+            {(() => {
+              const extractedDoc = [...docs].filter(d => d.extraction_status === 'done').sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0];
+              if (!extractedDoc) return null;
+              const date = new Date(extractedDoc.created_at);
+              const formatted = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+              const fileName = extractedDoc.filename || 'document';
+              return (
+                <div style={{ marginTop: 8, fontSize: 12, color: 'var(--color-text-muted)' }}>
+                  Last extracted from {fileName} · {formatted}
+                </div>
+              );
+            })()}
+
             {/* Inline Share Form - appears below header when toggled (owner only) */}
             {showShareForm && isOwner && (
               <div style={{ marginTop: 20, padding: 20, backgroundColor: 'var(--color-bg)', borderRadius: 'var(--radius-md)', border: '1px solid var(--color-border)' }}>

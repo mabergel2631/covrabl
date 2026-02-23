@@ -324,7 +324,16 @@ export default function EmergencyPage() {
 
   return (
     <div style={{ maxWidth: 800, margin: '0 auto', padding: 24 }}>
-      <BackButton href="/policies" label="Policies" />
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 0 }}>
+        <BackButton href="/policies" label="Policies" />
+        <button
+          onClick={() => window.print()}
+          className="btn btn-outline print-hide"
+          style={{ padding: '8px 16px', fontSize: 13 }}
+        >
+          Print Emergency Card
+        </button>
+      </div>
 
       {/* Offline Banner */}
       {(!isOnline || isUsingCache) && (

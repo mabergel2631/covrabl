@@ -10,9 +10,11 @@ export default function Home() {
   const { token } = useAuth();
   const router = useRouter();
   const [openFaq, setOpenFaq] = useState<number | null>(null);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const scrollTo = (id: string) => {
     document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' });
+    setMobileMenuOpen(false);
   };
 
   const ctaAction = () => router.push(token ? '/policies' : '/login');
@@ -48,7 +50,49 @@ export default function Home() {
               Sign in
             </button>
           </nav>
+          {/* Hamburger menu button — mobile only */}
+          <button
+            className="hamburger-btn"
+            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            aria-label="Toggle navigation menu"
+            style={{
+              display: 'none', background: 'none', border: 'none', cursor: 'pointer', padding: 4,
+              flexDirection: 'column', gap: 5, justifyContent: 'center',
+            }}
+          >
+            <span style={{ display: 'block', width: 22, height: 2, backgroundColor: 'var(--color-text)', borderRadius: 1, transition: 'transform 0.2s' }} />
+            <span style={{ display: 'block', width: 22, height: 2, backgroundColor: 'var(--color-text)', borderRadius: 1, transition: 'opacity 0.2s' }} />
+            <span style={{ display: 'block', width: 22, height: 2, backgroundColor: 'var(--color-text)', borderRadius: 1, transition: 'transform 0.2s' }} />
+          </button>
         </header>
+      )}
+
+      {/* Mobile menu dropdown */}
+      {!token && mobileMenuOpen && (
+        <div className="mobile-menu-dropdown" style={{
+          position: 'fixed', top: 52, left: 0, right: 0, zIndex: 99,
+          background: '#fff', borderBottom: '1px solid var(--color-border)',
+          boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+          padding: '12px 24px',
+          display: 'flex', flexDirection: 'column', gap: 4,
+        }}>
+          <button onClick={() => scrollTo('how-it-works')} style={{ padding: '12px 0', background: 'none', border: 'none', fontSize: 15, color: 'var(--color-text)', cursor: 'pointer', textAlign: 'left' }}>
+            How it works
+          </button>
+          <button onClick={() => { router.push('/pricing'); setMobileMenuOpen(false); }} style={{ padding: '12px 0', background: 'none', border: 'none', fontSize: 15, color: 'var(--color-text)', cursor: 'pointer', textAlign: 'left' }}>
+            Pricing
+          </button>
+          <button onClick={() => scrollTo('faq')} style={{ padding: '12px 0', background: 'none', border: 'none', fontSize: 15, color: 'var(--color-text)', cursor: 'pointer', textAlign: 'left' }}>
+            FAQ
+          </button>
+          <button onClick={() => { router.push('/login'); setMobileMenuOpen(false); }} style={{
+            padding: '10px 20px', fontSize: 15, fontWeight: 600, marginTop: 4,
+            backgroundColor: 'var(--color-primary)', color: '#fff',
+            border: 'none', borderRadius: 'var(--radius-md)', cursor: 'pointer', textAlign: 'center',
+          }}>
+            Sign in
+          </button>
+        </div>
       )}
 
       {/* ═══════════════════════════════════════════════════════════════
@@ -83,25 +127,19 @@ export default function Home() {
             }}>
               COVRABL
             </div>
-            <div style={{
-              fontSize: 13, fontWeight: 500, marginTop: 4, opacity: 0.65,
-              letterSpacing: '0.15em', textTransform: 'uppercase',
-            }}>
-              Insurance Intelligence
-            </div>
           </div>
           <h1 style={{
             fontSize: 48, fontWeight: 700, margin: '0 0 20px', lineHeight: 1.15,
             letterSpacing: 'var(--letter-spacing-tight)',
             fontFamily: 'var(--font-heading)',
           }}>
-            All your coverage, organized and understood.
+            Do you actually know what your insurance covers?
           </h1>
           <p style={{ fontSize: 18, opacity: 0.95, margin: '0 0 8px', lineHeight: 1.7, maxWidth: 720, marginLeft: 'auto', marginRight: 'auto', fontWeight: 500 }}>
-            Upload your policies. See what's covered, what's at risk, and what's changing at renewal.
+            Upload your policies. See your real coverage, spot the gaps, and be ready when something goes wrong.
           </p>
           <p style={{ fontSize: 15, opacity: 0.7, margin: '0 0 36px', lineHeight: 1.7, maxWidth: 600, marginLeft: 'auto', marginRight: 'auto', letterSpacing: 'var(--letter-spacing-wide)' }}>
-            Private. Independent. No credit card required.
+            Free for up to 3 policies. No credit card required.
           </p>
           <div style={{ display: 'flex', gap: 12, justifyContent: 'center', flexWrap: 'wrap', marginBottom: 36 }}>
             <button onClick={ctaAction} style={{
@@ -132,7 +170,7 @@ export default function Home() {
       </section>
 
       {/* ═══════════════════════════════════════════════════════════════
-          2. HOW IT WORKS
+          2. HOW IT WORKS (2 steps)
       ═══════════════════════════════════════════════════════════════ */}
       <section id="how-it-works" style={{ padding: '80px 24px', background: '#fff' }}>
         <div style={{ maxWidth: 960, margin: '0 auto' }}>
@@ -191,7 +229,7 @@ export default function Home() {
           </div>
 
           {/* Step 2 */}
-          <div className="landing-steps" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 48, alignItems: 'center', marginBottom: 64 }}>
+          <div className="landing-steps" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 48, alignItems: 'center' }}>
             <div style={{
               backgroundColor: 'var(--color-surface)', border: '1px solid var(--color-border)',
               borderRadius: 'var(--radius-lg)', minHeight: 280, padding: 16, display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 8, boxSizing: 'border-box',
@@ -242,15 +280,37 @@ export default function Home() {
               </p>
             </div>
           </div>
+        </div>
+      </section>
 
-          {/* Step 3 */}
+      {/* ═══════════════════════════════════════════════════════════════
+          3. EMERGENCY SECTION (elevated from Step 3)
+      ═══════════════════════════════════════════════════════════════ */}
+      <section style={{
+        padding: '80px 24px',
+        background: 'linear-gradient(160deg, #fef2f2 0%, #fff1f2 50%, #fff 100%)',
+      }}>
+        <div style={{ maxWidth: 960, margin: '0 auto' }}>
           <div className="landing-steps" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 48, alignItems: 'center' }}>
             <div>
-              <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--color-primary)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 12 }}>Step 3</div>
-              <h3 style={{ fontSize: 22, fontWeight: 600, margin: '0 0 12px', color: 'var(--color-text)' }}>Be ready when it matters</h3>
-              <p style={{ fontSize: 15, color: 'var(--color-text-secondary)', margin: 0, lineHeight: 1.7 }}>
-                Your Emergency Coverage Card puts critical policy details, claims numbers, and step-by-step guidance in one place — shareable with family and accessible when you need it most.
+              <h2 style={{ fontSize: 28, fontWeight: 700, margin: '0 0 16px', color: 'var(--color-text)' }}>
+                Ready when something goes wrong.
+              </h2>
+              <p style={{ fontSize: 15, color: 'var(--color-text-secondary)', margin: '0 0 24px', lineHeight: 1.7 }}>
+                Your Emergency Coverage Card puts critical policy details, claims numbers, and step-by-step guidance in one place — accessible offline and shareable with family.
               </p>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                {[
+                  'Offline access',
+                  'Shareable via secure PIN',
+                  'Step-by-step emergency checklists',
+                ].map(item => (
+                  <div key={item} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <span style={{ color: 'var(--color-success)', fontSize: 16, lineHeight: '20px', flexShrink: 0 }}>&#10003;</span>
+                    <span style={{ fontSize: 14, color: 'var(--color-text)' }}>{item}</span>
+                  </div>
+                ))}
+              </div>
             </div>
             <div style={{
               backgroundColor: 'var(--color-surface)', border: '1px solid var(--color-border)',
@@ -303,19 +363,19 @@ export default function Home() {
       </section>
 
       {/* ═══════════════════════════════════════════════════════════════
-          3. SECURITY (compact)
+          4. TRUST & PRIVACY
       ═══════════════════════════════════════════════════════════════ */}
       <section style={{ padding: '64px 24px', background: 'var(--color-surface)' }}>
         <div style={{ maxWidth: 800, margin: '0 auto' }}>
           <h2 style={{ fontSize: 22, fontWeight: 700, margin: '0 0 32px', textAlign: 'center', color: 'var(--color-text)' }}>
-            Your data is sensitive. We treat it that way.
+            Built for privacy. Designed for clarity.
           </h2>
           <div className="landing-trust" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 24, textAlign: 'center' }}>
             {[
-              { title: 'Encrypted everywhere', desc: 'TLS in transit, encrypted at rest.' },
-              { title: 'You control access', desc: 'Granular permissions. Revoke anytime.' },
-              { title: 'Never sold', desc: 'No ads, no data deals, no carriers.' },
-              { title: 'Full audit trail', desc: 'Every action logged and visible.' },
+              { title: 'Encrypted everywhere', desc: 'Bank-level encryption in transit and at rest. Your documents are protected.' },
+              { title: 'Your data stays yours', desc: 'We never sell, share, or monetize your information. No ads. No data deals.' },
+              { title: 'Plain-language extraction', desc: 'No insurance jargon. See what matters in words you understand.' },
+              { title: 'Built by people who care', desc: 'Covrabl was built because managing insurance shouldn\'t require a law degree.' },
             ].map(s => (
               <div key={s.title}>
                 <h4 style={{ fontSize: 14, fontWeight: 600, margin: '0 0 4px', color: 'var(--color-text)' }}>{s.title}</h4>
@@ -327,7 +387,19 @@ export default function Home() {
       </section>
 
       {/* ═══════════════════════════════════════════════════════════════
-          4. FAQ (top 5)
+          5. SOCIAL PROOF / FOUNDER NOTE
+      ═══════════════════════════════════════════════════════════════ */}
+      <section style={{ padding: '48px 24px', background: '#fff' }}>
+        <div style={{ maxWidth: 640, margin: '0 auto', textAlign: 'center' }}>
+          <p style={{ fontSize: 16, color: 'var(--color-text-secondary)', lineHeight: 1.7, fontStyle: 'italic', margin: 0 }}>
+            {APP_NAME} was built because managing insurance shouldn&apos;t require a law degree.
+            We&apos;re a small team focused on one thing: helping you understand what you&apos;re paying for.
+          </p>
+        </div>
+      </section>
+
+      {/* ═══════════════════════════════════════════════════════════════
+          6. FAQ (top 5)
       ═══════════════════════════════════════════════════════════════ */}
       <section id="faq" style={{ padding: '80px 24px', background: '#fff' }}>
         <div style={{ maxWidth: 680, margin: '0 auto' }}>
@@ -383,7 +455,7 @@ export default function Home() {
       </section>
 
       {/* ═══════════════════════════════════════════════════════════════
-          5. FINAL CTA
+          7. FINAL CTA
       ═══════════════════════════════════════════════════════════════ */}
       <section style={{
         padding: '80px 24px',
@@ -413,7 +485,7 @@ export default function Home() {
             {ctaLabel}
           </button>
           <div style={{ marginTop: 16, fontSize: 13, opacity: 0.6, letterSpacing: 'var(--letter-spacing-wide)' }}>
-            No credit card required
+            Free for up to 3 policies, forever. No credit card required.
           </div>
         </div>
       </section>

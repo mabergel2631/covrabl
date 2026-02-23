@@ -17,12 +17,13 @@ function PricingContent() {
   const [plans, setPlans] = useState<PlanInfo[]>([]);
   const [interval, setInterval] = useState<'monthly' | 'annual'>('annual');
   const [loading, setLoading] = useState<string | null>(null);
+  const [loadingPlans, setLoadingPlans] = useState(true);
   const [error, setError] = useState('');
 
   const canceled = searchParams.get('canceled');
 
   useEffect(() => {
-    billingApi.plans().then(data => setPlans(data.plans)).catch(() => {});
+    billingApi.plans().then(data => setPlans(data.plans)).catch(() => {}).finally(() => setLoadingPlans(false));
   }, []);
 
   const handleSelect = async (planId: string) => {
@@ -71,12 +72,6 @@ function PricingContent() {
           </div>
         )}
 
-        <div style={{
-          fontSize: 13, fontWeight: 600, letterSpacing: '0.15em', textTransform: 'uppercase' as const,
-          color: '#5fbfbc', marginBottom: 12,
-        }}>
-          Insurance Intelligence
-        </div>
         <h1 style={{ fontSize: 36, fontWeight: 700, margin: 0, fontFamily: 'var(--font-heading)', letterSpacing: 'var(--letter-spacing-tight)' }}>
           Simple, transparent pricing
         </h1>
@@ -155,7 +150,27 @@ function PricingContent() {
         position: 'relative',
         zIndex: 1,
       }}>
-        {plans.map(p => {
+        {loadingPlans ? (
+          <>
+            {[1, 2, 3].map(i => (
+              <div key={i} style={{
+                backgroundColor: '#fff', borderRadius: 'var(--radius-lg)',
+                border: '1px solid var(--color-border)', boxShadow: 'var(--shadow-md)',
+                padding: 32, display: 'flex', flexDirection: 'column', gap: 16,
+              }}>
+                <div className="skeleton" style={{ width: 100, height: 22, borderRadius: 4 }} />
+                <div className="skeleton" style={{ width: '80%', height: 14, borderRadius: 4 }} />
+                <div className="skeleton" style={{ width: 80, height: 40, borderRadius: 4, marginTop: 8 }} />
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 8 }}>
+                  {[1, 2, 3, 4].map(j => (
+                    <div key={j} className="skeleton" style={{ width: '90%', height: 14, borderRadius: 4 }} />
+                  ))}
+                </div>
+                <div className="skeleton" style={{ width: '100%', height: 44, borderRadius: 'var(--radius-md)', marginTop: 12 }} />
+              </div>
+            ))}
+          </>
+        ) : plans.map(p => {
           const isCurrentPlan = effectivePlan === p.id || (isTrialing && p.id === 'pro');
           const isPro = p.id === 'pro';
           const price = interval === 'monthly' ? p.monthly_price : p.annual_price;

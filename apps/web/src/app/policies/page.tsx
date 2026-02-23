@@ -43,6 +43,11 @@ function PoliciesPageInner() {
   const [search, setSearch] = useState('');
   const [deleteConfirm, setDeleteConfirm] = useState<number | null>(null);
   const createFileRef = useRef<HTMLInputElement>(null);
+  const firstTimeFileRef = useRef<HTMLInputElement>(null);
+  const [ftDragOver, setFtDragOver] = useState(false);
+  const [ftUploading, setFtUploading] = useState(false);
+  const [ftExtracting, setFtExtracting] = useState(false);
+  const [ftProgress, setFtProgress] = useState<number | null>(null);
   const [wizardStep, setWizardStep] = useState(0);
   const [wizardMethod, setWizardMethod] = useState<'upload' | 'url' | 'email' | ''>('');
   const [wizardData, setWizardData] = useState<{ scope: string; policy_type: string; business_name: string }>({ scope: '', policy_type: '', business_name: '' });
@@ -240,6 +245,67 @@ function PoliciesPageInner() {
     setUrlInput('');
     setImportingUrl(false);
     setShowNewGroupInput(false);
+  };
+
+  const handleFirstTimeUpload = async (file: File) => {
+    if (!file || !file.name.toLowerCase().endsWith('.pdf')) {
+      setError('Please upload a PDF file.');
+      return;
+    }
+    setFtUploading(true);
+    setFtProgress(0);
+    setError('');
+    try {
+      const newPolicy = await policiesApi.create({
+        scope: 'personal' as any,
+        policy_type: 'other',
+        carrier: 'Pending extraction...',
+        policy_number: 'TBD',
+        nickname: null, coverage_amount: null, deductible: null, renewal_date: null,
+        business_name: null,
+      });
+
+      const document_id = await new Promise<number>((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.upload.onprogress = (e) => { if (e.lengthComputable) setFtProgress(Math.round((e.loaded / e.total) * 100)); };
+        xhr.onload = () => {
+          setFtProgress(100);
+          try {
+            const res = JSON.parse(xhr.responseText);
+            if (xhr.status >= 400) reject(new Error(res.detail || 'Upload failed'));
+            else resolve(res.document_id);
+          } catch { reject(new Error('Upload failed')); }
+        };
+        xhr.onerror = () => reject(new Error('Upload failed'));
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('policy_id', String(newPolicy.id));
+        formData.append('doc_type', 'policy');
+        const tkn = localStorage.getItem('pv_token');
+        xhr.open('POST', `${API_BASE}/files/direct-upload`);
+        if (tkn) xhr.setRequestHeader('Authorization', `Bearer ${tkn}`);
+        xhr.send(formData);
+      });
+
+      setFtUploading(false);
+      setFtExtracting(true);
+
+      try {
+        const extractResult = await documentsApi.extract(document_id);
+        sessionStorage.setItem(`pv_extract_${newPolicy.id}`, JSON.stringify({
+          docId: extractResult.document_id,
+          data: extractResult.extraction,
+        }));
+      } catch {}
+
+      setFtExtracting(false);
+      router.push(`/policies/${newPolicy.id}`);
+    } catch (err: any) {
+      setError(err.message);
+      setFtUploading(false);
+      setFtExtracting(false);
+      setFtProgress(null);
+    }
   };
 
   const handleDelete = async (id: number) => {
@@ -927,6 +993,80 @@ function PoliciesPageInner() {
 
           {loading ? (
             <div style={{ padding: 40, textAlign: 'center', color: 'var(--color-text-muted)' }}>Loading...</div>
+          ) : filteredPolicies.length === 0 && policies.length === 0 && sharedPolicies.length === 0 && !search ? (
+            /* ── FIRST-TIME EMPTY STATE ── */
+            <div style={{
+              padding: '48px 32px', textAlign: 'center',
+              backgroundColor: 'var(--color-surface)', borderRadius: 'var(--radius-lg)',
+              border: '1px solid var(--color-border)',
+            }}>
+              <h2 style={{ fontSize: 22, fontWeight: 700, margin: '0 0 8px', color: 'var(--color-text)' }}>
+                Let&apos;s add your first policy.
+              </h2>
+              <p style={{ fontSize: 15, color: 'var(--color-text-secondary)', margin: '0 0 28px' }}>
+                Upload a PDF and we&apos;ll extract the key details automatically.
+              </p>
+              {ftUploading || ftExtracting ? (
+                <div style={{ padding: '24px 0' }}>
+                  <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--color-text)', marginBottom: 12 }}>
+                    {ftExtracting ? 'Extracting policy details...' : `Uploading... ${ftProgress || 0}%`}
+                  </div>
+                  <div style={{ width: 240, height: 6, backgroundColor: 'var(--color-border)', borderRadius: 3, margin: '0 auto', overflow: 'hidden' }}>
+                    <div style={{ height: '100%', backgroundColor: 'var(--color-accent)', borderRadius: 3, width: ftExtracting ? '100%' : `${ftProgress || 0}%`, transition: 'width 0.2s', animation: ftExtracting ? 'skeleton-pulse 1.5s ease-in-out infinite' : 'none' }} />
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <div
+                    onDragOver={(e) => { e.preventDefault(); setFtDragOver(true); }}
+                    onDragLeave={() => setFtDragOver(false)}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      setFtDragOver(false);
+                      const file = e.dataTransfer.files[0];
+                      if (file) handleFirstTimeUpload(file);
+                    }}
+                    onClick={() => firstTimeFileRef.current?.click()}
+                    style={{
+                      maxWidth: 480, margin: '0 auto', padding: '40px 24px',
+                      border: `2px dashed ${ftDragOver ? 'var(--color-accent)' : 'var(--color-border)'}`,
+                      borderRadius: 'var(--radius-lg)', cursor: 'pointer',
+                      backgroundColor: ftDragOver ? 'rgba(13,148,136,0.04)' : 'var(--color-bg)',
+                      transition: 'border-color 0.15s, background-color 0.15s',
+                    }}
+                  >
+                    <div style={{ fontSize: 40, marginBottom: 12 }}>📄</div>
+                    <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--color-text)', marginBottom: 4 }}>
+                      Drop a PDF here or click to browse
+                    </div>
+                    <div style={{ fontSize: 13, color: 'var(--color-text-muted)' }}>
+                      We&apos;ll extract carrier, limits, deductibles, and more
+                    </div>
+                    <input
+                      ref={firstTimeFileRef}
+                      type="file"
+                      accept=".pdf,application/pdf"
+                      style={{ display: 'none' }}
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) handleFirstTimeUpload(file);
+                      }}
+                    />
+                  </div>
+                  <div style={{ marginTop: 16 }}>
+                    <button
+                      onClick={() => { setShowAddModal(true); setWizardStep(0); }}
+                      style={{
+                        background: 'none', border: 'none', cursor: 'pointer',
+                        fontSize: 13, color: 'var(--color-accent)', fontWeight: 500,
+                      }}
+                    >
+                      Or add manually
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
           ) : filteredPolicies.length === 0 ? (
             <div style={{ padding: 60, textAlign: 'center', backgroundColor: 'var(--color-surface)', borderRadius: 'var(--radius-lg)' }}>
               <div style={{ fontSize: 48, marginBottom: 16 }}>📋</div>
