@@ -26,8 +26,16 @@ MAX_ATTEMPTS = 5
 LOCKOUT_SECONDS = 900  # 15 minutes
 
 
+def _get_client_ip(request: Request) -> str:
+    """Get real client IP, respecting X-Forwarded-For behind proxies."""
+    forwarded = request.headers.get("x-forwarded-for")
+    if forwarded:
+        return forwarded.split(",")[0].strip()
+    return request.client.host if request.client else "unknown"
+
+
 def _check_rate_limit(request: Request) -> None:
-    ip = request.client.host if request.client else "unknown"
+    ip = _get_client_ip(request)
     now = datetime.now(timezone.utc).timestamp()
     # Prune old attempts outside the lockout window
     _failed_attempts[ip] = [t for t in _failed_attempts[ip] if now - t < LOCKOUT_SECONDS]
@@ -40,12 +48,12 @@ def _check_rate_limit(request: Request) -> None:
 
 
 def _record_failure(request: Request) -> None:
-    ip = request.client.host if request.client else "unknown"
+    ip = _get_client_ip(request)
     _failed_attempts[ip].append(datetime.now(timezone.utc).timestamp())
 
 
 def _clear_failures(request: Request) -> None:
-    ip = request.client.host if request.client else "unknown"
+    ip = _get_client_ip(request)
     _failed_attempts.pop(ip, None)
 
 
