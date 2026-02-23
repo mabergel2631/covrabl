@@ -242,7 +242,7 @@ export default function ChatPage() {
             &#9776;
           </button>
           <span style={{ fontSize: 16, fontWeight: 600, color: 'var(--color-text)' }}>
-            Coverage Assistant
+            Coverage Intelligence
           </span>
           <span style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>
             Ask about your policies in plain English
