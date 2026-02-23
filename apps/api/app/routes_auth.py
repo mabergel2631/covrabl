@@ -51,12 +51,13 @@ def _clear_failures(request: Request) -> None:
 
 @router.post("/register", response_model=Token, status_code=status.HTTP_201_CREATED)
 def register(payload: UserCreate, db: Session = Depends(get_db)):
-    existing = db.execute(select(User).where(User.email == payload.email)).scalar_one_or_none()
+    email = payload.email.strip().lower()
+    existing = db.execute(select(User).where(User.email == email)).scalar_one_or_none()
     if existing:
         raise HTTPException(status_code=400, detail="Email already registered")
 
     user = User(
-        email=payload.email,
+        email=email,
         hashed_password=hash_password(payload.password),
         plan="trial",
         trial_ends_at=datetime.now(timezone.utc) + timedelta(days=30),
@@ -70,7 +71,8 @@ def register(payload: UserCreate, db: Session = Depends(get_db)):
 @router.post("/login", response_model=Token)
 def login(payload: UserCreate, request: Request, db: Session = Depends(get_db)):
     _check_rate_limit(request)
-    user = db.execute(select(User).where(User.email == payload.email)).scalar_one_or_none()
+    email = payload.email.strip().lower()
+    user = db.execute(select(User).where(User.email == email)).scalar_one_or_none()
     if not user or not verify_password(payload.password, user.hashed_password):
         _record_failure(request)
         raise HTTPException(status_code=401, detail="Invalid credentials")
@@ -92,7 +94,8 @@ class ResetPasswordRequest(BaseModel):
 
 @router.post("/forgot-password")
 async def forgot_password(payload: ForgotPasswordRequest, db: Session = Depends(get_db)):
-    user = db.execute(select(User).where(User.email == payload.email)).scalar_one_or_none()
+    email = payload.email.strip().lower()
+    user = db.execute(select(User).where(User.email == email)).scalar_one_or_none()
     if user:
         token = secrets.token_urlsafe(32)
         reset = PasswordReset(

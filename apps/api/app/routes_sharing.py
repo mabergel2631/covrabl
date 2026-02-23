@@ -17,6 +17,7 @@ router = APIRouter(tags=["sharing"])
 
 @router.post("/policies/share-bulk", response_model=BulkShareResult)
 def bulk_share(payload: BulkShareCreate, background_tasks: BackgroundTasks, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    payload.shared_with_email = payload.shared_with_email.strip().lower()
     if payload.shared_with_email == user.email:
         raise HTTPException(status_code=400, detail="Cannot share with yourself")
 
@@ -75,6 +76,7 @@ def share_policy(policy_id: int, payload: ShareCreate, background_tasks: Backgro
     if not policy or policy.user_id != user.id:
         raise HTTPException(status_code=404, detail="Policy not found")
 
+    payload.shared_with_email = payload.shared_with_email.strip().lower()
     # Don't share with yourself
     if payload.shared_with_email == user.email:
         raise HTTPException(status_code=400, detail="Cannot share with yourself")
