@@ -44,6 +44,8 @@ from app.routes_chat import router as chat_router
 app = FastAPI(title="Covrabl API")
 
 ALLOWED_ORIGINS = [
+    "https://covrabl.com",
+    "https://www.covrabl.com",
     "https://covrabl.vercel.app",
     "https://keeps-jet.vercel.app",
     "https://keeps-app-six.vercel.app",
