@@ -536,8 +536,8 @@ export default function PolicyDetailPage() {
         {!editing ? (
           <>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12 }}>
-              <div style={{ minWidth: 0, flex: 1 }}>
-                <h1 style={{ margin: '0 0 4px', fontSize: 22, fontWeight: 700, color: 'var(--color-primary)', wordBreak: 'break-word' }}>
+              <div style={{ minWidth: 200, flex: 1 }}>
+                <h1 style={{ margin: '0 0 4px', fontSize: 22, fontWeight: 700, color: 'var(--color-primary)', overflowWrap: 'break-word' }}>
                   {policy.nickname || `${policy.carrier} - ${policy.policy_type}`}
                 </h1>
                 {policy.nickname && <p style={{ margin: '0 0 4px', color: 'var(--color-text-secondary)', fontSize: 15 }}>{policy.carrier} - {policy.policy_type}</p>}
@@ -603,7 +603,7 @@ export default function PolicyDetailPage() {
                   )}
                 </div>
               </div>
-              <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', flexShrink: 0 }}>
                 <span className={`badge badge-${policy.scope}`}>{policy.scope}</span>
                 <button onClick={() => setShowIdCard(!showIdCard)} className="btn btn-outline">{showIdCard ? 'Hide Card' : 'ID Card'}</button>
                 <button onClick={() => exportApi.singlePolicy(policyId)} className="btn btn-outline">Export CSV</button>
