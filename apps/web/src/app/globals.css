@@ -354,6 +354,7 @@ h1, h2, h3, h4, h5, h6 {
 /* ── Mobile header (hidden on desktop) ─────────────── */
 .mobile-header { display: none !important; }
 .sidebar-overlay { display: none !important; }
+.desktop-topbar { display: flex !important; }
 
 /* ── Mobile responsive ──────────────────────────────── */
 @media (max-width: 768px) {
@@ -363,6 +364,7 @@ h1, h2, h3, h4, h5, h6 {
   .landing-nav-links { gap: 0; }
   .landing-nav-links button { padding: 8px 16px !important; font-size: 13px !important; }
   .mobile-header { display: flex !important; }
+  .desktop-topbar { display: none !important; }
   body { font-size: 15px; }
 
   .card { padding: 16px; }

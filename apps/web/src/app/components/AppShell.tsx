@@ -185,7 +185,36 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             ☰
           </button>
           <Logo size="sm" variant="light" />
-          <div style={{ width: 22 }} />
+          <button
+            onClick={() => { logout(); router.replace('/'); }}
+            aria-label="Sign out"
+            style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.8)', fontSize: 13, cursor: 'pointer', padding: 0 }}
+          >
+            Sign Out
+          </button>
+        </div>
+        {/* Top bar with sign out */}
+        <div className="desktop-topbar" style={{
+          display: 'flex',
+          justifyContent: 'flex-end',
+          alignItems: 'center',
+          padding: '8px 24px',
+          borderBottom: '1px solid var(--color-border)',
+          backgroundColor: 'var(--color-surface)',
+        }}>
+          <button
+            onClick={() => { logout(); router.replace('/'); }}
+            style={{
+              background: 'none',
+              border: 'none',
+              color: 'var(--color-text-muted)',
+              fontSize: 13,
+              cursor: 'pointer',
+              padding: '4px 8px',
+            }}
+          >
+            Sign Out
+          </button>
         </div>
         {children}
       </div>

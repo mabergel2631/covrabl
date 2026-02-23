@@ -407,10 +407,14 @@ function PoliciesPageInner() {
 
   if (!token) return null;
 
+  // Share-recipient mode: user has shared policies but no own policies
+  const isShareRecipientOnly = sharedPolicies.length > 0 && policies.length === 0;
+
   // Determine system status
   const getSystemStatus = () => {
     if (urgentAlerts.length > 0) return { status: 'attention', message: `${urgentAlerts.length} item${urgentAlerts.length > 1 ? 's' : ''} need${urgentAlerts.length === 1 ? 's' : ''} attention`, color: 'var(--color-warning)' };
-    if (activePolicies.length === 0) return { status: 'setup', message: 'Get started by adding your first policy', color: 'var(--color-text-muted)' };
+    if (activePolicies.length === 0 && !isShareRecipientOnly) return { status: 'setup', message: 'Get started by adding your first policy', color: 'var(--color-text-muted)' };
+    if (isShareRecipientOnly) return { status: 'good', message: `${sharedPolicies.length} polic${sharedPolicies.length === 1 ? 'y' : 'ies'} shared with you`, color: 'var(--color-success)' };
     return { status: 'good', message: 'All policies active. No urgent actions.', color: 'var(--color-success)' };
   };
 
@@ -667,12 +671,45 @@ function PoliciesPageInner() {
             </div>
           )}
 
+          {/* Shared With Me — shown first for share-recipient-only users */}
+          {!loading && isShareRecipientOnly && sharedPolicies.length > 0 && (
+            <div style={{ marginBottom: 24 }}>
+              <h2 style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 16 }}>
+                Shared With Me ({sharedPolicies.length})
+              </h2>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                {sharedPolicies.map(s => (
+                  <div
+                    key={s.policy.id}
+                    onClick={() => router.push(`/policies/${s.policy.id}`)}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 16,
+                      padding: '16px 20px',
+                      backgroundColor: 'var(--color-surface)',
+                      border: '1px solid var(--color-border)',
+                      borderRadius: 'var(--radius-md)',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    <div style={{ fontSize: 24 }}>{POLICY_TYPE_CONFIG[s.policy.policy_type]?.icon || '📋'}</div>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--color-text)' }}>{s.policy.nickname || s.policy.carrier}</div>
+                      <div style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>Shared with you • {s.permission} access</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {!loading && scopedPolicies.length === 0 && (
             <div style={{
               padding: '24px 28px', backgroundColor: '#fff', border: '1px solid #e5e7eb',
               borderRadius: 'var(--radius-lg)', fontSize: 16, fontWeight: 600, color: 'var(--color-text-muted)',
             }}>
-              Get started by adding your first policy
+              {isShareRecipientOnly ? 'Want to track your own policies too? Add your first policy above.' : 'Get started by adding your first policy'}
             </div>
           )}
         </section>
@@ -685,9 +722,11 @@ function PoliciesPageInner() {
             borderRadius: 'var(--radius-md)', display: 'flex', alignItems: 'center', gap: 12,
           }}>
             <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--color-info-dark)', marginBottom: 2 }}>Complete your profile</div>
+              <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--color-info-dark)', marginBottom: 2 }}>Complete your profile {isShareRecipientOnly && <span style={{ fontWeight: 400, opacity: 0.7 }}>(Optional)</span>}</div>
               <div style={{ fontSize: 13, color: 'var(--color-info-dark)', opacity: 0.85 }}>
-                Tell us about your situation so we can give you smarter coverage recommendations.
+                {isShareRecipientOnly
+                  ? 'Add your details to get personalized coverage recommendations if you decide to track your own policies.'
+                  : 'Tell us about your situation so we can give you smarter coverage recommendations.'}
               </div>
             </div>
             <button
@@ -989,8 +1028,8 @@ function PoliciesPageInner() {
             </>
           )}
 
-          {/* Shared Policies */}
-          {sharedPolicies.length > 0 && (
+          {/* Shared Policies — shown at bottom when user has their own policies */}
+          {sharedPolicies.length > 0 && !isShareRecipientOnly && (
             <div style={{ marginTop: 40 }}>
               <h2 style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 16 }}>
                 Shared With Me ({sharedPolicies.length})
