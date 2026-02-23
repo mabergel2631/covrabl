@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '../../../lib/auth';
-import { policiesApi, renewalsApi, remindersApi, premiumsApi, sharingApi, documentsApi, gapsApi, inboundApi, profileApi, Policy, PolicyCreate, RenewalItem, SmartAlert, SharedPolicy, PendingShare, CoverageGap, CoverageSummary, InboundAddress, PolicyDraftData } from '../../../lib/api';
+import { API_BASE, policiesApi, renewalsApi, remindersApi, premiumsApi, sharingApi, documentsApi, gapsApi, inboundApi, profileApi, Policy, PolicyCreate, RenewalItem, SmartAlert, SharedPolicy, PendingShare, CoverageGap, CoverageSummary, InboundAddress, PolicyDraftData } from '../../../lib/api';
 import { useToast } from '../components/Toast';
 import ConfirmDialog from '../components/ConfirmDialog';
 import BulkShareModal from '../components/BulkShareModal';
@@ -164,7 +164,7 @@ function PoliciesPageInner() {
         formData.append('policy_id', String(newPolicy.id));
         formData.append('doc_type', 'policy');
         const tkn = localStorage.getItem('pv_token');
-        xhr.open('POST', '/api/files/direct-upload');
+        xhr.open('POST', `${API_BASE}/files/direct-upload`);
         if (tkn) xhr.setRequestHeader('Authorization', `Bearer ${tkn}`);
         xhr.send(formData);
       });
