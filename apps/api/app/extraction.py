@@ -416,10 +416,31 @@ def _parse_response(raw: str) -> ExtractionResult:
     for d in other_details:
         details.append(ExtractedDetail(field_name=d["field_name"], field_value=d["field_value"]))
 
+    # Normalize policy_type — AI sometimes returns synonyms
+    _TYPE_ALIASES = {
+        "medical": "health", "health_insurance": "health", "medical_insurance": "health",
+        "homeowners": "home", "homeowner": "home", "condo": "home",
+        "automobile": "auto", "car": "auto", "vehicle": "auto",
+        "term_life": "life", "whole_life": "life", "life_insurance": "life",
+        "renters_insurance": "renters", "renter": "renters",
+        "dental_insurance": "dental", "vision_insurance": "vision",
+        "pet_insurance": "pet", "disability_insurance": "disability",
+        "flood_insurance": "flood", "earthquake_insurance": "earthquake",
+        "umbrella_insurance": "umbrella", "personal_umbrella": "umbrella",
+        "gl": "general_liability", "commercial_general_liability": "general_liability",
+        "e_and_o": "professional_liability", "errors_and_omissions": "professional_liability",
+        "d_and_o": "directors_officers", "d&o": "directors_officers",
+        "workers_compensation": "workers_comp", "work_comp": "workers_comp",
+        "cyber_insurance": "cyber", "cyber_liability": "cyber",
+        "commercial_vehicle": "commercial_auto",
+    }
+    raw_type = (data.get("policy_type") or "").lower().strip()
+    policy_type = _TYPE_ALIASES.get(raw_type, raw_type) or None
+
     return ExtractionResult(
         carrier=data.get("carrier"),
         policy_number=data.get("policy_number"),
-        policy_type=data.get("policy_type"),
+        policy_type=policy_type,
         scope=data.get("scope"),
         coverage_amount=int(data["coverage_amount"]) if data.get("coverage_amount") else None,
         deductible=int(data["deductible"]) if data.get("deductible") else None,

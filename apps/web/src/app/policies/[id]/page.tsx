@@ -6,19 +6,13 @@ import { useAuth } from '../../../../lib/auth';
 import { policiesApi, contactsApi, documentsApi, coverageApi, policyDetailsApi, claimsApi, sharingApi, exportApi, premiumHistoryApi, exposuresApi, gapsApi, certificatesApi, Policy, Contact, DocMeta, ContactCreate, ExtractionData, CoverageItem, CoverageItemCreate, PolicyDetail, PolicyDetailCreate, PolicyUpdate, Claim, ClaimCreate, PolicyShareType, ShareCreate, PremiumHistoryEntry, Exposure, CoverageGap, Certificate } from '../../../../lib/api';
 import { useToast } from '../../components/Toast';
 import { Skeleton } from '../../components/Skeleton';
+import { POLICY_TYPES, POLICY_TYPE_CONFIG } from '../../constants';
 
 const DOC_TYPES = [
   { value: 'policy', label: 'Full Policy' },
   { value: 'insurance_card', label: 'Insurance Card' },
   { value: 'endorsement', label: 'Endorsement' },
   { value: 'other', label: 'Other' },
-];
-
-const POLICY_TYPES = [
-  'auto', 'home', 'renters', 'life', 'disability', 'flood', 'earthquake',
-  'liability', 'umbrella',
-  'general_liability', 'professional_liability', 'commercial_property', 'commercial_auto',
-  'cyber', 'bop', 'workers_comp', 'directors_officers', 'epli', 'inland_marine', 'other',
 ];
 
 const SUGGESTED_FIELDS: Record<string, string[]> = {
@@ -426,7 +420,7 @@ export default function PolicyDetailPage() {
                 <label style={labelStyle}>Policy Type</label>
                 <select value={reviewData.policy_type ?? ''} onChange={e => updateReviewField('policy_type', e.target.value)} style={inputStyle}>
                   <option value="">--</option>
-                  {POLICY_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+                  {POLICY_TYPES.map(t => <option key={t} value={t}>{POLICY_TYPE_CONFIG[t]?.icon} {POLICY_TYPE_CONFIG[t]?.label || t}</option>)}
                 </select>
               </div>
               <div>
@@ -706,7 +700,7 @@ export default function PolicyDetailPage() {
               <div>
                 <label style={labelStyle}>Type</label>
                 <select value={editForm.policy_type ?? ''} onChange={e => setEditForm({ ...editForm, policy_type: e.target.value })} style={inputStyle}>
-                  {POLICY_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+                  {POLICY_TYPES.map(t => <option key={t} value={t}>{POLICY_TYPE_CONFIG[t]?.icon} {POLICY_TYPE_CONFIG[t]?.label || t}</option>)}
                 </select>
               </div>
               <div>
