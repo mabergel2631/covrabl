@@ -369,8 +369,8 @@ h1, h2, h3, h4, h5, h6 {
 
   .card { padding: 16px; }
 
-  .table { font-size: 13px; min-width: 600px; }
-  .table th, .table td { padding: 8px 10px; }
+  .table { font-size: 13px; }
+  .table th, .table td { padding: 8px 6px; word-break: break-word; }
 
   .btn { font-size: 14px; }
 

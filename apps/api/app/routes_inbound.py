@@ -45,7 +45,7 @@ def verify_webhook_signature(payload: bytes, signature: str, secret: str) -> boo
     if not secret:
         return True  # Skip verification if no secret configured
 
-    expected = hmac.new(
+    expected = hmac.HMAC(
         secret.encode(),
         payload,
         hashlib.sha256

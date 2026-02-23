@@ -30,12 +30,13 @@ export default function LoginPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setTouched({ email: true, password: true });
-    if (!email.match(/^[^\s@]+@[^\s@]+\.[^\s@]+$/) || password.length < 6) return;
+    const trimmedEmail = email.trim();
+    if (!trimmedEmail.match(/^[^\s@]+@[^\s@]+\.[^\s@]+$/) || password.length < 6) return;
     setError('');
     setLoading(true);
     try {
       const fn = mode === 'login' ? authApi.login : authApi.register;
-      const res = await fn(email, password);
+      const res = await fn(trimmedEmail, password);
       login(res.access_token);
       router.push('/policies');
     } catch (err: any) {

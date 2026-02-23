@@ -13,11 +13,12 @@ export default function ForgotPasswordPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email.match(/^[^\s@]+@[^\s@]+\.[^\s@]+$/)) return;
+    const trimmed = email.trim();
+    if (!trimmed.match(/^[^\s@]+@[^\s@]+\.[^\s@]+$/)) return;
     setError('');
     setLoading(true);
     try {
-      await authApi.forgotPassword(email);
+      await authApi.forgotPassword(trimmed);
       setSent(true);
     } catch (err: any) {
       setError(err.message || 'Something went wrong');

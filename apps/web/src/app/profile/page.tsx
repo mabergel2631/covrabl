@@ -76,7 +76,8 @@ export default function ProfilePage() {
         address_zip: p.address_zip || '',
       });
     } catch (err: any) {
-      if (err.status === 401) { logout(); router.replace('/login'); }
+      if (err.status === 401) { logout(); router.replace('/login'); return; }
+      toast(err.message || 'Failed to load profile', 'error');
     } finally {
       setLoading(false);
     }

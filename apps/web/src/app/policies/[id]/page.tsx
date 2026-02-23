@@ -259,9 +259,20 @@ export default function PolicyDetailPage() {
     }
   };
 
+  const ALLOWED_FILE_TYPES = ['application/pdf', 'image/png', 'image/jpeg', 'image/webp'];
+  const MAX_FILE_SIZE = 20 * 1024 * 1024; // 20 MB
+
   const handleUpload = async () => {
     const file = fileRef.current?.files?.[0];
     if (!file) return;
+    if (!ALLOWED_FILE_TYPES.includes(file.type)) {
+      toast('Only PDF and image files (PNG, JPG, WebP) are allowed.', 'error');
+      return;
+    }
+    if (file.size > MAX_FILE_SIZE) {
+      toast('File size must be under 20 MB.', 'error');
+      return;
+    }
     setUploading(true);
     setUploadProgress(0);
     setError('');
@@ -1883,6 +1894,14 @@ export default function PolicyDetailPage() {
                 onChange={async (e) => {
                   const file = e.target.files?.[0];
                   if (!file) return;
+                  if (file.type !== 'application/pdf') {
+                    toast('Only PDF files are accepted for claim extraction.', 'error');
+                    return;
+                  }
+                  if (file.size > MAX_FILE_SIZE) {
+                    toast('File size must be under 20 MB.', 'error');
+                    return;
+                  }
                   setClaimExtracting(true);
                   try {
                     const result = await claimsApi.extractFromPdf(policyId, file);

@@ -9,6 +9,7 @@ import BackButton from '../components/BackButton';
 import EmptyState from '../components/EmptyState';
 import TabNav from '../components/TabNav';
 import { ALERT_SEVERITY_CONFIG } from '../constants';
+import { Skeleton } from '../components/Skeleton';
 
 const deltaTypeLabels: Record<string, string> = {
   increased: 'increased',
@@ -42,6 +43,7 @@ export default function AlertsPage() {
   const { token, logout } = useAuth();
   const router = useRouter();
   const [data, setData] = useState<DeltaListResponse | null>(null);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [filter, setFilter] = useState<'all' | 'unacknowledged'>('unacknowledged');
   const [explaining, setExplaining] = useState<number | null>(null);
@@ -54,11 +56,14 @@ export default function AlertsPage() {
 
   const load = async () => {
     try {
+      setLoading(true);
       const params = filter === 'unacknowledged' ? { acknowledged: false } : {};
       setData(await deltasApi.list(params));
     } catch (err: any) {
       if (err.status === 401) { logout(); router.replace('/login'); return; }
       setError(err.message);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -137,9 +142,13 @@ export default function AlertsPage() {
         />
       </div>
 
-      {!data ? (
-        <p>Loading...</p>
-      ) : data.items.length === 0 ? (
+      {loading ? (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <Skeleton width="100%" height={80} />
+          <Skeleton width="100%" height={80} />
+          <Skeleton width="100%" height={80} />
+        </div>
+      ) : !data || data.items.length === 0 ? (
         <EmptyState
           icon="✓"
           title={filter === 'unacknowledged' ? 'All caught up!' : 'No policy changes detected yet'}
