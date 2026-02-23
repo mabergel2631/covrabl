@@ -24,7 +24,7 @@ Return ONLY valid JSON with this exact schema (use null for missing fields):
   "effective_date": "string or null - YYYY-MM-DD format (policy start/effective date)",
   "named_insured": "string or null - primary named insured on the policy",
   "payment_schedule": "string or null - e.g. monthly, quarterly, semi-annual, annual",
-  "premium_amount": "integer or null - the PREMIUM (what the customer PAYS). This is the total cost of the policy for the term. NOT the coverage limit. Example: 1200 for $1,200/year premium",
+  "premium_amount": "integer or null - the PREMIUM (what the customer PAYS). For health/dental/vision plans with individual and family tiers, use the INDIVIDUAL premium. Extract family premium as a detail field (premium_family). Example: 1200 for $1,200/year premium",
   "contacts": [
     {
       "role": "string - one of: broker, agent, claims, underwriter, customer_service, other",
@@ -78,6 +78,9 @@ CRITICAL INSTRUCTIONS:
    - flood: flood_zone, building_coverage, contents_coverage, waiting_period, nfip_or_private
    - earthquake: dwelling_coverage, deductible_percent, foundation_type
    - disability: benefit_amount, benefit_period, elimination_period, own_occupation, definition_of_disability
+   - health: plan_type (e.g. "PPO", "HMO", "EPO", "POS", "HDHP"), plan_tier (e.g. "Individual", "Family", "Individual + Spouse", "Individual + Children"), group_number, group_name, premium_individual, premium_family, deductible_individual_in_network, deductible_family_in_network, deductible_individual_out_of_network, deductible_family_out_of_network, oop_max_individual_in_network, oop_max_family_in_network, oop_max_individual_out_of_network, oop_max_family_out_of_network, office_visit_copay, specialist_copay, urgent_care_copay, er_copay, prescription_copay_generic, prescription_copay_preferred, prescription_copay_specialty, preventive_care, mental_health_copay, covered_members (comma-separated names of all insured members), network_name (e.g. "Blue Cross PPO Network"), coinsurance_in_network, coinsurance_out_of_network, prior_authorization_required, referral_required
+   - dental: plan_type (e.g. "DPPO", "DHMO", "Indemnity"), group_number, group_name, premium_individual, premium_family, deductible_individual, deductible_family, annual_maximum, preventive_coverage (e.g. "100%"), basic_coverage (e.g. "80%"), major_coverage (e.g. "50%"), orthodontia_coverage, orthodontia_lifetime_max, waiting_period_basic, waiting_period_major, covered_members, network_name
+   - vision: plan_type, group_number, group_name, premium_individual, premium_family, exam_copay, frames_allowance, contact_lens_allowance, lens_copay, exam_frequency (e.g. "every 12 months"), frames_frequency, contact_lens_frequency, covered_members, network_name
    - general_liability: aggregate_limit, per_occurrence_limit, products_completed_ops, medical_payments, fire_damage_limit
    - professional_liability: aggregate_limit, per_claim_limit, retroactive_date, profession, claims_made_vs_occurrence
    - commercial_property: building_value, business_personal_property, business_income_limit, extra_expense, coinsurance_pct

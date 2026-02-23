@@ -13,7 +13,7 @@ const NAV_ITEMS = [
   { href: '/emergency', label: 'Emergency', icon: '🚨', urgent: true },
   { href: '/audit', label: 'Alerts', icon: '🔔' },
   { href: '/renewals', label: 'Renewals', icon: '🔄' },
-  { href: '/chat', label: 'Ask AI', icon: '💬' },
+  { href: '/chat', label: 'Coverage Q&A', icon: '💬' },
   { href: '/policies/compare', label: 'Compare', icon: '⚖️' },
   { href: '/profile', label: 'Profile', icon: '👤' },
   { href: '/billing', label: 'Billing', icon: '💳' },

@@ -242,10 +242,10 @@ export default function ChatPage() {
             &#9776;
           </button>
           <span style={{ fontSize: 16, fontWeight: 600, color: 'var(--color-text)' }}>
-            Ask AI
+            Coverage Assistant
           </span>
           <span style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>
-            Insurance coverage assistant
+            Ask about your policies in plain English
           </span>
         </div>
 
@@ -257,8 +257,8 @@ export default function ChatPage() {
               <h2 style={{ fontSize: 22, fontWeight: 700, color: 'var(--color-text)', margin: 0 }}>
                 Ask about your coverage
               </h2>
-              <p style={{ fontSize: 14, color: 'var(--color-text-muted)', margin: 0, textAlign: 'center', maxWidth: 400 }}>
-                I can answer questions about your policies, coverage limits, deductibles, gaps, and more.
+              <p style={{ fontSize: 14, color: 'var(--color-text-muted)', margin: 0, textAlign: 'center', maxWidth: 440 }}>
+                Get instant answers about your coverage, limits, deductibles, and gaps — based on the policies you&apos;ve uploaded. For general insurance questions, I can help with that too.
               </p>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, justifyContent: 'center', maxWidth: 500 }}>
                 {SUGGESTED_QUESTIONS.map(q => (
@@ -343,7 +343,7 @@ export default function ChatPage() {
         {/* Disclaimer */}
         <div style={{ padding: '4px 20px', textAlign: 'center', flexShrink: 0 }}>
           <span style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>
-            AI-generated responses based on your policy data. Not professional insurance advice.
+            Answers about your coverage are based on uploaded policy data and should be confirmed against your actual documents. Not professional insurance advice.
           </span>
         </div>
 
@@ -363,7 +363,7 @@ export default function ChatPage() {
               value={input}
               onChange={e => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder="Ask about your insurance..."
+              placeholder="Ask about your coverage..."
               disabled={isStreaming}
               rows={1}
               style={{

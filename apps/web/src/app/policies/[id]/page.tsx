@@ -35,6 +35,9 @@ const SUGGESTED_FIELDS: Record<string, string[]> = {
   directors_officers: ['per_claim_limit', 'aggregate_limit', 'side_a_coverage', 'entity_coverage', 'securities_claim'],
   epli: ['per_claim_limit', 'aggregate_limit', 'third_party_coverage', 'wage_hour_coverage', 'retroactive_date'],
   inland_marine: ['scheduled_equipment', 'blanket_limit', 'transit_coverage', 'installation_coverage'],
+  health: ['plan_type', 'plan_tier', 'group_number', 'covered_members', 'premium_individual', 'premium_family', 'deductible_individual_in_network', 'deductible_family_in_network', 'oop_max_individual_in_network', 'oop_max_family_in_network', 'office_visit_copay', 'specialist_copay', 'er_copay', 'prescription_copay_generic', 'prescription_copay_preferred', 'coinsurance_in_network', 'network_name'],
+  dental: ['plan_type', 'group_number', 'covered_members', 'premium_individual', 'premium_family', 'deductible_individual', 'deductible_family', 'annual_maximum', 'preventive_coverage', 'basic_coverage', 'major_coverage', 'orthodontia_coverage', 'network_name'],
+  vision: ['plan_type', 'group_number', 'covered_members', 'premium_individual', 'premium_family', 'exam_copay', 'frames_allowance', 'contact_lens_allowance', 'exam_frequency', 'frames_frequency', 'network_name'],
 };
 
 export default function PolicyDetailPage() {
@@ -1006,6 +1009,66 @@ export default function PolicyDetailPage() {
                   {det.beneficiary && <div style={{ fontWeight: 500, fontSize: 13 }}>Beneficiary: {det.beneficiary}</div>}
                   {det.face_value && <div style={{ fontSize: 12, marginTop: 2 }}>Face Value: {det.face_value}</div>}
                   {det.term_length && <div style={{ fontSize: 12, marginTop: 2 }}>Term: {det.term_length}</div>}
+                </div>
+              )}
+
+              {/* Health */}
+              {policy.policy_type === 'health' && (det.plan_type || det.covered_members || det.office_visit_copay || det.deductible_individual_in_network) && (
+                <div style={{ fontSize: 12, padding: '8px 10px', backgroundColor: 'var(--color-bg)', borderRadius: 'var(--radius-sm)', marginBottom: 8 }}>
+                  <div style={{ color: 'var(--color-text-muted)', fontSize: 10, fontWeight: 600, textTransform: 'uppercase', marginBottom: 4 }}>Health Plan Details</div>
+                  {det.plan_type && <div style={{ fontWeight: 500, fontSize: 13 }}>{det.plan_type}{det.plan_tier ? ` — ${det.plan_tier}` : ''}</div>}
+                  {det.group_number && <div style={{ fontSize: 12, marginTop: 2 }}>Group #: {det.group_number}</div>}
+                  {det.covered_members && <div style={{ fontSize: 12, marginTop: 2 }}>Covered: {det.covered_members}</div>}
+                  {det.network_name && <div style={{ fontSize: 12, marginTop: 2 }}>Network: {det.network_name}</div>}
+                  {(det.deductible_individual_in_network || det.deductible_family_in_network) && (
+                    <div style={{ fontSize: 12, marginTop: 4 }}>
+                      Deductible: {det.deductible_individual_in_network && `${det.deductible_individual_in_network} (ind)`}
+                      {det.deductible_individual_in_network && det.deductible_family_in_network && ' / '}
+                      {det.deductible_family_in_network && `${det.deductible_family_in_network} (fam)`}
+                    </div>
+                  )}
+                  {(det.oop_max_individual_in_network || det.oop_max_family_in_network) && (
+                    <div style={{ fontSize: 12, marginTop: 2 }}>
+                      OOP Max: {det.oop_max_individual_in_network && `${det.oop_max_individual_in_network} (ind)`}
+                      {det.oop_max_individual_in_network && det.oop_max_family_in_network && ' / '}
+                      {det.oop_max_family_in_network && `${det.oop_max_family_in_network} (fam)`}
+                    </div>
+                  )}
+                  {det.office_visit_copay && <div style={{ fontSize: 12, marginTop: 2 }}>Office Visit: {det.office_visit_copay}</div>}
+                  {det.specialist_copay && <div style={{ fontSize: 12, marginTop: 2 }}>Specialist: {det.specialist_copay}</div>}
+                  {det.er_copay && <div style={{ fontSize: 12, marginTop: 2 }}>ER: {det.er_copay}</div>}
+                  {det.prescription_copay_generic && <div style={{ fontSize: 12, marginTop: 2 }}>Rx (Generic): {det.prescription_copay_generic}</div>}
+                </div>
+              )}
+
+              {/* Dental */}
+              {policy.policy_type === 'dental' && (det.plan_type || det.annual_maximum || det.preventive_coverage) && (
+                <div style={{ fontSize: 12, padding: '8px 10px', backgroundColor: 'var(--color-bg)', borderRadius: 'var(--radius-sm)', marginBottom: 8 }}>
+                  <div style={{ color: 'var(--color-text-muted)', fontSize: 10, fontWeight: 600, textTransform: 'uppercase', marginBottom: 4 }}>Dental Plan Details</div>
+                  {det.plan_type && <div style={{ fontWeight: 500, fontSize: 13 }}>{det.plan_type}</div>}
+                  {det.group_number && <div style={{ fontSize: 12, marginTop: 2 }}>Group #: {det.group_number}</div>}
+                  {det.covered_members && <div style={{ fontSize: 12, marginTop: 2 }}>Covered: {det.covered_members}</div>}
+                  {det.annual_maximum && <div style={{ fontSize: 12, marginTop: 4 }}>Annual Max: {det.annual_maximum}</div>}
+                  {det.preventive_coverage && <div style={{ fontSize: 12, marginTop: 2 }}>Preventive: {det.preventive_coverage}</div>}
+                  {det.basic_coverage && <div style={{ fontSize: 12, marginTop: 2 }}>Basic: {det.basic_coverage}</div>}
+                  {det.major_coverage && <div style={{ fontSize: 12, marginTop: 2 }}>Major: {det.major_coverage}</div>}
+                  {det.orthodontia_coverage && <div style={{ fontSize: 12, marginTop: 2 }}>Ortho: {det.orthodontia_coverage}</div>}
+                  {det.network_name && <div style={{ fontSize: 12, marginTop: 2 }}>Network: {det.network_name}</div>}
+                </div>
+              )}
+
+              {/* Vision */}
+              {policy.policy_type === 'vision' && (det.exam_copay || det.frames_allowance) && (
+                <div style={{ fontSize: 12, padding: '8px 10px', backgroundColor: 'var(--color-bg)', borderRadius: 'var(--radius-sm)', marginBottom: 8 }}>
+                  <div style={{ color: 'var(--color-text-muted)', fontSize: 10, fontWeight: 600, textTransform: 'uppercase', marginBottom: 4 }}>Vision Plan Details</div>
+                  {det.plan_type && <div style={{ fontWeight: 500, fontSize: 13 }}>{det.plan_type}</div>}
+                  {det.group_number && <div style={{ fontSize: 12, marginTop: 2 }}>Group #: {det.group_number}</div>}
+                  {det.covered_members && <div style={{ fontSize: 12, marginTop: 2 }}>Covered: {det.covered_members}</div>}
+                  {det.exam_copay && <div style={{ fontSize: 12, marginTop: 4 }}>Exam Copay: {det.exam_copay}</div>}
+                  {det.frames_allowance && <div style={{ fontSize: 12, marginTop: 2 }}>Frames: {det.frames_allowance}</div>}
+                  {det.contact_lens_allowance && <div style={{ fontSize: 12, marginTop: 2 }}>Contacts: {det.contact_lens_allowance}</div>}
+                  {det.exam_frequency && <div style={{ fontSize: 12, marginTop: 2 }}>Exam Freq: {det.exam_frequency}</div>}
+                  {det.network_name && <div style={{ fontSize: 12, marginTop: 2 }}>Network: {det.network_name}</div>}
                 </div>
               )}
 
