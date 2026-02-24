@@ -455,7 +455,7 @@ h1, h2, h3, h4, h5, h6 {
   /* Clean formatting */
   .card { box-shadow: none !important; border: 1px solid #ddd !important; break-inside: avoid; }
 
-  /* Print header */
+  /* Print header (default — emergency card) */
   body::before {
     content: "Covrabl Emergency Card — Printed " attr(data-print-date);
     display: block;
@@ -466,6 +466,20 @@ h1, h2, h3, h4, h5, h6 {
     border-bottom: 2px solid #333;
     margin-bottom: 16px;
   }
+
+  /* ── Renewal Summary print overrides ── */
+  .renewal-summary-overlay {
+    position: static !important;
+    overflow: visible !important;
+  }
+  .renewal-summary-overlay ~ *,
+  .renewal-summary-overlay + * { display: none !important; }
+  /* Hide everything behind the overlay */
+  body > *:not(:has(.renewal-summary-overlay)) { display: none !important; }
+  /* Override default print header when printing renewal summary */
+  body:has(.renewal-summary-overlay)::before { display: none !important; }
+  /* Clean typography for summary content */
+  .renewal-summary-content { max-width: 100% !important; padding: 0 !important; }
 }
 
 /* Safe area padding for notched phones */
