@@ -62,6 +62,7 @@ export default function PolicyDetailPage() {
 
   const [showIdCard, setShowIdCard] = useState(false);
   const [showDocHistory, setShowDocHistory] = useState(false);
+  const idCardRef = useRef<HTMLDivElement>(null);
 
   // Edit mode
   const [editing, setEditing] = useState(false);
@@ -126,6 +127,12 @@ export default function PolicyDetailPage() {
   const [reviewDocId, setReviewDocId] = useState<number | null>(null);
   const [reviewData, setReviewData] = useState<ExtractionData | null>(null);
   const [confirming, setConfirming] = useState(false);
+
+  useEffect(() => {
+    if (showIdCard && idCardRef.current) {
+      idCardRef.current.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+  }, [showIdCard]);
 
   useEffect(() => {
     if (!token) { router.replace('/login'); return; }
@@ -787,178 +794,7 @@ export default function PolicyDetailPage() {
         )}
       </div>
 
-      {/* Policy Status — derived from gap analysis */}
-      {(() => {
-        const highGaps = policyGaps.filter(g => g.severity === 'high');
-        const medGaps = policyGaps.filter(g => g.severity === 'medium');
-        const infoGaps = policyGaps.filter(g => g.severity === 'info');
-        const actionGaps = [...highGaps, ...medGaps];
-        const statusColor = highGaps.length > 0 ? 'var(--color-danger)' : medGaps.length > 0 ? 'var(--color-warning)' : 'var(--color-success)';
-        const statusBg = highGaps.length > 0 ? 'var(--color-danger-bg)' : medGaps.length > 0 ? 'var(--color-warning-bg)' : 'var(--color-success-bg)';
-        const statusLabel = highGaps.length > 0 ? 'Needs Attention' : medGaps.length > 0 ? 'Review Recommended' : 'Looking Good';
-        const statusIcon = highGaps.length > 0 ? '●' : medGaps.length > 0 ? '●' : '●';
-        return (
-          <div className="card" style={{ marginBottom: 24, border: `1px solid ${statusColor}20`, backgroundColor: statusBg }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: actionGaps.length > 0 ? 16 : 0 }}>
-              <span style={{ color: statusColor, fontSize: 20 }}>{statusIcon}</span>
-              <span style={{ fontSize: 16, fontWeight: 700, color: statusColor }}>{statusLabel}</span>
-              {actionGaps.length === 0 && infoGaps.length === 0 && (
-                <span style={{ fontSize: 13, color: 'var(--color-text-secondary)', marginLeft: 4 }}>No issues found with this policy</span>
-              )}
-            </div>
-            {actionGaps.length > 0 && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                {actionGaps.map((gap, i) => (
-                  <div key={i} style={{ display: 'flex', gap: 10, alignItems: 'flex-start', padding: 12, backgroundColor: '#fff', borderRadius: 'var(--radius-md)', border: '1px solid var(--color-border)' }}>
-                    <span style={{
-                      padding: '2px 8px', borderRadius: 10, fontSize: 11, fontWeight: 600, whiteSpace: 'nowrap',
-                      backgroundColor: gap.severity === 'high' ? 'var(--color-danger-bg)' : 'var(--color-warning-bg)',
-                      color: gap.severity === 'high' ? 'var(--color-danger)' : 'var(--color-warning)',
-                    }}>{gap.severity === 'high' ? 'High' : 'Medium'}</span>
-                    <div>
-                      <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--color-text)' }}>{gap.name}</div>
-                      <div style={{ fontSize: 13, color: 'var(--color-text-secondary)', marginTop: 2 }}>{gap.description}</div>
-                      {gap.recommendation && (
-                        <div style={{ fontSize: 12, color: 'var(--color-text-muted)', marginTop: 4 }}>💡 {gap.recommendation}</div>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-            {infoGaps.length > 0 && (
-              <details style={{ marginTop: actionGaps.length > 0 ? 12 : 0 }}>
-                <summary style={{ fontSize: 13, color: 'var(--color-text-muted)', cursor: 'pointer' }}>
-                  {infoGaps.length} informational note{infoGaps.length > 1 ? 's' : ''}
-                </summary>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 8 }}>
-                  {infoGaps.map((gap, i) => (
-                    <div key={i} style={{ fontSize: 13, color: 'var(--color-text-secondary)', paddingLeft: 12, borderLeft: '2px solid var(--color-border)' }}>
-                      <strong>{gap.name}</strong> — {gap.description}
-                    </div>
-                  ))}
-                </div>
-              </details>
-            )}
-          </div>
-        );
-      })()}
-
-      {/* What You're Protected Against - Primary understanding section */}
-      <div className="card" style={{ marginBottom: 32, backgroundColor: '#fff' }}>
-        <h2 style={{ margin: '0 0 16px', fontSize: 20, fontWeight: 700, color: 'var(--color-text)' }}>What You&apos;re Protected Against</h2>
-
-        {/* Key Figures Grid */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 16, marginBottom: 20 }}>
-          {policy.coverage_amount && (
-            <div style={{ padding: 16, backgroundColor: '#fff', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)' }}>
-              <div style={{ fontSize: 11, color: 'var(--color-text-muted)', fontWeight: 600, textTransform: 'uppercase', marginBottom: 4 }}>Coverage Limit</div>
-              <div style={{ fontSize: 20, fontWeight: 700, color: 'var(--color-primary)' }}>${policy.coverage_amount.toLocaleString()}</div>
-            </div>
-          )}
-          {policy.deductible && (
-            <div style={{ padding: 16, backgroundColor: '#fff', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)' }}>
-              <div style={{ fontSize: 11, color: 'var(--color-text-muted)', fontWeight: 600, textTransform: 'uppercase', marginBottom: 4 }}>Deductible</div>
-              <div style={{ fontSize: 20, fontWeight: 700, color: 'var(--color-text)' }}>${policy.deductible.toLocaleString()}</div>
-            </div>
-          )}
-          {policy.premium_amount && (
-            <div style={{ padding: 16, backgroundColor: '#fff', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)' }}>
-              <div style={{ fontSize: 11, color: 'var(--color-text-muted)', fontWeight: 600, textTransform: 'uppercase', marginBottom: 4 }}>Annual Premium</div>
-              <div style={{ fontSize: 20, fontWeight: 700, color: 'var(--color-text)' }}>${policy.premium_amount.toLocaleString()}</div>
-            </div>
-          )}
-          {policy.renewal_date && (
-            <div style={{ padding: 16, backgroundColor: '#fff', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)' }}>
-              <div style={{ fontSize: 11, color: 'var(--color-text-muted)', fontWeight: 600, textTransform: 'uppercase', marginBottom: 4 }}>Renewal Date</div>
-              <div style={{ fontSize: 20, fontWeight: 700, color: 'var(--color-text)' }}>{policy.renewal_date}</div>
-            </div>
-          )}
-        </div>
-
-        {/* Quick Coverage Summary - What's Covered */}
-        {coverageItems.filter(ci => ci.item_type === 'inclusion').length > 0 && (() => {
-          const inclusions = coverageItems.filter(ci => ci.item_type === 'inclusion');
-          const displayCount = showAllInclusions ? inclusions.length : 6;
-          const hasMore = inclusions.length > 6;
-
-          return (
-            <div style={{ marginBottom: 16 }}>
-              <h3 style={{ margin: '0 0 8px', fontSize: 14, fontWeight: 600, color: '#166534' }}>Covered</h3>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                {inclusions.slice(0, displayCount).map(ci => (
-                  <span key={ci.id} style={{ padding: '4px 10px', backgroundColor: '#f0fdf4', color: '#166534', borderRadius: 16, fontSize: 12, fontWeight: 500 }}>
-                    {ci.description}{ci.limit && `: ${ci.limit}`}
-                  </span>
-                ))}
-                {hasMore && (
-                  <button
-                    onClick={() => setShowAllInclusions(!showAllInclusions)}
-                    style={{
-                      padding: '4px 10px',
-                      backgroundColor: '#e0e7ff',
-                      color: '#3730a3',
-                      borderRadius: 16,
-                      fontSize: 12,
-                      fontWeight: 500,
-                      border: 'none',
-                      cursor: 'pointer',
-                    }}
-                  >
-                    {showAllInclusions ? 'Show less' : `+${inclusions.length - 6} more`}
-                  </button>
-                )}
-              </div>
-            </div>
-          );
-        })()}
-
-        {/* Key Exclusions Warning */}
-        {coverageItems.filter(ci => ci.item_type === 'exclusion').length > 0 && (() => {
-          const exclusions = coverageItems.filter(ci => ci.item_type === 'exclusion');
-          const displayCount = showAllExclusions ? exclusions.length : 4;
-          const hasMore = exclusions.length > 4;
-
-          return (
-            <div>
-              <h3 style={{ margin: '0 0 8px', fontSize: 14, fontWeight: 600, color: '#991b1b' }}>Potential Risk Areas</h3>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                {exclusions.slice(0, displayCount).map(ci => (
-                  <span key={ci.id} style={{ padding: '4px 10px', backgroundColor: '#fef2f2', color: '#991b1b', borderRadius: 16, fontSize: 12, fontWeight: 500 }}>
-                    {ci.description}
-                  </span>
-                ))}
-                {hasMore && (
-                  <button
-                    onClick={() => setShowAllExclusions(!showAllExclusions)}
-                    style={{
-                      padding: '4px 10px',
-                      backgroundColor: '#fce7f3',
-                      color: '#9d174d',
-                      borderRadius: 16,
-                      fontSize: 12,
-                      fontWeight: 500,
-                      border: 'none',
-                      cursor: 'pointer',
-                    }}
-                  >
-                    {showAllExclusions ? 'Show less' : `+${exclusions.length - 4} more`}
-                  </button>
-                )}
-              </div>
-            </div>
-          );
-        })()}
-
-        {/* Empty state */}
-        {!policy.coverage_amount && !policy.deductible && coverageItems.length === 0 && (
-          <p style={{ color: 'var(--color-text-muted)', margin: 0, fontSize: 14 }}>
-            Upload a policy document to extract coverage details, or add them manually below.
-          </p>
-        )}
-      </div>
-
-      {/* ID Card */}
+      {/* ID Card — appears directly below header when toggled */}
       {showIdCard && (() => {
         const det: Record<string, string> = {};
         details.forEach(d => { det[d.field_name] = d.field_value; });
@@ -977,7 +813,7 @@ export default function PolicyDetailPage() {
         }
 
         return (
-          <div className="card" style={{ marginBottom: 24, padding: 0, overflow: 'hidden', maxWidth: 420, width: '100%' }}>
+          <div ref={idCardRef} className="card" style={{ marginBottom: 24, padding: 0, overflow: 'hidden', maxWidth: 420, width: '100%' }}>
             <div style={{ padding: '16px 20px', backgroundColor: 'var(--color-primary)', color: '#fff' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                 <div>
@@ -1148,6 +984,177 @@ export default function PolicyDetailPage() {
           </div>
         );
       })()}
+
+      {/* Policy Status — derived from gap analysis */}
+      {(() => {
+        const highGaps = policyGaps.filter(g => g.severity === 'high');
+        const medGaps = policyGaps.filter(g => g.severity === 'medium');
+        const infoGaps = policyGaps.filter(g => g.severity === 'info');
+        const actionGaps = [...highGaps, ...medGaps];
+        const statusColor = highGaps.length > 0 ? 'var(--color-danger)' : medGaps.length > 0 ? 'var(--color-warning)' : 'var(--color-success)';
+        const statusBg = highGaps.length > 0 ? 'var(--color-danger-bg)' : medGaps.length > 0 ? 'var(--color-warning-bg)' : 'var(--color-success-bg)';
+        const statusLabel = highGaps.length > 0 ? 'Needs Attention' : medGaps.length > 0 ? 'Review Recommended' : 'Looking Good';
+        const statusIcon = highGaps.length > 0 ? '●' : medGaps.length > 0 ? '●' : '●';
+        return (
+          <div className="card" style={{ marginBottom: 24, border: `1px solid ${statusColor}20`, backgroundColor: statusBg }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: actionGaps.length > 0 ? 16 : 0 }}>
+              <span style={{ color: statusColor, fontSize: 20 }}>{statusIcon}</span>
+              <span style={{ fontSize: 16, fontWeight: 700, color: statusColor }}>{statusLabel}</span>
+              {actionGaps.length === 0 && infoGaps.length === 0 && (
+                <span style={{ fontSize: 13, color: 'var(--color-text-secondary)', marginLeft: 4 }}>No issues found with this policy</span>
+              )}
+            </div>
+            {actionGaps.length > 0 && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {actionGaps.map((gap, i) => (
+                  <div key={i} style={{ display: 'flex', gap: 10, alignItems: 'flex-start', padding: 12, backgroundColor: '#fff', borderRadius: 'var(--radius-md)', border: '1px solid var(--color-border)' }}>
+                    <span style={{
+                      padding: '2px 8px', borderRadius: 10, fontSize: 11, fontWeight: 600, whiteSpace: 'nowrap',
+                      backgroundColor: gap.severity === 'high' ? 'var(--color-danger-bg)' : 'var(--color-warning-bg)',
+                      color: gap.severity === 'high' ? 'var(--color-danger)' : 'var(--color-warning)',
+                    }}>{gap.severity === 'high' ? 'High' : 'Medium'}</span>
+                    <div>
+                      <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--color-text)' }}>{gap.name}</div>
+                      <div style={{ fontSize: 13, color: 'var(--color-text-secondary)', marginTop: 2 }}>{gap.description}</div>
+                      {gap.recommendation && (
+                        <div style={{ fontSize: 12, color: 'var(--color-text-muted)', marginTop: 4 }}>💡 {gap.recommendation}</div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+            {infoGaps.length > 0 && (
+              <details style={{ marginTop: actionGaps.length > 0 ? 12 : 0 }}>
+                <summary style={{ fontSize: 13, color: 'var(--color-text-muted)', cursor: 'pointer' }}>
+                  {infoGaps.length} informational note{infoGaps.length > 1 ? 's' : ''}
+                </summary>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 8 }}>
+                  {infoGaps.map((gap, i) => (
+                    <div key={i} style={{ fontSize: 13, color: 'var(--color-text-secondary)', paddingLeft: 12, borderLeft: '2px solid var(--color-border)' }}>
+                      <strong>{gap.name}</strong> — {gap.description}
+                    </div>
+                  ))}
+                </div>
+              </details>
+            )}
+          </div>
+        );
+      })()}
+
+      {/* What You're Protected Against - Primary understanding section */}
+      <div className="card" style={{ marginBottom: 32, backgroundColor: '#fff' }}>
+        <h2 style={{ margin: '0 0 16px', fontSize: 20, fontWeight: 700, color: 'var(--color-text)' }}>What You&apos;re Protected Against</h2>
+
+        {/* Key Figures Grid */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 16, marginBottom: 20 }}>
+          {policy.coverage_amount && (
+            <div style={{ padding: 16, backgroundColor: '#fff', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)' }}>
+              <div style={{ fontSize: 11, color: 'var(--color-text-muted)', fontWeight: 600, textTransform: 'uppercase', marginBottom: 4 }}>Coverage Limit</div>
+              <div style={{ fontSize: 20, fontWeight: 700, color: 'var(--color-primary)' }}>${policy.coverage_amount.toLocaleString()}</div>
+            </div>
+          )}
+          {policy.deductible && (
+            <div style={{ padding: 16, backgroundColor: '#fff', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)' }}>
+              <div style={{ fontSize: 11, color: 'var(--color-text-muted)', fontWeight: 600, textTransform: 'uppercase', marginBottom: 4 }}>Deductible</div>
+              <div style={{ fontSize: 20, fontWeight: 700, color: 'var(--color-text)' }}>${policy.deductible.toLocaleString()}</div>
+            </div>
+          )}
+          {policy.premium_amount && (
+            <div style={{ padding: 16, backgroundColor: '#fff', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)' }}>
+              <div style={{ fontSize: 11, color: 'var(--color-text-muted)', fontWeight: 600, textTransform: 'uppercase', marginBottom: 4 }}>Annual Premium</div>
+              <div style={{ fontSize: 20, fontWeight: 700, color: 'var(--color-text)' }}>${policy.premium_amount.toLocaleString()}</div>
+            </div>
+          )}
+          {policy.renewal_date && (
+            <div style={{ padding: 16, backgroundColor: '#fff', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)' }}>
+              <div style={{ fontSize: 11, color: 'var(--color-text-muted)', fontWeight: 600, textTransform: 'uppercase', marginBottom: 4 }}>Renewal Date</div>
+              <div style={{ fontSize: 20, fontWeight: 700, color: 'var(--color-text)' }}>{policy.renewal_date}</div>
+            </div>
+          )}
+        </div>
+
+        {/* Quick Coverage Summary - What's Covered */}
+        {coverageItems.filter(ci => ci.item_type === 'inclusion').length > 0 && (() => {
+          const inclusions = coverageItems.filter(ci => ci.item_type === 'inclusion');
+          const displayCount = showAllInclusions ? inclusions.length : 6;
+          const hasMore = inclusions.length > 6;
+
+          return (
+            <div style={{ marginBottom: 16 }}>
+              <h3 style={{ margin: '0 0 8px', fontSize: 14, fontWeight: 600, color: '#166534' }}>Covered</h3>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                {inclusions.slice(0, displayCount).map(ci => (
+                  <span key={ci.id} style={{ padding: '4px 10px', backgroundColor: '#f0fdf4', color: '#166534', borderRadius: 16, fontSize: 12, fontWeight: 500 }}>
+                    {ci.description}{ci.limit && `: ${ci.limit}`}
+                  </span>
+                ))}
+                {hasMore && (
+                  <button
+                    onClick={() => setShowAllInclusions(!showAllInclusions)}
+                    style={{
+                      padding: '4px 10px',
+                      backgroundColor: '#e0e7ff',
+                      color: '#3730a3',
+                      borderRadius: 16,
+                      fontSize: 12,
+                      fontWeight: 500,
+                      border: 'none',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    {showAllInclusions ? 'Show less' : `+${inclusions.length - 6} more`}
+                  </button>
+                )}
+              </div>
+            </div>
+          );
+        })()}
+
+        {/* Key Exclusions Warning */}
+        {coverageItems.filter(ci => ci.item_type === 'exclusion').length > 0 && (() => {
+          const exclusions = coverageItems.filter(ci => ci.item_type === 'exclusion');
+          const displayCount = showAllExclusions ? exclusions.length : 4;
+          const hasMore = exclusions.length > 4;
+
+          return (
+            <div>
+              <h3 style={{ margin: '0 0 8px', fontSize: 14, fontWeight: 600, color: '#991b1b' }}>Potential Risk Areas</h3>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                {exclusions.slice(0, displayCount).map(ci => (
+                  <span key={ci.id} style={{ padding: '4px 10px', backgroundColor: '#fef2f2', color: '#991b1b', borderRadius: 16, fontSize: 12, fontWeight: 500 }}>
+                    {ci.description}
+                  </span>
+                ))}
+                {hasMore && (
+                  <button
+                    onClick={() => setShowAllExclusions(!showAllExclusions)}
+                    style={{
+                      padding: '4px 10px',
+                      backgroundColor: '#fce7f3',
+                      color: '#9d174d',
+                      borderRadius: 16,
+                      fontSize: 12,
+                      fontWeight: 500,
+                      border: 'none',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    {showAllExclusions ? 'Show less' : `+${exclusions.length - 4} more`}
+                  </button>
+                )}
+              </div>
+            </div>
+          );
+        })()}
+
+        {/* Empty state */}
+        {!policy.coverage_amount && !policy.deductible && coverageItems.length === 0 && (
+          <p style={{ color: 'var(--color-text-muted)', margin: 0, fontSize: 14 }}>
+            Upload a policy document to extract coverage details, or add them manually below.
+          </p>
+        )}
+      </div>
 
       {/* Deductible Tracking - Only show if policy has a deductible */}
       {policy.deductible && policy.deductible > 0 && (
