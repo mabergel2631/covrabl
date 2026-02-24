@@ -1153,6 +1153,100 @@ export const exposuresApi = {
   },
 };
 
+// ── Admin API ─────────────────────────────────────────────
+
+export type AdminStats = {
+  total_users: number;
+  recent_signups: number;
+  plans: Record<string, number>;
+  total_policies: number;
+  pending_drafts: number;
+};
+
+export type AdminUser = {
+  id: number;
+  email: string;
+  role: string;
+  plan: string;
+  policy_count: number;
+  created_at: string | null;
+};
+
+export type AdminUserList = {
+  items: AdminUser[];
+  total: number;
+  page: number;
+  limit: number;
+};
+
+export type AdminUserDetail = {
+  id: number;
+  email: string;
+  role: string;
+  plan: string;
+  created_at: string | null;
+  policies: {
+    id: number;
+    carrier: string;
+    policy_type: string;
+    policy_number: string;
+    status: string;
+    created_at: string | null;
+  }[];
+  recent_documents: {
+    id: number;
+    filename: string;
+    doc_type: string;
+    created_at: string | null;
+  }[];
+  drafts: {
+    id: number;
+    carrier: string | null;
+    policy_number: string | null;
+    policy_type: string | null;
+    original_filename: string;
+    status: string;
+    created_at: string | null;
+  }[];
+};
+
+export type AdminActivity = {
+  type: "upload" | "draft";
+  user_email: string;
+  filename?: string;
+  doc_type?: string;
+  carrier?: string | null;
+  policy_type?: string | null;
+  original_filename?: string;
+  status?: string;
+  created_at: string | null;
+};
+
+export type AdminSignup = {
+  date: string;
+  count: number;
+};
+
+export const adminApi = {
+  stats(): Promise<AdminStats> {
+    return request<AdminStats>("/admin/stats");
+  },
+  users(page = 1, limit = 50, search = ""): Promise<AdminUserList> {
+    const params = new URLSearchParams({ page: String(page), limit: String(limit) });
+    if (search) params.set("search", search);
+    return request<AdminUserList>(`/admin/users?${params}`);
+  },
+  userDetail(userId: number): Promise<AdminUserDetail> {
+    return request<AdminUserDetail>(`/admin/users/${userId}`);
+  },
+  recentActivity(limit = 30): Promise<AdminActivity[]> {
+    return request<AdminActivity[]>(`/admin/recent-activity?limit=${limit}`);
+  },
+  signups(days = 30): Promise<AdminSignup[]> {
+    return request<AdminSignup[]>(`/admin/signups?days=${days}`);
+  },
+};
+
 // ── Agent / Advisor API ─────────────────────────────────────
 
 export type AgentClient = {

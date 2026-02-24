@@ -82,10 +82,11 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         </button>
 
         <nav style={{ flex: 1, padding: '12px 8px' }}>
-          {(role === 'agent'
-            ? [...NAV_ITEMS, { href: '/agent', label: 'Advisor Dashboard', icon: '👥' }]
-            : NAV_ITEMS
-          ).map(item => {
+          {[
+            ...NAV_ITEMS,
+            ...(role === 'agent' ? [{ href: '/agent', label: 'Advisor Dashboard', icon: '👥' }] : []),
+            ...(role === 'admin' ? [{ href: '/admin', label: 'Admin', icon: '⚙️' }] : []),
+          ].map(item => {
             const isHome = item.href === '/';
             const active = pathname === item.href || (!isHome && item.href !== '/policies' && pathname.startsWith(item.href));
             const isPolActive = item.href === '/policies' && (pathname === '/policies' || (pathname.startsWith('/policies/') && !pathname.startsWith('/policies/compare')));

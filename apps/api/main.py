@@ -35,6 +35,7 @@ from app.routes_deltas import router as deltas_router
 from app.routes_scores import router as scores_router
 from app.routes_inbound import router as inbound_router
 from app.routes_agent import router as agent_router
+from app.routes_admin import router as admin_router
 from app.routes_exposures import router as exposures_router
 from app.routes_certificates import router as certificates_router
 from app.routes_profile import router as profile_router
@@ -167,6 +168,7 @@ app.include_router(deltas_router)
 app.include_router(scores_router)
 app.include_router(inbound_router)
 app.include_router(agent_router)
+app.include_router(admin_router)
 app.include_router(exposures_router)
 app.include_router(certificates_router)
 app.include_router(profile_router)
