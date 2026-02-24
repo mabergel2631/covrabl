@@ -401,14 +401,26 @@ export default function Home() {
       ═══════════════════════════════════════════════════════════════ */}
       <section style={{ padding: '64px 24px', background: '#fff' }}>
         <div style={{ maxWidth: 640, margin: '0 auto', textAlign: 'center' }}>
-          <h2 style={{ fontSize: 22, fontWeight: 700, margin: '0 0 16px', color: 'var(--color-text)' }}>
+          <h2 style={{ fontSize: 22, fontWeight: 700, margin: '0 0 24px', color: 'var(--color-text)' }}>
             Why we built {APP_NAME}
           </h2>
-          <p style={{ fontSize: 16, color: 'var(--color-text-secondary)', lineHeight: 1.8, margin: '0 0 12px' }}>
-            We got tired of the same experience everyone has: paying thousands a year for insurance and having no idea what&apos;s actually covered. Calling your agent to ask basic questions. Scrambling for a policy number during an emergency.
+          <p style={{ fontSize: 16, color: 'var(--color-text-secondary)', lineHeight: 1.8, margin: '0 0 16px' }}>
+            We got tired of the same experience everyone has:<br />
+            Paying thousands each year for insurance and not really knowing what&apos;s covered.
+          </p>
+          <p style={{ fontSize: 16, color: 'var(--color-text-secondary)', lineHeight: 1.8, margin: '0 0 16px' }}>
+            Digging through 40-page PDF policies written in legal language.<br />
+            Calling your agent to ask basic questions.<br />
+            Scrambling for a policy number during an emergency.
+          </p>
+          <p style={{ fontSize: 16, color: 'var(--color-text-secondary)', lineHeight: 1.8, margin: '0 0 16px', fontWeight: 500 }}>
+            Insurance is too important to feel this unclear.
           </p>
           <p style={{ fontSize: 16, color: 'var(--color-text-secondary)', lineHeight: 1.8, margin: '0 0 20px' }}>
-            {APP_NAME} exists so you can finally understand what you&apos;re paying for — without needing a law degree to read the fine print.
+            {APP_NAME} exists to turn dense policy documents into simple, understandable coverage — so you can see exactly what you have, what you&apos;re missing, and what&apos;s coming up next.
+          </p>
+          <p style={{ fontSize: 15, color: 'var(--color-text)', fontWeight: 600, margin: '0 0 20px', letterSpacing: '0.01em' }}>
+            Built for clarity. Built for emergencies. Built for peace of mind.
           </p>
           <p style={{ fontSize: 14, color: 'var(--color-text-muted)', margin: 0 }}>
             — The {APP_NAME} Team
