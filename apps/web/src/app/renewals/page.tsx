@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '../../../lib/auth';
 import { renewalsApi, RenewalSummaryResult, RenewalPolicySummary, RenewalChange } from '../../../lib/api';
-import { formatDate, formatCurrency } from '../../../lib/format';
+import { formatDate, formatCurrency, formatPhone, cleanPhone } from '../../../lib/format';
 import EmptyState from '../components/EmptyState';
 import { getPolicyTypeDisplay, ALERT_SEVERITY_CONFIG } from '../constants';
 
@@ -164,8 +164,8 @@ function PolicyCard({ policy }: { policy: RenewalPolicySummary }) {
         <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--color-border)', fontSize: 13, color: 'var(--color-text-muted)', display: 'flex', alignItems: 'center', gap: 8 }}>
           <span>Agent: <strong style={{ color: 'var(--color-text)' }}>{policy.agent_name}</strong></span>
           {policy.agent_phone && (
-            <a href={`tel:${policy.agent_phone}`} style={{ color: 'var(--color-accent)' }}>
-              {policy.agent_phone}
+            <a href={`tel:${cleanPhone(policy.agent_phone)}`} style={{ color: 'var(--color-accent)', textDecoration: 'none' }}>
+              {formatPhone(policy.agent_phone)}
             </a>
           )}
         </div>
@@ -245,7 +245,7 @@ function generatePlainText(data: RenewalSummaryResult): string {
 
     if (policy.agent_name) {
       lines.push('');
-      lines.push(`Agent: ${policy.agent_name}${policy.agent_phone ? ' \u00b7 ' + policy.agent_phone : ''}`);
+      lines.push(`Agent: ${policy.agent_name}${policy.agent_phone ? ' \u00b7 ' + formatPhone(policy.agent_phone) : ''}`);
     }
   }
 
@@ -452,7 +452,7 @@ function RenewalSummaryOverlay({
               {policy.agent_name && (
                 <div style={{ marginTop: 10, fontSize: 14, color: 'var(--color-text-muted)' }}>
                   Agent: <strong style={{ color: 'var(--color-text)' }}>{policy.agent_name}</strong>
-                  {policy.agent_phone && <> &middot; {policy.agent_phone}</>}
+                  {policy.agent_phone && <> &middot; {formatPhone(policy.agent_phone)}</>}
                 </div>
               )}
             </div>

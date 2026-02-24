@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useAuth } from '../../../../lib/auth';
 import { API_BASE, policiesApi, contactsApi, documentsApi, coverageApi, policyDetailsApi, claimsApi, sharingApi, exportApi, premiumHistoryApi, exposuresApi, gapsApi, certificatesApi, Policy, Contact, DocMeta, ContactCreate, ExtractionData, CoverageItem, CoverageItemCreate, PolicyDetail, PolicyDetailCreate, PolicyUpdate, Claim, ClaimCreate, PolicyShareType, ShareCreate, PremiumHistoryEntry, Exposure, CoverageGap, Certificate } from '../../../../lib/api';
+import { formatPhone, cleanPhone } from '../../../../lib/format';
 import { useToast } from '../../components/Toast';
 import { Skeleton } from '../../components/Skeleton';
 import { POLICY_TYPES, POLICY_TYPE_CONFIG } from '../../constants';
@@ -970,7 +971,7 @@ export default function PolicyDetailPage() {
               {claimsPhone && (
                 <div style={{ fontSize: 12, marginBottom: 6 }}>
                   <span style={{ color: 'var(--color-text-muted)', fontSize: 10, fontWeight: 600, textTransform: 'uppercase' }}>Claims: </span>
-                  <span style={{ color: 'var(--color-accent)', fontWeight: 500 }}>{claimsPhone}</span>
+                  <a href={`tel:${cleanPhone(claimsPhone)}`} style={{ color: 'var(--color-accent)', fontWeight: 500, textDecoration: 'none' }}>{formatPhone(claimsPhone)}</a>
                 </div>
               )}
 
@@ -1345,7 +1346,7 @@ export default function PolicyDetailPage() {
             </div>
 
             <a
-              href={`tel:${claimsContact.phone.replace(/[^\d+]/g, '')}`}
+              href={`tel:${cleanPhone(claimsContact.phone)}`}
               style={{
                 display: 'flex',
                 alignItems: 'center',
@@ -1360,7 +1361,7 @@ export default function PolicyDetailPage() {
                 fontWeight: 600,
               }}
             >
-              📞 Call Claims: {claimsContact.phone}
+              📞 Call Claims: {formatPhone(claimsContact.phone)}
             </a>
 
             <button
@@ -1757,7 +1758,7 @@ export default function PolicyDetailPage() {
                   <strong>{c.name || c.company || 'Unnamed'}</strong>
                   {c.company && c.name && <span style={{ color: '#888' }}> - {c.company}</span>}
                   <div style={{ marginTop: 4, fontSize: 13, color: '#666' }}>
-                    {c.phone && <span style={{ marginRight: 16 }}>Tel: {c.phone}</span>}
+                    {c.phone && <span style={{ marginRight: 16 }}>Tel: <a href={`tel:${cleanPhone(c.phone)}`} style={{ color: 'var(--color-accent)', textDecoration: 'none' }}>{formatPhone(c.phone)}</a></span>}
                     {c.email && <span>Email: {c.email}</span>}
                   </div>
                   {c.notes && <div style={{ marginTop: 2, fontSize: 12, color: '#999' }}>{c.notes}</div>}

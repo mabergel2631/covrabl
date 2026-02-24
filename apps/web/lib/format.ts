@@ -30,3 +30,25 @@ export function formatCurrency(cents: number | null | undefined): string {
   if (cents == null) return '';
   return `$${cents.toLocaleString()}`;
 }
+
+/** Format a phone number for display as "(XXX) XXX-XXXX" */
+export function formatPhone(value: string | null | undefined): string {
+  if (!value) return '';
+  const digits = value.replace(/\D/g, '');
+  if (digits.length === 0) return value;
+  if (digits.length === 11 && digits[0] === '1') {
+    // Strip leading country code 1
+    const d = digits.slice(1);
+    return `(${d.slice(0, 3)}) ${d.slice(3, 6)}-${d.slice(6, 10)}`;
+  }
+  if (digits.length === 10) {
+    return `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6, 10)}`;
+  }
+  // Non-standard length — return as-is
+  return value;
+}
+
+/** Strip a phone number to digits only for tel: hrefs */
+export function cleanPhone(value: string): string {
+  return value.replace(/[^\d+]/g, '');
+}

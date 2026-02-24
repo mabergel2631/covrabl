@@ -5,6 +5,7 @@ import { useParams } from 'next/navigation';
 import { iceApi, EmergencyCardPublic } from '../../../../lib/api';
 import { APP_NAME } from '../../config';
 import { cacheEmergencyData, getCachedEmergencyData, formatCacheTimestamp } from '../../../../lib/offlineCache';
+import { formatPhone, cleanPhone } from '../../../../lib/format';
 
 const POLICY_TYPE_CONFIG: Record<string, { icon: string; label: string }> = {
   auto: { icon: '🚗', label: 'Auto' },
@@ -112,11 +113,6 @@ export default function EmergencyCardPage() {
     navigator.clipboard.writeText(text);
     setCopiedField(field);
     setTimeout(() => setCopiedField(null), 2000);
-  };
-
-  const formatPhone = (phone: string) => {
-    // Clean the phone number for tel: link
-    return phone.replace(/[^\d+]/g, '');
   };
 
   if (loading) {
@@ -260,7 +256,7 @@ export default function EmergencyCardPage() {
             )}
             {cardData.emergency_contact_phone && (
               <a
-                href={`tel:${formatPhone(cardData.emergency_contact_phone)}`}
+                href={`tel:${cleanPhone(cardData.emergency_contact_phone)}`}
                 style={{
                   display: 'inline-flex',
                   alignItems: 'center',
@@ -275,7 +271,7 @@ export default function EmergencyCardPage() {
                   fontWeight: 600,
                 }}
               >
-                📞 Call {cardData.emergency_contact_phone}
+                📞 Call {formatPhone(cardData.emergency_contact_phone)}
               </a>
             )}
           </div>
@@ -349,7 +345,7 @@ export default function EmergencyCardPage() {
               {/* Claims Phone */}
               {policy.claims_phone && (
                 <a
-                  href={`tel:${formatPhone(policy.claims_phone)}`}
+                  href={`tel:${cleanPhone(policy.claims_phone)}`}
                   style={{
                     display: 'flex',
                     alignItems: 'center',
@@ -365,7 +361,7 @@ export default function EmergencyCardPage() {
                     marginBottom: 8,
                   }}
                 >
-                  📞 Call Claims: {policy.claims_phone}
+                  📞 Call Claims: {formatPhone(policy.claims_phone)}
                 </a>
               )}
 
@@ -375,8 +371,8 @@ export default function EmergencyCardPage() {
                   {policy.agent_name && <span>Agent: {policy.agent_name}</span>}
                   {policy.agent_name && policy.agent_phone && <span> • </span>}
                   {policy.agent_phone && (
-                    <a href={`tel:${formatPhone(policy.agent_phone)}`} style={{ color: '#2563eb' }}>
-                      {policy.agent_phone}
+                    <a href={`tel:${cleanPhone(policy.agent_phone)}`} style={{ color: '#2563eb' }}>
+                      {formatPhone(policy.agent_phone)}
                     </a>
                   )}
                 </div>

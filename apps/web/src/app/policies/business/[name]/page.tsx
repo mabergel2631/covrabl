@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useAuth } from '../../../../../lib/auth';
 import { gapsApi, BusinessEntityDetail, CoverageGap } from '../../../../../lib/api';
+import { formatPhone, cleanPhone } from '../../../../../lib/format';
 import { useToast } from '../../../components/Toast';
 import BackButton from '../../../components/BackButton';
 import { getPolicyTypeDisplay } from '../../../constants';
@@ -319,7 +320,7 @@ export default function BusinessEntityPage() {
                   </div>
                   {c.company && c.name && <div style={{ fontSize: 13, color: 'var(--color-text-secondary)' }}>{c.company}</div>}
                   <div style={{ display: 'flex', gap: 16, marginTop: 8, fontSize: 13, color: 'var(--color-text-secondary)' }}>
-                    {c.phone && <span>{c.phone}</span>}
+                    {c.phone && <a href={`tel:${cleanPhone(c.phone)}`} style={{ color: 'var(--color-accent)', textDecoration: 'none' }}>{formatPhone(c.phone)}</a>}
                     {c.email && <span>{c.email}</span>}
                   </div>
                   {c.policy_ids.length > 1 && (

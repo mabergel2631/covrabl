@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '../../../lib/auth';
 import { policiesApi, contactsApi, documentsApi, policyDetailsApi, iceApi, profileApi, Policy, Contact, DocMeta, PolicyDetail, EmergencyCardData } from '../../../lib/api';
+import { formatPhone, cleanPhone } from '../../../lib/format';
 import { PolicyListSkeleton } from '../components/Skeleton';
 import { useToast } from '../components/Toast';
 import BackButton from '../components/BackButton';
@@ -632,8 +633,8 @@ export default function EmergencyPage() {
                     {iceCard.emergency_contact_phone && (
                       <>
                         {' · '}
-                        <a href={`tel:${iceCard.emergency_contact_phone.replace(/[^\d+]/g, '')}`} style={{ color: 'var(--color-accent)', textDecoration: 'none' }}>
-                          {iceCard.emergency_contact_phone}
+                        <a href={`tel:${cleanPhone(iceCard.emergency_contact_phone)}`} style={{ color: 'var(--color-accent)', textDecoration: 'none' }}>
+                          {formatPhone(iceCard.emergency_contact_phone)}
                         </a>
                       </>
                     )}
@@ -832,7 +833,7 @@ export default function EmergencyPage() {
                             {claimsContact?.phone && (
                               <CopyField
                                 label="Claims Phone"
-                                value={claimsContact.phone}
+                                value={formatPhone(claimsContact.phone)}
                                 onCopy={() => copyToClipboard(claimsContact.phone!, 'Claims Phone')}
                                 isPhone
                               />
@@ -883,7 +884,7 @@ export default function EmergencyPage() {
                           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 16 }}>
                             {claimsContact?.phone && (
                               <a
-                                href={`tel:${claimsContact.phone}`}
+                                href={`tel:${cleanPhone(claimsContact.phone)}`}
                                 className="btn btn-accent"
                                 style={{ textDecoration: 'none', padding: '10px 16px', fontSize: 14, fontWeight: 600 }}
                               >
@@ -922,8 +923,8 @@ export default function EmergencyPage() {
                                     </div>
                                     <div style={{ display: 'flex', gap: 8 }}>
                                       {c.phone && (
-                                        <a href={`tel:${c.phone}`} style={{ color: 'var(--color-accent)', fontWeight: 500, textDecoration: 'none' }}>
-                                          {c.phone}
+                                        <a href={`tel:${cleanPhone(c.phone)}`} style={{ color: 'var(--color-accent)', fontWeight: 500, textDecoration: 'none' }}>
+                                          {formatPhone(c.phone)}
                                         </a>
                                       )}
                                       {c.email && (
