@@ -416,6 +416,7 @@ h1, h2, h3, h4, h5, h6 {
   /* Responsive grids: collapse to single column on mobile */
   .mobile-grid-1 { grid-template-columns: 1fr !important; }
   .mobile-grid-2 { grid-template-columns: 1fr 1fr !important; }
+  .mobile-grid-stack { grid-template-columns: 1fr 1fr !important; gap: 8px !important; }
   .mobile-gap-sm { gap: 12px !important; }
 
   /* Flex containers: allow wrapping on mobile */

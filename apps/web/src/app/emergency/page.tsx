@@ -324,7 +324,7 @@ export default function EmergencyPage() {
 
   return (
     <div style={{ maxWidth: 800, margin: '0 auto', padding: 24 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 0 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 0, flexWrap: 'wrap', gap: 12 }}>
         <BackButton href="/policies" label="Policies" />
         <button
           onClick={() => window.print()}
@@ -628,8 +628,15 @@ export default function EmergencyPage() {
 
                 {iceCard.emergency_contact_name && (
                   <p style={{ fontSize: 13, color: 'var(--color-text-secondary)', margin: '8px 0 0' }}>
-                    Emergency Contact: {iceCard.emergency_contact_name}
-                    {iceCard.emergency_contact_phone && ` - ${iceCard.emergency_contact_phone}`}
+                    Emergency Contact: <strong style={{ color: 'var(--color-text)' }}>{iceCard.emergency_contact_name}</strong>
+                    {iceCard.emergency_contact_phone && (
+                      <>
+                        {' · '}
+                        <a href={`tel:${iceCard.emergency_contact_phone.replace(/[^\d+]/g, '')}`} style={{ color: 'var(--color-accent)', textDecoration: 'none' }}>
+                          {iceCard.emergency_contact_phone}
+                        </a>
+                      </>
+                    )}
                   </p>
                 )}
               </div>

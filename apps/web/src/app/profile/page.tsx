@@ -200,6 +200,8 @@ export default function ProfilePage() {
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center',
+          flexWrap: 'wrap',
+          gap: 8,
         }}>
           <h2 style={{ margin: 0, fontSize: 16, fontWeight: 700 }}>Personal Information</h2>
           {!editingPersonal ? (
@@ -271,6 +273,8 @@ export default function ProfilePage() {
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center',
+          flexWrap: 'wrap',
+          gap: 8,
         }}>
           <h2 style={{ margin: 0, fontSize: 16, fontWeight: 700 }}>Emergency Contacts</h2>
           <button
@@ -324,6 +328,8 @@ export default function ProfilePage() {
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center',
+          flexWrap: 'wrap',
+          gap: 8,
         }}>
           <h2 style={{ margin: 0, fontSize: 16, fontWeight: 700 }}>Insurance Brokers</h2>
           <button

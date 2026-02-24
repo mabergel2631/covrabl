@@ -238,9 +238,9 @@ export default function Home() {
               {/* Stat cards row */}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
                 {[
-                  { label: 'Total Coverage', value: '$1.2M' },
                   { label: 'Annual Premium', value: '$4,850' },
                   { label: 'Active Policies', value: '5' },
+                  { label: 'Upcoming Renewals', value: '2' },
                 ].map(s => (
                   <div key={s.label} style={{
                     background: '#fff', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)',
@@ -276,7 +276,7 @@ export default function Home() {
               <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--color-primary)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 12 }}>Step 2</div>
               <h3 style={{ fontSize: 22, fontWeight: 600, margin: '0 0 12px', color: 'var(--color-text)' }}>See your full picture</h3>
               <p style={{ fontSize: 15, color: 'var(--color-text-secondary)', margin: 0, lineHeight: 1.7 }}>
-                Your dashboard shows total coverage, annual premium, renewal timelines, and gaps — all at a glance. No more guessing what you have.
+                Your dashboard shows annual premium, active policies, upcoming renewals, and gaps — all at a glance. No more guessing what you have.
               </p>
             </div>
           </div>
@@ -363,40 +363,55 @@ export default function Home() {
       </section>
 
       {/* ═══════════════════════════════════════════════════════════════
-          4. TRUST & PRIVACY
+          4. TRUST & SECURITY
       ═══════════════════════════════════════════════════════════════ */}
-      <section style={{ padding: '64px 24px', background: 'var(--color-surface)' }}>
-        <div style={{ maxWidth: 800, margin: '0 auto' }}>
-          <h2 style={{ fontSize: 22, fontWeight: 700, margin: '0 0 32px', textAlign: 'center', color: 'var(--color-text)' }}>
+      <section style={{ padding: '72px 24px', background: 'var(--color-surface)' }}>
+        <div style={{ maxWidth: 880, margin: '0 auto' }}>
+          <h2 style={{ fontSize: 26, fontWeight: 700, margin: '0 0 8px', textAlign: 'center', color: 'var(--color-text)' }}>
             Built for privacy. Designed for clarity.
           </h2>
-          <div className="landing-trust" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 24, textAlign: 'center' }}>
+          <p style={{ fontSize: 15, color: 'var(--color-text-muted)', textAlign: 'center', margin: '0 0 40px' }}>
+            Your insurance data is sensitive. We treat it that way.
+          </p>
+          <div className="landing-trust" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 20 }}>
             {[
-              { title: 'Encrypted everywhere', desc: 'Bank-level encryption in transit and at rest. Your documents are protected.' },
-              { title: 'Your data stays yours', desc: 'We never sell, share, or monetize your information. No ads. No data deals.' },
-              { title: 'Plain-language extraction', desc: 'No insurance jargon. See what matters in words you understand.' },
-              { title: 'Built by people who care', desc: 'Covrabl was built because managing insurance shouldn\'t require a law degree.' },
+              { icon: '🔒', title: 'Encrypted everywhere', desc: 'Bank-level AES-256 encryption in transit and at rest. Your documents are always protected.' },
+              { icon: '🛡️', title: 'Your data stays yours', desc: 'We never sell, share, or monetize your information. No ads, no data deals, no third parties.' },
+              { icon: '📖', title: 'Plain-language extraction', desc: 'No insurance jargon. See what matters in words you actually understand.' },
+              { icon: '🚫', title: 'No external data', desc: 'We only analyze documents you upload. No scraping, no assumptions, no outside sources.' },
             ].map(s => (
-              <div key={s.title}>
-                <h4 style={{ fontSize: 14, fontWeight: 600, margin: '0 0 4px', color: 'var(--color-text)' }}>{s.title}</h4>
-                <p style={{ fontSize: 13, color: 'var(--color-text-secondary)', margin: 0, lineHeight: 1.5 }}>{s.desc}</p>
+              <div key={s.title} style={{
+                backgroundColor: '#fff',
+                border: '1px solid var(--color-border)',
+                borderRadius: 'var(--radius-lg)',
+                padding: '24px 20px',
+                textAlign: 'center',
+              }}>
+                <div style={{ fontSize: 28, marginBottom: 12, lineHeight: 1 }}>{s.icon}</div>
+                <h4 style={{ fontSize: 14, fontWeight: 700, margin: '0 0 6px', color: 'var(--color-text)' }}>{s.title}</h4>
+                <p style={{ fontSize: 13, color: 'var(--color-text-secondary)', margin: 0, lineHeight: 1.55 }}>{s.desc}</p>
               </div>
             ))}
           </div>
-          <p style={{ fontSize: 14, color: 'var(--color-text-muted)', textAlign: 'center', marginTop: 28, marginBottom: 0 }}>
-            We only analyze the documents you upload. No external data. No assumptions.
-          </p>
         </div>
       </section>
 
       {/* ═══════════════════════════════════════════════════════════════
-          5. SOCIAL PROOF / FOUNDER NOTE
+          5. WHY WE BUILT THIS
       ═══════════════════════════════════════════════════════════════ */}
-      <section style={{ padding: '48px 24px', background: '#fff' }}>
+      <section style={{ padding: '64px 24px', background: '#fff' }}>
         <div style={{ maxWidth: 640, margin: '0 auto', textAlign: 'center' }}>
-          <p style={{ fontSize: 16, color: 'var(--color-text-secondary)', lineHeight: 1.7, fontStyle: 'italic', margin: 0 }}>
-            {APP_NAME} was built because managing insurance shouldn&apos;t require a law degree.
-            We&apos;re a small team focused on one thing: helping you understand what you&apos;re paying for.
+          <h2 style={{ fontSize: 22, fontWeight: 700, margin: '0 0 16px', color: 'var(--color-text)' }}>
+            Why we built {APP_NAME}
+          </h2>
+          <p style={{ fontSize: 16, color: 'var(--color-text-secondary)', lineHeight: 1.8, margin: '0 0 12px' }}>
+            We got tired of the same experience everyone has: paying thousands a year for insurance and having no idea what&apos;s actually covered. Calling your agent to ask basic questions. Scrambling for a policy number during an emergency.
+          </p>
+          <p style={{ fontSize: 16, color: 'var(--color-text-secondary)', lineHeight: 1.8, margin: '0 0 20px' }}>
+            {APP_NAME} exists so you can finally understand what you&apos;re paying for — without needing a law degree to read the fine print.
+          </p>
+          <p style={{ fontSize: 14, color: 'var(--color-text-muted)', margin: 0 }}>
+            — The {APP_NAME} Team
           </p>
         </div>
       </section>

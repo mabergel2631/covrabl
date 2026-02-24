@@ -109,7 +109,7 @@ export default function AlertsPage() {
     <div style={{ maxWidth: 800, margin: '0 auto', padding: 24 }}>
       <BackButton href="/policies" label="Alerts" parentLabel="Policies" />
 
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24, flexWrap: 'wrap', gap: 12 }}>
         <div>
           <h1 style={{ margin: '0 0 4px', fontSize: 22 }}>Policy Alerts</h1>
           <p style={{ margin: 0, fontSize: 14, color: 'var(--color-text-muted)' }}>

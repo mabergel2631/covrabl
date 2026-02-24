@@ -407,7 +407,7 @@ export default function PolicyDetailPage() {
   );
 
   return (
-    <div style={{ maxWidth: 960, margin: '0 auto', padding: 24 }}>
+    <div style={{ maxWidth: 960, margin: '0 auto', padding: 24, overflowX: 'hidden' }}>
       {/* Back Navigation */}
       <button
         onClick={() => { if (window.history.length > 1) router.back(); else router.push('/policies'); }}
@@ -546,8 +546,8 @@ export default function PolicyDetailPage() {
       <div className="card" style={{ marginBottom: 32 }}>
         {!editing ? (
           <>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12 }}>
-              <div style={{ minWidth: 200, flex: 1 }}>
+            <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12 }}>
+              <div style={{ minWidth: 0, flex: 1 }}>
                 <h1 style={{ margin: '0 0 4px', fontSize: 22, fontWeight: 700, color: 'var(--color-primary)', overflowWrap: 'break-word' }}>
                   {policy.nickname || `${policy.carrier} - ${policy.policy_type}`}
                 </h1>
@@ -614,7 +614,7 @@ export default function PolicyDetailPage() {
                   )}
                 </div>
               </div>
-              <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', flexShrink: 0 }}>
+              <div className="header-actions" style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
                 <span className={`badge badge-${policy.scope}`}>{policy.scope}</span>
                 <button onClick={() => router.push(`/chat?policy=${policyId}&carrier=${encodeURIComponent(policy.carrier)}`)} className="btn btn-outline">Ask About This Policy</button>
                 <button onClick={() => setShowIdCard(!showIdCard)} className="btn btn-outline">{showIdCard ? 'Hide Card' : 'ID Card'}</button>
@@ -977,7 +977,7 @@ export default function PolicyDetailPage() {
         }
 
         return (
-          <div className="card" style={{ marginBottom: 24, padding: 0, overflow: 'hidden', maxWidth: 420 }}>
+          <div className="card" style={{ marginBottom: 24, padding: 0, overflow: 'hidden', maxWidth: 420, width: '100%' }}>
             <div style={{ padding: '16px 20px', backgroundColor: 'var(--color-primary)', color: '#fff' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                 <div>

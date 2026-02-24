@@ -119,7 +119,7 @@ export default function AdvisorDashboard() {
                 display: 'grid',
                 gridTemplateColumns: '1fr auto auto auto',
                 alignItems: 'center',
-                gap: 24,
+                gap: '12px 20px',
                 transition: 'box-shadow 0.15s',
               }}
               onMouseEnter={e => { (e.currentTarget as HTMLElement).style.boxShadow = '0 2px 8px rgba(0,0,0,0.08)'; }}

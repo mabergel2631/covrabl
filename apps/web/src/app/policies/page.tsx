@@ -959,7 +959,7 @@ function PoliciesPageInner() {
             <h2 style={{ fontSize: 14, fontWeight: 600, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', margin: 0 }}>
               Your Coverage {scopedPolicies.length > 0 && `(${scopedPolicies.length})`}
             </h2>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <div className="search-toolbar" style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
               {activePolicies.length > 3 && (
                 <>
                   <input
