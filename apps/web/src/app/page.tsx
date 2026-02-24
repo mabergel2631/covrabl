@@ -456,7 +456,7 @@ export default function Home() {
               },
               {
                 q: 'Does this replace my insurance agent?',
-                a: `No. ${APP_NAME} helps you understand what you have so conversations with your agent are better. Preparation, not replacement.`,
+                a: `No — and we don't want to. ${APP_NAME} helps you understand what you have so conversations with your agent are better. You can even invite your agent to view your policies directly, giving them real-time access to your coverage details. Better-prepared clients make your agent's job easier too.`,
               },
             ].map((faq, i) => (
               <div key={i} style={{ borderBottom: '1px solid var(--color-border)' }}>
