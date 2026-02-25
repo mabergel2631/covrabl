@@ -528,6 +528,7 @@ export default function Home() {
           <div style={{ display: 'flex', justifyContent: 'center', gap: 24, marginBottom: 16 }}>
             <span onClick={() => router.push('/privacy')} style={{ cursor: 'pointer' }}>Privacy</span>
             <span onClick={() => router.push('/terms')} style={{ cursor: 'pointer' }}>Terms</span>
+            <span onClick={() => router.push('/support')} style={{ cursor: 'pointer' }}>Support</span>
             <a href={`mailto:${APP_CONTACT_EMAIL}`} style={{ color: 'var(--color-text-muted)', textDecoration: 'none' }}>{APP_CONTACT_EMAIL}</a>
           </div>
           <div style={{ textAlign: 'center' }}>

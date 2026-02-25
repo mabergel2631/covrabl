@@ -181,6 +181,13 @@ export const authApi = {
       body: JSON.stringify({ token, password }),
     });
   },
+  deleteAccount(password: string) {
+    return request<{ ok: boolean }>("/auth/me", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ password }),
+    });
+  },
 };
 
 // ── Policies API ─────────────────────────────────────

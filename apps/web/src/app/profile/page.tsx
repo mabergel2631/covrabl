@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '../../../lib/auth';
-import { profileApi, UserProfile, ProfileContact, ProfileContactCreate } from '../../../lib/api';
+import { profileApi, authApi, UserProfile, ProfileContact, ProfileContactCreate } from '../../../lib/api';
 import { formatPhone } from '../../../lib/format';
 import { useToast } from '../components/Toast';
 
@@ -49,6 +49,12 @@ export default function ProfilePage() {
   });
   const [showContactForm, setShowContactForm] = useState<'emergency' | 'broker' | null>(null);
   const [editingContactId, setEditingContactId] = useState<number | null>(null);
+
+  // Delete account flow
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deletePassword, setDeletePassword] = useState('');
+  const [deleteError, setDeleteError] = useState('');
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     if (!token) { router.replace('/login'); return; }
@@ -157,6 +163,21 @@ export default function ProfilePage() {
       email: '',
       notes: '',
     });
+  };
+
+  const handleDeleteAccount = async () => {
+    if (!deletePassword.trim()) { setDeleteError('Password is required'); return; }
+    setDeleting(true);
+    setDeleteError('');
+    try {
+      await authApi.deleteAccount(deletePassword);
+      logout();
+      router.replace('/');
+    } catch (err: any) {
+      setDeleteError(err.message || 'Failed to delete account');
+    } finally {
+      setDeleting(false);
+    }
   };
 
   if (!token) return null;
@@ -412,6 +433,101 @@ export default function ProfilePage() {
           </div>
         </div>
       </div>
+
+      {/* 5. Danger Zone */}
+      <div style={{
+        padding: 0, marginBottom: 20, overflow: 'hidden',
+        border: '1px solid #fca5a5', borderRadius: 'var(--radius-lg)',
+        backgroundColor: '#fff',
+      }}>
+        <div style={{
+          padding: '16px 20px',
+          borderBottom: '1px solid #fca5a5',
+          backgroundColor: '#fef2f2',
+        }}>
+          <h2 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: '#991b1b' }}>Danger Zone</h2>
+        </div>
+
+        <div style={{ padding: 20 }}>
+          <p style={{ fontSize: 14, color: 'var(--color-text-secondary)', margin: '0 0 16px', lineHeight: 1.6 }}>
+            Permanently delete your account and all associated data. This action is irreversible.
+            If you have data you want to keep, export it first.
+          </p>
+          <button
+            onClick={() => { setShowDeleteModal(true); setDeletePassword(''); setDeleteError(''); }}
+            style={{
+              padding: '8px 20px', fontSize: 14, fontWeight: 600,
+              backgroundColor: '#fff', color: '#dc2626',
+              border: '1px solid #dc2626', borderRadius: 'var(--radius-md)',
+              cursor: 'pointer',
+            }}
+          >
+            Delete Account
+          </button>
+        </div>
+      </div>
+
+      {/* Delete Account Confirmation Modal */}
+      {showDeleteModal && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+          backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 1000,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          padding: 24,
+        }}>
+          <div style={{
+            backgroundColor: '#fff', borderRadius: 'var(--radius-lg)',
+            padding: 28, maxWidth: 440, width: '100%',
+            boxShadow: '0 20px 60px rgba(0,0,0,0.2)',
+          }}>
+            <h3 style={{ margin: '0 0 8px', fontSize: 18, fontWeight: 700, color: '#991b1b' }}>
+              Delete your account?
+            </h3>
+            <p style={{ fontSize: 14, color: 'var(--color-text-secondary)', margin: '0 0 20px', lineHeight: 1.6 }}>
+              This will permanently delete your account, all policies, documents, and personal data. This cannot be undone.
+            </p>
+            <label style={{ display: 'block', fontSize: 13, fontWeight: 500, marginBottom: 6, color: 'var(--color-text-secondary)' }}>
+              Enter your password to confirm
+            </label>
+            <input
+              type="password"
+              value={deletePassword}
+              onChange={e => { setDeletePassword(e.target.value); setDeleteError(''); }}
+              placeholder="Your password"
+              className="form-input"
+              style={{ width: '100%', marginBottom: deleteError ? 8 : 20 }}
+              autoFocus
+              onKeyDown={e => { if (e.key === 'Enter') handleDeleteAccount(); }}
+            />
+            {deleteError && (
+              <p style={{ fontSize: 13, color: '#dc2626', margin: '0 0 16px' }}>{deleteError}</p>
+            )}
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+              <button
+                onClick={() => setShowDeleteModal(false)}
+                className="btn btn-outline"
+                style={{ padding: '8px 20px', fontSize: 14 }}
+                disabled={deleting}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDeleteAccount}
+                disabled={deleting || !deletePassword.trim()}
+                style={{
+                  padding: '8px 20px', fontSize: 14, fontWeight: 600,
+                  backgroundColor: '#dc2626', color: '#fff',
+                  border: 'none', borderRadius: 'var(--radius-md)',
+                  cursor: deleting || !deletePassword.trim() ? 'not-allowed' : 'pointer',
+                  opacity: deleting || !deletePassword.trim() ? 0.5 : 1,
+                }}
+              >
+                {deleting ? 'Deleting...' : 'Permanently Delete'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

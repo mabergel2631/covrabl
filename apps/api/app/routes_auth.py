@@ -5,14 +5,22 @@ from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
 from .auth import hash_password, verify_password, create_access_token, get_current_user
 from .config import settings
 from .db import get_db
 from .email import send_reset_email
-from .models import User, PasswordReset
+from .models import User, PasswordReset, Policy, Exposure, PolicyDetail, Contact, CoverageItem
+from .models_features import (
+    Premium, Claim, RenewalReminder, AuditLog, PolicyShare, EmergencyCard,
+    PremiumHistory, PolicyDelta, DeltaExplanation, CoverageScore,
+    InboundAddress, InboundEmail, PolicyDraft, Certificate, CertificateReminder,
+)
+from .models_profile import UserProfile, ProfileContact
+from .models_chat import Conversation, ChatMessage
+from .models_documents import Document
 from .schemas import UserCreate, UserOut, Token
 
 logger = logging.getLogger(__name__)
@@ -155,6 +163,85 @@ def reset_password(payload: ResetPasswordRequest, db: Session = Depends(get_db))
     user.hashed_password = hashed
     reset.used = True
     db.commit()
+    return {"ok": True}
+
+
+class DeleteAccountRequest(BaseModel):
+    password: str
+
+
+@router.delete("/me")
+def delete_account(
+    payload: DeleteAccountRequest,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Permanently delete the authenticated user's account and all associated data."""
+    if not verify_password(payload.password, user.hashed_password):
+        raise HTTPException(status_code=403, detail="Incorrect password")
+
+    uid = user.id
+    # Collect all policy IDs owned by this user
+    policy_ids = [
+        pid for (pid,) in db.execute(select(Policy.id).where(Policy.user_id == uid)).all()
+    ]
+    # Collect conversation IDs
+    convo_ids = [
+        cid for (cid,) in db.execute(select(Conversation.id).where(Conversation.user_id == uid)).all()
+    ]
+    # Collect certificate IDs
+    cert_ids = [
+        cid for (cid,) in db.execute(select(Certificate.id).where(Certificate.user_id == uid)).all()
+    ]
+
+    # ── Phase 1: deepest leaf tables ──
+    if policy_ids:
+        # DeltaExplanation via PolicyDelta
+        delta_ids = [
+            did for (did,) in db.execute(
+                select(PolicyDelta.id).where(PolicyDelta.policy_id.in_(policy_ids))
+            ).all()
+        ]
+        if delta_ids:
+            db.execute(delete(DeltaExplanation).where(DeltaExplanation.delta_id.in_(delta_ids)))
+
+        # Policy-child tables
+        for model in (
+            PolicyDelta, PremiumHistory, Premium, Claim, RenewalReminder,
+            PolicyDetail, Contact, CoverageItem, PolicyShare, Document,
+        ):
+            db.execute(delete(model).where(model.policy_id.in_(policy_ids)))
+
+    if convo_ids:
+        db.execute(delete(ChatMessage).where(ChatMessage.conversation_id.in_(convo_ids)))
+
+    if cert_ids:
+        db.execute(delete(CertificateReminder).where(CertificateReminder.certificate_id.in_(cert_ids)))
+
+    # ── Phase 2: user-level tables ──
+    db.execute(delete(PolicyDraft).where(PolicyDraft.user_id == uid))
+    db.execute(delete(InboundEmail).where(InboundEmail.user_id == uid))
+    db.execute(delete(InboundAddress).where(InboundAddress.user_id == uid))
+    db.execute(delete(Certificate).where(Certificate.user_id == uid))
+    db.execute(delete(PolicyShare).where(PolicyShare.owner_id == uid))
+    db.execute(delete(CoverageScore).where(CoverageScore.user_id == uid))
+    db.execute(delete(AuditLog).where(AuditLog.user_id == uid))
+    db.execute(delete(Conversation).where(Conversation.user_id == uid))
+    db.execute(delete(EmergencyCard).where(EmergencyCard.user_id == uid))
+    db.execute(delete(ProfileContact).where(ProfileContact.user_id == uid))
+    db.execute(delete(UserProfile).where(UserProfile.user_id == uid))
+
+    # ── Phase 3: policies & exposures ──
+    if policy_ids:
+        db.execute(delete(Policy).where(Policy.id.in_(policy_ids)))
+    db.execute(delete(Exposure).where(Exposure.user_id == uid))
+
+    # ── Phase 4: auth tables & user ──
+    db.execute(delete(PasswordReset).where(PasswordReset.user_id == uid))
+    db.execute(delete(User).where(User.id == uid))
+
+    db.commit()
+    logger.info("Account deleted for user_id=%s", uid)
     return {"ok": True}
 
 
