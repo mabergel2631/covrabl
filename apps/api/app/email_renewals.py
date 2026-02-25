@@ -7,7 +7,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from .config import settings
-from .email import _send_email
+from .email import _send_email, log_email_send
 from .models import Policy, User
 from .models_features import RenewalReminder
 
@@ -84,15 +84,14 @@ async def send_renewal_reminders(db: Session) -> dict:
 </body>
 </html>"""
 
+        subject = "Covrabl: Upcoming policy renewals"
         try:
-            await asyncio.to_thread(
-                _send_email,
-                data["email"],
-                "Covrabl: Upcoming policy renewals",
-                html,
-            )
+            await asyncio.to_thread(_send_email, data["email"], subject, html)
+            log_email_send(db, data["email"], "renewal_reminder", subject)
             sent += 1
-        except Exception:
+        except Exception as e:
             logger.exception("Failed to send renewal email to %s", data["email"])
+            log_email_send(db, data["email"], "renewal_reminder", subject, "failed", str(e))
 
+    db.commit()
     return {"sent": sent, "users": len(by_user)}

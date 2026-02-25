@@ -12,6 +12,7 @@ from app.models_documents import Document  # noqa: F401
 from app.models_features import Premium, Claim, RenewalReminder, AuditLog, PolicyShare, EmergencyCard, PremiumHistory, PolicyDelta, DeltaExplanation, CoverageScore, InboundAddress, InboundEmail, PolicyDraft, Certificate, CertificateReminder  # noqa: F401
 from app.models_profile import UserProfile, ProfileContact  # noqa: F401
 from app.models_chat import Conversation, ChatMessage  # noqa: F401
+from app.models_admin import EmailLog, Announcement  # noqa: F401
 
 from app.routes_auth import router as auth_router
 from app.routes_policies import router as policies_router
@@ -35,7 +36,7 @@ from app.routes_deltas import router as deltas_router
 from app.routes_scores import router as scores_router
 from app.routes_inbound import router as inbound_router
 from app.routes_agent import router as agent_router
-from app.routes_admin import router as admin_router
+from app.routes_admin import router as admin_router, public_router as announcements_router
 from app.routes_exposures import router as exposures_router
 from app.routes_certificates import router as certificates_router
 from app.routes_profile import router as profile_router
@@ -128,6 +129,8 @@ def on_startup():
                 conn.execute(text("ALTER TABLE users ADD COLUMN stripe_subscription_id VARCHAR(100)"))
             if "trial_ends_at" not in user_cols:
                 conn.execute(text("ALTER TABLE users ADD COLUMN trial_ends_at TIMESTAMP"))
+            if "is_suspended" not in user_cols:
+                conn.execute(text("ALTER TABLE users ADD COLUMN is_suspended BOOLEAN DEFAULT FALSE"))
     if "documents" in insp.get_table_names():
         doc_cols = [c["name"] for c in insp.get_columns("documents")]
         with engine.begin() as conn:
@@ -169,6 +172,7 @@ app.include_router(scores_router)
 app.include_router(inbound_router)
 app.include_router(agent_router)
 app.include_router(admin_router)
+app.include_router(announcements_router)
 app.include_router(exposures_router)
 app.include_router(certificates_router)
 app.include_router(profile_router)

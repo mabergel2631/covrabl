@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 
 from .auth import get_current_user
 from .db import get_db
-from .email import send_share_email
+from .email import send_share_email, log_email_send
 from .models import Policy, User
 from .models_features import PolicyShare
 from .audit_helper import log_action
@@ -66,6 +66,9 @@ def bulk_share(payload: BulkShareCreate, background_tasks: BackgroundTasks, db: 
         background_tasks.add_task(
             send_share_email, payload.shared_with_email, user.email, created, payload.permission,
         )
+        subject = f"{user.email} shared insurance coverage with you on Covrabl"
+        log_email_send(db, payload.shared_with_email, "share_notification", subject)
+        db.commit()
 
     return BulkShareResult(created=created, skipped=len(existing_set), total=len(payload.policy_ids))
 
@@ -105,6 +108,9 @@ def share_policy(policy_id: int, payload: ShareCreate, background_tasks: Backgro
     background_tasks.add_task(
         send_share_email, payload.shared_with_email, user.email, 1, payload.permission,
     )
+    subject = f"{user.email} shared insurance coverage with you on Covrabl"
+    log_email_send(db, payload.shared_with_email, "share_notification", subject)
+    db.commit()
 
     return share
 

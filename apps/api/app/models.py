@@ -11,6 +11,7 @@ class User(Base):
     hashed_password: Mapped[str] = mapped_column(String(255))
     role: Mapped[str] = mapped_column(String(20), default="individual")  # "individual" or "agent"
     plan: Mapped[str] = mapped_column(String(20), default="trial")  # trial, free, basic, pro
+    is_suspended: Mapped[bool] = mapped_column(Boolean, default=False)
     stripe_customer_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
     stripe_subscription_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
     trial_ends_at: Mapped[DateTime | None] = mapped_column(DateTime, nullable=True)

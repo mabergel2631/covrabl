@@ -11,6 +11,14 @@ from .config import settings
 logger = logging.getLogger(__name__)
 
 
+def log_email_send(db, recipient: str, email_type: str, subject: str, status: str = "sent", error: str | None = None):
+    """Record an outgoing email in the email_logs table."""
+    from .models_admin import EmailLog
+    entry = EmailLog(recipient=recipient, email_type=email_type, subject=subject, status=status, error=error)
+    db.add(entry)
+    db.flush()
+
+
 def _send_email(to_email: str, subject: str, html_body: str) -> None:
     """Send an email via Resend (preferred) or SMTP fallback."""
 

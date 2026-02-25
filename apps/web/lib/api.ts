@@ -1168,6 +1168,10 @@ export type AdminStats = {
   plans: Record<string, number>;
   total_policies: number;
   pending_drafts: number;
+  total_documents: number;
+  storage_estimate_mb: number;
+  active_sessions_approx: number;
+  mrr_breakdown: Record<string, { count: number; mrr_cents: number }>;
 };
 
 export type AdminUser = {
@@ -1175,6 +1179,8 @@ export type AdminUser = {
   email: string;
   role: string;
   plan: string;
+  is_suspended: boolean;
+  trial_ends_at: string | null;
   policy_count: number;
   created_at: string | null;
 };
@@ -1191,6 +1197,8 @@ export type AdminUserDetail = {
   email: string;
   role: string;
   plan: string;
+  is_suspended: boolean;
+  trial_ends_at: string | null;
   created_at: string | null;
   policies: {
     id: number;
@@ -1234,10 +1242,90 @@ export type AdminSignup = {
   count: number;
 };
 
+export type AdminAuditLogEntry = {
+  id: number;
+  user_id: number;
+  user_email: string;
+  action: string;
+  entity_type: string;
+  entity_id: number;
+  details: string | null;
+  created_at: string | null;
+};
+
+export type AdminAuditLogPage = {
+  items: AdminAuditLogEntry[];
+  total: number;
+  page: number;
+  limit: number;
+};
+
+export type AdminAuditFilters = {
+  actions: string[];
+  entity_types: string[];
+};
+
+export type AdminEmailLogEntry = {
+  id: number;
+  recipient: string;
+  email_type: string;
+  subject: string;
+  status: string;
+  error: string | null;
+  created_at: string | null;
+};
+
+export type AdminEmailLogPage = {
+  items: AdminEmailLogEntry[];
+  total: number;
+  page: number;
+  limit: number;
+};
+
+export type AdminDraftEntry = {
+  id: number;
+  user_id: number;
+  user_email: string;
+  carrier: string | null;
+  policy_number: string | null;
+  policy_type: string | null;
+  original_filename: string | null;
+  status: string;
+  created_at: string | null;
+};
+
+export type AdminDraftPage = {
+  items: AdminDraftEntry[];
+  total: number;
+  page: number;
+  limit: number;
+};
+
+export type AdminAnnouncement = {
+  id: number;
+  title: string;
+  message: string;
+  type: string;
+  is_active: boolean;
+  starts_at: string | null;
+  ends_at: string | null;
+  created_by: number;
+  created_at: string | null;
+};
+
 export const adminApi = {
+  // Overview
   stats(): Promise<AdminStats> {
     return request<AdminStats>("/admin/stats");
   },
+  signups(days = 30): Promise<AdminSignup[]> {
+    return request<AdminSignup[]>(`/admin/signups?days=${days}`);
+  },
+  recentActivity(limit = 30): Promise<AdminActivity[]> {
+    return request<AdminActivity[]>(`/admin/recent-activity?limit=${limit}`);
+  },
+
+  // Users
   users(page = 1, limit = 50, search = ""): Promise<AdminUserList> {
     const params = new URLSearchParams({ page: String(page), limit: String(limit) });
     if (search) params.set("search", search);
@@ -1246,13 +1334,121 @@ export const adminApi = {
   userDetail(userId: number): Promise<AdminUserDetail> {
     return request<AdminUserDetail>(`/admin/users/${userId}`);
   },
-  recentActivity(limit = 30): Promise<AdminActivity[]> {
-    return request<AdminActivity[]>(`/admin/recent-activity?limit=${limit}`);
+  updateUserRole(userId: number, role: string) {
+    return request<{ ok: boolean; role: string }>(`/admin/users/${userId}/role`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ role }),
+    });
   },
-  signups(days = 30): Promise<AdminSignup[]> {
-    return request<AdminSignup[]>(`/admin/signups?days=${days}`);
+  updateUserPlan(userId: number, plan: string) {
+    return request<{ ok: boolean; plan: string }>(`/admin/users/${userId}/plan`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ plan }),
+    });
+  },
+  extendTrial(userId: number, days: number) {
+    return request<{ ok: boolean; trial_ends_at: string }>(`/admin/users/${userId}/extend-trial`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ days }),
+    });
+  },
+  suspendUser(userId: number, suspended: boolean) {
+    return request<{ ok: boolean; is_suspended: boolean }>(`/admin/users/${userId}/suspend`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ suspended }),
+    });
+  },
+  sendPasswordReset(userId: number) {
+    return request<{ ok: boolean }>(`/admin/users/${userId}/send-reset`, {
+      method: "POST",
+    });
+  },
+  deleteUser(userId: number) {
+    return request<{ ok: boolean }>(`/admin/users/${userId}`, {
+      method: "DELETE",
+    });
+  },
+
+  // Audit logs
+  auditLogs(params: { page?: number; limit?: number; user_email?: string; action?: string; entity_type?: string; date_from?: string; date_to?: string } = {}): Promise<AdminAuditLogPage> {
+    const q = new URLSearchParams();
+    if (params.page) q.set("page", String(params.page));
+    if (params.limit) q.set("limit", String(params.limit));
+    if (params.user_email) q.set("user_email", params.user_email);
+    if (params.action) q.set("action", params.action);
+    if (params.entity_type) q.set("entity_type", params.entity_type);
+    if (params.date_from) q.set("date_from", params.date_from);
+    if (params.date_to) q.set("date_to", params.date_to);
+    return request<AdminAuditLogPage>(`/admin/audit-logs?${q}`);
+  },
+  auditLogFilters(): Promise<AdminAuditFilters> {
+    return request<AdminAuditFilters>("/admin/audit-logs/filters");
+  },
+
+  // Email logs
+  emailLogs(params: { page?: number; limit?: number; email_type?: string; recipient?: string } = {}): Promise<AdminEmailLogPage> {
+    const q = new URLSearchParams();
+    if (params.page) q.set("page", String(params.page));
+    if (params.limit) q.set("limit", String(params.limit));
+    if (params.email_type) q.set("email_type", params.email_type);
+    if (params.recipient) q.set("recipient", params.recipient);
+    return request<AdminEmailLogPage>(`/admin/emails?${q}`);
+  },
+
+  // Drafts
+  drafts(params: { page?: number; limit?: number; status?: string } = {}): Promise<AdminDraftPage> {
+    const q = new URLSearchParams();
+    if (params.page) q.set("page", String(params.page));
+    if (params.limit) q.set("limit", String(params.limit));
+    if (params.status) q.set("status", params.status);
+    return request<AdminDraftPage>(`/admin/drafts?${q}`);
+  },
+  approveDraft(draftId: number, body: { scope: string; policy_type?: string }) {
+    return request<{ ok: boolean; policy_id: number; action: string }>(`/admin/drafts/${draftId}/approve`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+  },
+  rejectDraft(draftId: number) {
+    return request<{ ok: boolean }>(`/admin/drafts/${draftId}/reject`, {
+      method: "POST",
+    });
+  },
+
+  // Announcements
+  announcements(): Promise<AdminAnnouncement[]> {
+    return request<AdminAnnouncement[]>("/admin/announcements");
+  },
+  createAnnouncement(data: { title: string; message: string; type?: string; is_active?: boolean; starts_at?: string | null; ends_at?: string | null }) {
+    return request<AdminAnnouncement>("/admin/announcements", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    });
+  },
+  updateAnnouncement(id: number, data: Partial<{ title: string; message: string; type: string; is_active: boolean; starts_at: string | null; ends_at: string | null }>) {
+    return request<AdminAnnouncement>(`/admin/announcements/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    });
+  },
+  deleteAnnouncement(id: number) {
+    return request<{ ok: boolean }>(`/admin/announcements/${id}`, {
+      method: "DELETE",
+    });
   },
 };
+
+// Public (no auth) — for announcement banners
+export function fetchActiveAnnouncements(): Promise<{ id: number; title: string; message: string; type: string }[]> {
+  return request("/announcements/active");
+}
 
 // ── Agent / Advisor API ─────────────────────────────────────
 

@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { useAuth } from '../../../lib/auth';
+import { fetchActiveAnnouncements } from '../../../lib/api';
 import { APP_NAME, APP_SIDEBAR_TAGLINE } from '../config';
 import Logo from './Logo';
 
@@ -25,6 +26,14 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [announcements, setAnnouncements] = useState<{ id: number; title: string; message: string; type: string }[]>([]);
+  const [dismissedIds, setDismissedIds] = useState<Set<number>>(new Set());
+
+  useEffect(() => {
+    fetchActiveAnnouncements()
+      .then(setAnnouncements)
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -219,6 +228,45 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             Sign Out
           </button>
         </div>
+        {/* Announcement Banners */}
+        {announcements
+          .filter(a => !dismissedIds.has(a.id))
+          .map(a => {
+            const colors: Record<string, { bg: string; border: string; text: string }> = {
+              info: { bg: 'rgba(59,130,246,0.08)', border: 'rgba(59,130,246,0.3)', text: 'var(--color-info)' },
+              warning: { bg: 'rgba(217,119,6,0.08)', border: 'rgba(217,119,6,0.3)', text: 'var(--color-warning)' },
+              maintenance: { bg: 'rgba(220,38,38,0.08)', border: 'rgba(220,38,38,0.3)', text: 'var(--color-danger)' },
+            };
+            const c = colors[a.type] || colors.info;
+            return (
+              <div key={a.id} style={{
+                padding: '10px 20px',
+                backgroundColor: c.bg,
+                borderBottom: `1px solid ${c.border}`,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 12,
+              }}>
+                <span style={{ fontSize: 13, fontWeight: 600, color: c.text }}>{a.title}</span>
+                <span style={{ fontSize: 13, color: 'var(--color-text-secondary)', flex: 1 }}>{a.message}</span>
+                <button
+                  onClick={() => setDismissedIds(prev => new Set(prev).add(a.id))}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: 'var(--color-text-muted)',
+                    fontSize: 16,
+                    cursor: 'pointer',
+                    padding: '2px 6px',
+                    lineHeight: 1,
+                  }}
+                  aria-label="Dismiss announcement"
+                >
+                  ×
+                </button>
+              </div>
+            );
+          })}
         {children}
       </div>
 
