@@ -350,8 +350,103 @@ h1, h2, h3, h4, h5, h6 {
   to   { opacity: 1; transform: translateY(0); }
 }
 
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes slideInLeft {
+  from { opacity: 0; transform: translateX(-24px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes slideInRight {
+  from { opacity: 0; transform: translateX(24px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes fillBar {
+  from { width: 0%; }
+}
+
+@keyframes growLine {
+  from { height: 0; }
+  to   { height: 100%; }
+}
+
 .scroll-hidden { opacity: 0; }
 .scroll-reveal { animation: fadeInUp 0.6s ease-out forwards; }
+
+/* Staggered children — applied when parent gets .scroll-reveal */
+.scroll-reveal .stagger-1 { opacity: 0; animation: fadeInUp 0.5s ease-out forwards; animation-delay: 0.05s; }
+.scroll-reveal .stagger-2 { opacity: 0; animation: fadeInUp 0.5s ease-out forwards; animation-delay: 0.15s; }
+.scroll-reveal .stagger-3 { opacity: 0; animation: fadeInUp 0.5s ease-out forwards; animation-delay: 0.25s; }
+.scroll-reveal .stagger-4 { opacity: 0; animation: fadeInUp 0.5s ease-out forwards; animation-delay: 0.35s; }
+.scroll-reveal .stagger-5 { opacity: 0; animation: fadeInUp 0.5s ease-out forwards; animation-delay: 0.45s; }
+.scroll-reveal .stagger-6 { opacity: 0; animation: fadeInUp 0.5s ease-out forwards; animation-delay: 0.55s; }
+.scroll-reveal .stagger-7 { opacity: 0; animation: fadeInUp 0.5s ease-out forwards; animation-delay: 0.65s; }
+
+/* Slide variants for left/right mockup elements */
+.scroll-reveal .slide-left  { opacity: 0; animation: slideInLeft  0.5s ease-out forwards; }
+.scroll-reveal .slide-right { opacity: 0; animation: slideInRight 0.5s ease-out forwards; }
+.scroll-reveal .slide-left.stagger-2  { animation-delay: 0.15s; }
+.scroll-reveal .slide-left.stagger-3  { animation-delay: 0.25s; }
+.scroll-reveal .slide-left.stagger-4  { animation-delay: 0.35s; }
+.scroll-reveal .slide-left.stagger-5  { animation-delay: 0.45s; }
+.scroll-reveal .slide-right.stagger-2 { animation-delay: 0.15s; }
+.scroll-reveal .slide-right.stagger-3 { animation-delay: 0.25s; }
+.scroll-reveal .slide-right.stagger-4 { animation-delay: 0.35s; }
+.scroll-reveal .slide-right.stagger-5 { animation-delay: 0.45s; }
+
+/* Bar fill animation */
+.scroll-reveal .bar-fill {
+  animation: fillBar 1s ease-out forwards;
+  animation-delay: 0.4s;
+}
+
+/* Timeline connector */
+.how-it-works-timeline {
+  position: absolute;
+  left: 50%;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  transform: translateX(-50%);
+  background: var(--color-border);
+}
+
+.timeline-line-fill {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  background: var(--color-primary);
+  transition: height 0.4s ease-out;
+}
+
+.timeline-dot {
+  position: absolute;
+  left: 50%;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--color-surface);
+  border: 2px solid var(--color-border);
+  transform: translate(-50%, -50%);
+  transition: border-color 0.3s, background-color 0.3s, box-shadow 0.3s;
+  z-index: 1;
+}
+
+.timeline-dot.active {
+  border-color: var(--color-primary);
+  background: var(--color-primary);
+  box-shadow: 0 0 0 4px rgba(30, 58, 95, 0.15);
+}
+
+/* Hide timeline on mobile */
+@media (max-width: 768px) {
+  .how-it-works-timeline { display: none; }
+}
 
 /* ── Landing nav ───────────────────────────────────── */
 .landing-nav-links {
