@@ -7,10 +7,16 @@ import AppShell from './components/AppShell';
 import { ToastProvider } from './components/Toast';
 import InstallPrompt from './components/InstallPrompt';
 import { APP_NAME, APP_THEME_COLOR } from './config';
+import { isNativeApp } from '../../lib/capacitor';
+import { initNativePlugins } from '../../lib/capacitor-init';
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   useEffect(() => {
-    if ('serviceWorker' in navigator) {
+    // Initialize native Capacitor plugins (no-op on web)
+    initNativePlugins();
+
+    // Service worker — web only (Capacitor manages its own caching)
+    if (!isNativeApp() && 'serviceWorker' in navigator) {
       navigator.serviceWorker.register('/sw.js').catch(() => {});
     }
   }, []);
@@ -40,7 +46,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
 
         <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
         <link rel="manifest" href="/manifest.json" />
-        <link rel="apple-touch-icon" href="/icon-192.svg" />
+        <link rel="apple-touch-icon" sizes="180x180" href="/icons/icon-180.png" />
 
         {/* Analytics — Plausible (cookie-free) */}
         <script defer data-domain="covrabl.com" src="https://plausible.io/js/script.js" />

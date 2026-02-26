@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { isNativeApp } from '../../../lib/capacitor';
 
 interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>;
@@ -13,6 +14,9 @@ export default function InstallPrompt() {
   const [isIOS, setIsIOS] = useState(false);
 
   useEffect(() => {
+    // No install prompt inside native app shell
+    if (isNativeApp()) return;
+
     // Check if already installed
     if (window.matchMedia('(display-mode: standalone)').matches) {
       return;
