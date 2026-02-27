@@ -14,10 +14,9 @@ const SAMPLE_POLICIES = [
     deductible: '$500',
     premium: '$1,840/yr',
     renewal: 'Mar 14, 2026',
-    status: 'active',
-    score: 82,
-    scoreLabel: 'Strong',
-    scoreColor: '#16a34a',
+    statusLabel: 'Active',
+    statusColor: '#16a34a',
+    statusBg: '#dcfce7',
   },
   {
     id: 2,
@@ -29,16 +28,15 @@ const SAMPLE_POLICIES = [
     deductible: '$2,500',
     premium: '$2,180/yr',
     renewal: 'Jun 1, 2026',
-    status: 'active',
-    score: 68,
-    scoreLabel: 'Fair',
-    scoreColor: '#d97706',
+    statusLabel: 'Review',
+    statusColor: '#d97706',
+    statusBg: '#fef3c7',
   },
 ];
 
 const SAMPLE_GAPS = [
   { severity: 'high', name: 'No umbrella liability policy', description: 'Your auto liability is capped at $500K/$1M. A serious accident could exceed this. An umbrella policy adds $1M+ of extra protection for ~$200/yr.' },
-  { severity: 'medium', name: 'Home deductible is 4x area average', description: 'Your $2,500 home deductible is significantly higher than the $625 average in your area. Consider lowering it to reduce out-of-pocket costs.' },
+  { severity: 'medium', name: 'Coverage may not match replacement costs', description: 'Your $450K dwelling coverage may fall short of current rebuilding costs in your area. Consider reviewing your limits with your agent.' },
   { severity: 'low', name: 'No roadside assistance', description: 'Adding roadside assistance to your auto policy would cost approximately $20/yr and covers towing, flat tires, and lockouts.' },
 ];
 
@@ -49,7 +47,6 @@ const SAMPLE_CHAT = [
 
 export default function DemoPage() {
   const router = useRouter();
-  const overallScore = 74;
 
   return (
     <div style={{ minHeight: '100vh', background: '#f8f9fa' }}>
@@ -76,22 +73,13 @@ export default function DemoPage() {
         </button>
 
         {/* Header */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 32 }}>
-          <div>
-            <h1 style={{ fontSize: 24, fontWeight: 700, margin: '0 0 4px', color: '#111827' }}>
-              Sample Dashboard
-            </h1>
-            <p style={{ fontSize: 14, color: '#6b7280', margin: 0 }}>
-              2 policies &middot; Last updated today
-            </p>
-          </div>
-          <div style={{
-            textAlign: 'center', padding: '12px 20px', borderRadius: 12,
-            backgroundColor: '#f0fdf4', border: '1px solid #bbf7d0',
-          }}>
-            <div style={{ fontSize: 28, fontWeight: 700, color: '#16a34a' }}>{overallScore}</div>
-            <div style={{ fontSize: 11, color: '#6b7280' }}>Protection Score</div>
-          </div>
+        <div style={{ marginBottom: 32 }}>
+          <h1 style={{ fontSize: 24, fontWeight: 700, margin: '0 0 4px', color: '#111827' }}>
+            Sample Dashboard
+          </h1>
+          <p style={{ fontSize: 14, color: '#6b7280', margin: 0 }}>
+            2 policies &middot; Last updated today
+          </p>
         </div>
 
         {/* Policies */}
@@ -107,10 +95,10 @@ export default function DemoPage() {
                   <div style={{ fontSize: 16, fontWeight: 600, color: '#111827' }}>{p.carrier}</div>
                   <div style={{ fontSize: 12, color: '#6b7280' }}>{p.type} &middot; {p.policyNumber}</div>
                 </div>
-                <div style={{ textAlign: 'right' }}>
-                  <div style={{ fontSize: 22, fontWeight: 700, color: p.scoreColor }}>{p.score}</div>
-                  <div style={{ fontSize: 10, color: '#6b7280' }}>{p.scoreLabel}</div>
-                </div>
+                <span style={{
+                  fontSize: 11, fontWeight: 600, color: p.statusColor,
+                  background: p.statusBg, padding: '3px 10px', borderRadius: 10,
+                }}>{p.statusLabel}</span>
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                 {[

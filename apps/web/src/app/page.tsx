@@ -366,11 +366,18 @@ export default function Home() {
 
             {/* ── Step 2: Instant clarity ────────────────────── */}
             <div ref={step2Ref} className="landing-steps" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 48, alignItems: 'center', marginBottom: 72 }}>
-              {/* Visual — left side */}
+              {/* Text — left side */}
+              <div>
+                <div className="stagger-1" style={{ fontSize: 13, fontWeight: 700, color: 'var(--color-primary)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 12 }}>Step 2</div>
+                <h3 className="stagger-2" style={{ fontSize: 22, fontWeight: 600, margin: '0 0 12px', color: 'var(--color-text)' }}>AI insights you can act on</h3>
+                <p className="stagger-3" style={{ fontSize: 15, color: 'var(--color-text-secondary)', margin: 0, lineHeight: 1.7 }}>
+                  Complex policies are translated into clear, color-coded coverage you can actually understand. See where you&#39;re strong, where you&#39;re exposed, and get specific recommendations — without reading a single page of legalese.
+                </p>
+              </div>
+              {/* Visual — right side */}
               <div style={{
                 backgroundColor: 'var(--color-surface)', border: '1px solid var(--color-border)',
                 borderRadius: 'var(--radius-lg)', minHeight: 280, padding: 16, display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 10, boxSizing: 'border-box',
-                order: 0,
               }}>
                 {/* Policy header */}
                 <div className="stagger-3" style={{
@@ -381,30 +388,17 @@ export default function Home() {
                     <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--color-text)' }}>Auto — State Farm</div>
                     <div style={{ fontSize: 10, color: 'var(--color-text-muted)', marginTop: 2 }}>Policy SF-8834201</div>
                   </div>
-                  <div style={{ textAlign: 'right' }}>
-                    <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--color-accent)' }}>82</div>
-                    <div style={{ fontSize: 9, fontWeight: 600, color: 'var(--color-text-muted)', textTransform: 'uppercase' }}>Score</div>
-                  </div>
-                </div>
-                {/* Coverage score bar — animates fill */}
-                <div className="stagger-4" style={{
-                  background: '#fff', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)',
-                  padding: '8px 12px',
-                }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-                    <span style={{ fontSize: 10, fontWeight: 600, color: 'var(--color-text-secondary)' }}>Coverage Strength</span>
-                    <span style={{ fontSize: 10, fontWeight: 600, color: 'var(--color-success)' }}>Strong</span>
-                  </div>
-                  <div style={{ height: 6, background: 'var(--color-border)', borderRadius: 3 }}>
-                    <div className="bar-fill" style={{ height: '100%', width: '82%', background: 'var(--color-accent)', borderRadius: 3 }} />
-                  </div>
+                  <span style={{
+                    fontSize: 10, fontWeight: 600, color: '#15803d', background: '#dcfce7',
+                    padding: '3px 10px', borderRadius: 10,
+                  }}>Active</span>
                 </div>
                 {/* Coverage breakdown cards */}
-                <div className="stagger-5" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 6 }}>
+                <div className="stagger-4" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 6 }}>
                   {[
-                    { label: 'Liability', value: '$500K/$1M' },
-                    { label: 'Comprehensive', value: '$500 ded' },
-                    { label: 'Collision', value: '$500 ded' },
+                    { label: 'Liability', value: '$500K/$1M', status: 'Good', color: 'var(--color-success)' },
+                    { label: 'Comprehensive', value: '$500 ded', status: 'Good', color: 'var(--color-success)' },
+                    { label: 'Collision', value: '$500 ded', status: 'Good', color: 'var(--color-success)' },
                   ].map(c => (
                     <div key={c.label} style={{
                       background: '#fff', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)',
@@ -412,12 +406,12 @@ export default function Home() {
                     }}>
                       <div style={{ fontSize: 9, fontWeight: 600, color: 'var(--color-text-muted)', textTransform: 'uppercase', marginBottom: 3 }}>{c.label}</div>
                       <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--color-text)' }}>{c.value}</div>
-                      <div style={{ fontSize: 9, color: 'var(--color-success)', marginTop: 2 }}>&#10003; Good</div>
+                      <div style={{ fontSize: 9, color: c.color, marginTop: 2 }}>&#10003; {c.status}</div>
                     </div>
                   ))}
                 </div>
                 {/* AI Insights */}
-                <div className="stagger-6" style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+                <div className="stagger-5" style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
                   <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 2 }}>AI Insights</div>
                   <div style={{
                     background: '#fff', borderRadius: 'var(--radius-md)', padding: '7px 10px',
@@ -431,7 +425,7 @@ export default function Home() {
                     borderLeft: '3px solid #d97706', display: 'flex', alignItems: 'flex-start', gap: 8,
                   }}>
                     <span style={{ fontSize: 10, flexShrink: 0, marginTop: 1, color: '#d97706', fontWeight: 700 }}>NOTE</span>
-                    <span style={{ fontSize: 10, color: 'var(--color-text)', lineHeight: 1.4 }}>Your home deductible is 4x higher than average for your area</span>
+                    <span style={{ fontSize: 10, color: 'var(--color-text)', lineHeight: 1.4 }}>Your total coverage may not be sufficient for current replacement costs</span>
                   </div>
                   <div style={{
                     background: '#fff', borderRadius: 'var(--radius-md)', padding: '7px 10px',
@@ -441,14 +435,6 @@ export default function Home() {
                     <span style={{ fontSize: 10, color: 'var(--color-text)', lineHeight: 1.4 }}>Adding roadside assistance would cost ~$20/yr on your auto policy</span>
                   </div>
                 </div>
-              </div>
-              {/* Text — right side */}
-              <div style={{ order: 1 }}>
-                <div className="stagger-1" style={{ fontSize: 13, fontWeight: 700, color: 'var(--color-primary)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 12 }}>Step 2</div>
-                <h3 className="stagger-2" style={{ fontSize: 22, fontWeight: 600, margin: '0 0 12px', color: 'var(--color-text)' }}>AI insights you can act on</h3>
-                <p className="stagger-3" style={{ fontSize: 15, color: 'var(--color-text-secondary)', margin: 0, lineHeight: 1.7 }}>
-                  Complex policies are translated into scored coverage you can actually understand. See where you&#39;re strong, where you&#39;re exposed, and get specific recommendations — without reading a single page of legalese.
-                </p>
               </div>
             </div>
 
@@ -524,11 +510,18 @@ export default function Home() {
 
             {/* ── Step 4: Stay ahead ─────────────────────────── */}
             <div ref={step4Ref} className="landing-steps" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 48, alignItems: 'center' }}>
-              {/* Visual — left side */}
+              {/* Text — left side */}
+              <div>
+                <div className="stagger-1" style={{ fontSize: 13, fontWeight: 700, color: 'var(--color-primary)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 12 }}>Step 4</div>
+                <h3 className="stagger-2" style={{ fontSize: 22, fontWeight: 600, margin: '0 0 12px', color: 'var(--color-text)' }}>Stay ahead automatically</h3>
+                <p className="stagger-3" style={{ fontSize: 15, color: 'var(--color-text-secondary)', margin: 0, lineHeight: 1.7 }}>
+                  Renewal reminders, premium changes, and coverage shifts — {APP_NAME} watches your policies so you don&#39;t have to. You&#39;ll know about changes before they become surprises.
+                </p>
+              </div>
+              {/* Visual — right side */}
               <div style={{
                 backgroundColor: 'var(--color-surface)', border: '1px solid var(--color-border)',
                 borderRadius: 'var(--radius-lg)', minHeight: 280, padding: 16, display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 10, boxSizing: 'border-box',
-                order: 0,
               }}>
                 {/* Renewal alert */}
                 <div className="stagger-3" style={{
@@ -573,7 +566,7 @@ export default function Home() {
                 }}>
                   {[
                     { icon: '✓', text: 'All 5 policies active', color: 'var(--color-success)' },
-                    { icon: '✓', text: 'Coverage score: 82/100', color: 'var(--color-success)' },
+                    { icon: '✓', text: 'No coverage gaps detected', color: 'var(--color-success)' },
                     { icon: '✓', text: 'Next renewal: 18 days', color: 'var(--color-success)' },
                   ].map(s => (
                     <div key={s.text} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -582,14 +575,6 @@ export default function Home() {
                     </div>
                   ))}
                 </div>
-              </div>
-              {/* Text — right side */}
-              <div style={{ order: 1 }}>
-                <div className="stagger-1" style={{ fontSize: 13, fontWeight: 700, color: 'var(--color-primary)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 12 }}>Step 4</div>
-                <h3 className="stagger-2" style={{ fontSize: 22, fontWeight: 600, margin: '0 0 12px', color: 'var(--color-text)' }}>Stay ahead automatically</h3>
-                <p className="stagger-3" style={{ fontSize: 15, color: 'var(--color-text-secondary)', margin: 0, lineHeight: 1.7 }}>
-                  Renewal reminders, premium changes, and coverage shifts — {APP_NAME} watches your policies so you don&#39;t have to. You&#39;ll know about changes before they become surprises.
-                </p>
               </div>
             </div>
           </div>{/* end timeline container */}
