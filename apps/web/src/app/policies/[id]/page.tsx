@@ -422,13 +422,7 @@ export default function PolicyDetailPage() {
   return (
     <div style={{ maxWidth: 960, margin: '0 auto', padding: 24, overflowX: 'hidden' }}>
       {/* Back Navigation */}
-      <button
-        onClick={() => { if (window.history.length > 1) router.back(); else router.push('/policies'); }}
-        className="btn btn-ghost"
-        style={{ padding: '4px 0', fontSize: 14, color: 'var(--color-text-secondary)', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 6 }}
-      >
-        <span style={{ fontSize: 18, lineHeight: 1 }}>&larr;</span> Back
-      </button>
+      <BackButton href="/policies" label={policy?.nickname || policy?.carrier || 'Policy'} parentLabel="Policies" />
 
       {error && <div className="alert alert-error">{error}</div>}
 

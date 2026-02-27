@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { useAuth } from '../../../../lib/auth';
 import { agentApi, AgentClientSummary, CoverageGap } from '../../../../lib/api';
+import BackButton from '../../components/BackButton';
 
 const severityColors: Record<string, { bg: string; fg: string }> = {
   high: { bg: '#fee2e2', fg: '#991b1b' },
@@ -64,23 +65,7 @@ export default function ClientDetailPage() {
   return (
     <div style={{ padding: '32px 24px', maxWidth: 900, margin: '0 auto' }}>
       {/* Back link */}
-      <button
-        onClick={() => { if (window.history.length > 1) router.back(); else router.push('/agent'); }}
-        style={{
-          background: 'none',
-          border: 'none',
-          color: 'var(--color-text-secondary)',
-          cursor: 'pointer',
-          fontSize: 14,
-          padding: 0,
-          marginBottom: 20,
-          display: 'flex',
-          alignItems: 'center',
-          gap: 6,
-        }}
-      >
-        &larr; Back
-      </button>
+      <BackButton href="/agent" label={data.client?.email || 'Client'} parentLabel="Advisor" />
 
       {/* Client Header */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 20, marginBottom: 32 }}>

@@ -326,7 +326,7 @@ export default function EmergencyPage() {
   return (
     <div style={{ maxWidth: 800, margin: '0 auto', padding: 24 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 0, flexWrap: 'wrap', gap: 12 }}>
-        <BackButton href="/policies" label="Policies" />
+        <BackButton href="/" label="Emergency" parentLabel="Home" />
         <button
           onClick={() => window.print()}
           className="btn btn-outline print-hide"

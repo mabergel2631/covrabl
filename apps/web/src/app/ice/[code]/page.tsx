@@ -206,13 +206,7 @@ export default function EmergencyCardPage() {
       <div style={{ maxWidth: 600, margin: '0 auto' }}>
         {/* Back button */}
         <button
-          onClick={() => {
-            if (window.history.length > 1) {
-              router.back();
-            } else {
-              router.push('/');
-            }
-          }}
+          onClick={() => router.push('/emergency')}
           style={{
             display: 'inline-flex',
             alignItems: 'center',

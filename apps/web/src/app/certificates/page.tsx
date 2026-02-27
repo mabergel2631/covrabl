@@ -345,20 +345,14 @@ export default function CertificatesPage() {
                       )}
                     </div>
 
-                    {/* Linked policy link */}
+                    {/* Linked policy + View Policy button */}
                     {linkedPolicy && (
-                      <div
-                        onClick={(e) => { e.stopPropagation(); router.push(`/policies/${linkedPolicy.id}`); }}
-                        style={{
-                          marginTop: 10, padding: '8px 12px', borderRadius: 'var(--radius-sm)',
-                          backgroundColor: '#f9fafb', border: '1px solid #e5e7eb',
-                          display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8,
-                          cursor: 'pointer', transition: 'border-color 0.15s',
-                        }}
-                        onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--color-primary)'; }}
-                        onMouseLeave={e => { e.currentTarget.style.borderColor = '#e5e7eb'; }}
-                      >
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13 }}>
+                      <div style={{ marginTop: 12 }}>
+                        <div style={{
+                          padding: '8px 12px', borderRadius: 'var(--radius-sm) var(--radius-sm) 0 0',
+                          backgroundColor: '#f9fafb', border: '1px solid #e5e7eb', borderBottom: 'none',
+                          display: 'flex', alignItems: 'center', gap: 8, fontSize: 13,
+                        }}>
                           <span style={{ color: 'var(--color-text-secondary)' }}>Linked policy:</span>
                           <span style={{ fontWeight: 600, color: 'var(--color-text)' }}>
                             {linkedPolicy.nickname || linkedPolicy.carrier}
@@ -367,7 +361,18 @@ export default function CertificatesPage() {
                             {linkedPolicy.policy_type}
                           </span>
                         </div>
-                        <span style={{ fontSize: 12, color: 'var(--color-primary)' }}>View &rarr;</span>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); router.push(`/policies/${linkedPolicy.id}`); }}
+                          style={{
+                            width: '100%', padding: '10px 16px',
+                            backgroundColor: 'var(--color-primary)', color: '#fff',
+                            border: 'none', borderRadius: '0 0 var(--radius-sm) var(--radius-sm)',
+                            fontSize: 14, fontWeight: 600, cursor: 'pointer',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                          }}
+                        >
+                          View Policy &rarr;
+                        </button>
                       </div>
                     )}
 
