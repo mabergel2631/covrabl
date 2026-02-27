@@ -17,7 +17,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
 
     // Service worker — web only (Capacitor manages its own caching)
     if (!isNativeApp() && 'serviceWorker' in navigator) {
-      navigator.serviceWorker.register('/sw.js').catch(() => {});
+      navigator.serviceWorker.register('/sw.js').then((reg) => {
+        // Check for SW updates on every page load so new deploys propagate fast
+        reg.update().catch(() => {});
+      }).catch(() => {});
     }
   }, []);
 
