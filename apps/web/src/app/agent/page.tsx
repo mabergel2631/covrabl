@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '../../../lib/auth';
 import { agentApi, AgentOverview, AgentClient } from '../../../lib/api';
+import BackButton from '../components/BackButton';
 
 function ScoreBadge({ score }: { score: number | null }) {
   if (score === null || score === undefined) return <span style={{ color: 'var(--color-text-muted)', fontSize: 13 }}>--</span>;
@@ -78,6 +79,7 @@ export default function AdvisorDashboard() {
 
   return (
     <div style={{ padding: '32px 24px', maxWidth: 1000, margin: '0 auto' }}>
+      <BackButton href="/" label="Advisor" parentLabel="Home" />
       <h1 style={{ fontSize: 24, fontWeight: 700, margin: '0 0 8px', color: 'var(--color-text)' }}>
         Advisor Dashboard
       </h1>

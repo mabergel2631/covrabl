@@ -4,6 +4,7 @@ import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '../../../lib/auth';
 import { billingApi, type PlanInfo } from '../../../lib/api';
+import BackButton from '../components/BackButton';
 import { APP_NAME } from '../config';
 
 export default function PricingPage() {
@@ -61,7 +62,11 @@ function PricingContent() {
         background: 'linear-gradient(160deg, #0f1f33 0%, #1e3a5f 45%, #234a6e 100%)',
         color: '#fff',
       }}>
-        {!token && (
+        {token ? (
+          <div style={{ maxWidth: 900, margin: '0 auto 24px', textAlign: 'left' }}>
+            <BackButton href="/billing" label="Pricing" parentLabel="Billing" />
+          </div>
+        ) : (
           <div style={{ maxWidth: 900, margin: '0 auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 48, flexWrap: 'wrap', gap: 12 }}>
             <button onClick={() => router.push('/')} style={{ background: 'none', border: 'none', color: '#fff', fontSize: 20, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font-heading)', letterSpacing: 'var(--letter-spacing-tight)' }}>
               {APP_NAME}
@@ -253,6 +258,20 @@ function PricingContent() {
                   </li>
                 ))}
               </ul>
+
+              {/* Error inline */}
+              {error && loading === null && (p.id === 'pro' || p.id === 'business') && (
+                <div style={{
+                  padding: '10px 14px',
+                  backgroundColor: 'var(--color-danger-bg)',
+                  color: 'var(--color-danger-dark)',
+                  borderRadius: 'var(--radius-sm)',
+                  fontSize: 13,
+                  marginBottom: 12,
+                }}>
+                  {error}
+                </div>
+              )}
 
               {/* CTA */}
               {p.id === 'free' ? (

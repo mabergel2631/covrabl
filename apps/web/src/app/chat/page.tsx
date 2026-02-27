@@ -317,6 +317,21 @@ function ChatPageInner() {
           flexShrink: 0,
         }}>
           <button
+            onClick={() => router.push('/policies')}
+            style={{
+              background: 'none',
+              border: 'none',
+              fontSize: 14,
+              cursor: 'pointer',
+              padding: '4px 8px',
+              color: 'var(--color-text-muted)',
+              flexShrink: 0,
+            }}
+            aria-label="Back to policies"
+          >
+            ←
+          </button>
+          <button
             className="chat-menu-btn"
             onClick={() => setSidebarOpen(!sidebarOpen)}
             style={{

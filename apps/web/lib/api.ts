@@ -1774,6 +1774,8 @@ const FEATURE_ACCESS: Record<string, number> = {
 const TIER_PLAN_NAME: Record<number, string> = { 0: "free", 2: "pro", 3: "business" };
 
 export function checkFeatureAccess(plan: string, feature: string): { allowed: boolean; requiredPlan: string } {
+  // TEMPORARILY DISABLED — all features open until public launch
+  return { allowed: true, requiredPlan: "" };
   const userTier = PLAN_TIER[plan] ?? 0;
   const requiredTier = FEATURE_ACCESS[feature] ?? 0;
   return {

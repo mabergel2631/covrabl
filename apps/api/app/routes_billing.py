@@ -79,6 +79,8 @@ def get_policy_limit(user: User) -> int:
 
 def check_feature(user: User, feature_name: str):
     """Check if user's plan tier allows access to a feature. Raises 403 if not."""
+    # TEMPORARILY DISABLED — all features open until public launch
+    return
     plan = get_effective_plan(user)
     user_tier = PLAN_TIER.get(plan, 0)
     required_tier = FEATURE_ACCESS.get(feature_name)
@@ -101,6 +103,8 @@ def check_feature(user: User, feature_name: str):
 
 def check_extraction_limit(user: User, db: Session):
     """Check if free user has hit their extraction limit. Raises 403 if so."""
+    # TEMPORARILY DISABLED — all features open until public launch
+    return
     plan = get_effective_plan(user)
     limits = PLAN_LIMITS.get(plan, PLAN_LIMITS["free"])
     max_extractions = limits["max_extractions"]
@@ -214,8 +218,8 @@ def list_plans():
                     "Premium tracking & history",
                     "Everything in Free",
                 ],
-                "monthly_price": 999,
-                "annual_price": 8900,
+                "monthly_price": 499,
+                "annual_price": 4900,
             },
             {
                 "id": "business",
@@ -230,8 +234,8 @@ def list_plans():
                     "Priority support",
                     "Everything in Pro",
                 ],
-                "monthly_price": 2499,
-                "annual_price": 22900,
+                "monthly_price": 1249,
+                "annual_price": 11900,
             },
         ],
     }

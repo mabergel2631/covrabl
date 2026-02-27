@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import { iceApi, EmergencyCardPublic } from '../../../../lib/api';
 import { APP_NAME } from '../../config';
 import { cacheEmergencyData, getCachedEmergencyData, formatCacheTimestamp } from '../../../../lib/offlineCache';
@@ -20,6 +20,7 @@ const POLICY_TYPE_CONFIG: Record<string, { icon: string; label: string }> = {
 
 export default function EmergencyCardPage() {
   const params = useParams();
+  const router = useRouter();
   const accessCode = params.code as string;
 
   const [loading, setLoading] = useState(true);
@@ -203,6 +204,31 @@ export default function EmergencyCardPage() {
   return (
     <div style={{ minHeight: '100vh', background: '#f3f4f6', padding: '24px 16px' }}>
       <div style={{ maxWidth: 600, margin: '0 auto' }}>
+        {/* Back button */}
+        <button
+          onClick={() => {
+            if (window.history.length > 1) {
+              router.back();
+            } else {
+              router.push('/');
+            }
+          }}
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 6,
+            background: 'none',
+            border: 'none',
+            cursor: 'pointer',
+            fontSize: 14,
+            color: '#6b7280',
+            padding: '4px 0',
+            marginBottom: 12,
+          }}
+        >
+          ← Back
+        </button>
+
         {/* Offline Banner */}
         {(!isOnline || isUsingCache) && (
           <div style={{

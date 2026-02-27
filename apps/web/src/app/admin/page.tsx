@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '../../../lib/auth';
+import BackButton from '../components/BackButton';
 import AdminOverviewTab from './AdminOverviewTab';
 import AdminUsersTab from './AdminUsersTab';
 import AdminActivityTab from './AdminActivityTab';
@@ -43,6 +44,7 @@ export default function AdminDashboard() {
 
   return (
     <div style={{ padding: '32px 24px', maxWidth: 1100, margin: '0 auto' }}>
+      <BackButton href="/" label="Admin" parentLabel="Home" />
       <h1 style={{ fontSize: 24, fontWeight: 700, margin: '0 0 8px', color: 'var(--color-text)' }}>
         Admin Dashboard
       </h1>
