@@ -110,7 +110,7 @@ export default function PolicyDetailPage() {
   const [exposures, setExposures] = useState<Exposure[]>([]);
   const [policyGaps, setPolicyGaps] = useState<CoverageGap[]>([]);
   const [policyCertificates, setPolicyCertificates] = useState<Certificate[]>([]);
-  const [expandedPolicyCertId, setExpandedPolicyCertId] = useState<number | null>(null);
+  const [viewingPolicyCert, setViewingPolicyCert] = useState<Certificate | null>(null);
 
   // Claims quick-start
   const [copiedPolicyNumber, setCopiedPolicyNumber] = useState(false);
@@ -1679,51 +1679,28 @@ export default function PolicyDetailPage() {
               const isExpiring = cert.status === 'expiring';
               const badgeBg = isExpired ? 'var(--color-danger-bg)' : isExpiring ? 'var(--color-warning-bg)' : 'var(--color-success-bg)';
               const badgeColor = isExpired ? 'var(--color-danger)' : isExpiring ? 'var(--color-warning)' : 'var(--color-success)';
-              const isExpanded = expandedPolicyCertId === cert.id;
               return (
-                <div key={cert.id} style={{ padding: 14, backgroundColor: '#fff', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
-                    <div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4, flexWrap: 'wrap' }}>
-                        <span style={{ fontSize: 14, fontWeight: 600 }}>{cert.counterparty_name || 'Unnamed'}</span>
-                        <span style={{ padding: '1px 8px', borderRadius: 10, fontSize: 11, fontWeight: 600, backgroundColor: '#e8e8e8', color: '#555', textTransform: 'uppercase' }}>
-                          {cert.direction === 'issued' ? 'Shared' : 'Received'}
-                        </span>
-                        <span style={{ padding: '1px 8px', borderRadius: 10, fontSize: 11, fontWeight: 600, backgroundColor: badgeBg, color: badgeColor }}>
-                          {cert.status}
-                        </span>
-                      </div>
-                      <div style={{ fontSize: 13, color: 'var(--color-text-secondary)' }}>
-                        {cert.coverage_types && <span style={{ marginRight: 12 }}>{cert.coverage_types}</span>}
-                        {cert.coverage_amount && <span style={{ marginRight: 12 }}>${Number(cert.coverage_amount).toLocaleString()}</span>}
-                        {cert.expiration_date && <span>Exp: {cert.expiration_date}</span>}
-                      </div>
+                <div key={cert.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: 14, backgroundColor: '#fff', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', flexWrap: 'wrap', gap: 8 }}>
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4, flexWrap: 'wrap' }}>
+                      <span style={{ fontSize: 14, fontWeight: 600 }}>{cert.counterparty_name || 'Unnamed'}</span>
+                      <span style={{ padding: '1px 8px', borderRadius: 10, fontSize: 11, fontWeight: 600, backgroundColor: '#e8e8e8', color: '#555', textTransform: 'uppercase' }}>
+                        {cert.direction === 'issued' ? 'Shared' : 'Received'}
+                      </span>
+                      <span style={{ padding: '1px 8px', borderRadius: 10, fontSize: 11, fontWeight: 600, backgroundColor: badgeBg, color: badgeColor }}>
+                        {cert.status}
+                      </span>
                     </div>
-                    <div style={{ display: 'flex', gap: 6 }}>
-                      <button onClick={() => setExpandedPolicyCertId(isExpanded ? null : cert.id)} style={{ padding: '4px 10px', fontSize: 12, border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)', backgroundColor: '#fff', cursor: 'pointer' }}>
-                        {isExpanded ? 'Hide' : 'View'}
-                      </button>
-                      <button onClick={() => router.push('/certificates')} style={{ padding: '4px 10px', fontSize: 12, border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)', backgroundColor: '#fff', cursor: 'pointer' }}>
-                        Edit
-                      </button>
+                    <div style={{ fontSize: 13, color: 'var(--color-text-secondary)' }}>
+                      {cert.coverage_types && <span style={{ marginRight: 12 }}>{cert.coverage_types}</span>}
+                      {cert.coverage_amount && <span style={{ marginRight: 12 }}>${Number(cert.coverage_amount).toLocaleString()}</span>}
+                      {cert.expiration_date && <span>Exp: {cert.expiration_date}</span>}
                     </div>
                   </div>
-                  {isExpanded && (
-                    <div style={{ marginTop: 12, padding: 14, backgroundColor: 'var(--color-surface)', borderRadius: 'var(--radius-md)', border: '1px solid var(--color-border)' }}>
-                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: 12, fontSize: 13 }}>
-                        {cert.carrier && <div><div style={{ fontSize: 10, fontWeight: 600, color: 'var(--color-text-muted)', textTransform: 'uppercase', marginBottom: 2 }}>Carrier</div><div>{cert.carrier}</div></div>}
-                        {cert.policy_number && <div><div style={{ fontSize: 10, fontWeight: 600, color: 'var(--color-text-muted)', textTransform: 'uppercase', marginBottom: 2 }}>Policy #</div><div>{cert.policy_number}</div></div>}
-                        {cert.coverage_types && <div><div style={{ fontSize: 10, fontWeight: 600, color: 'var(--color-text-muted)', textTransform: 'uppercase', marginBottom: 2 }}>Coverage Types</div><div>{cert.coverage_types}</div></div>}
-                        {cert.coverage_amount != null && <div><div style={{ fontSize: 10, fontWeight: 600, color: 'var(--color-text-muted)', textTransform: 'uppercase', marginBottom: 2 }}>Coverage Amount</div><div>${(cert.coverage_amount / 100).toLocaleString()}</div></div>}
-                        {cert.effective_date && <div><div style={{ fontSize: 10, fontWeight: 600, color: 'var(--color-text-muted)', textTransform: 'uppercase', marginBottom: 2 }}>Effective</div><div>{cert.effective_date}</div></div>}
-                        {cert.expiration_date && <div><div style={{ fontSize: 10, fontWeight: 600, color: 'var(--color-text-muted)', textTransform: 'uppercase', marginBottom: 2 }}>Expires</div><div>{cert.expiration_date}</div></div>}
-                        {cert.counterparty_email && <div><div style={{ fontSize: 10, fontWeight: 600, color: 'var(--color-text-muted)', textTransform: 'uppercase', marginBottom: 2 }}>Email</div><div>{cert.counterparty_email}</div></div>}
-                        <div><div style={{ fontSize: 10, fontWeight: 600, color: 'var(--color-text-muted)', textTransform: 'uppercase', marginBottom: 2 }}>Additional Insured</div><div>{cert.additional_insured ? 'Yes' : 'No'}</div></div>
-                        <div><div style={{ fontSize: 10, fontWeight: 600, color: 'var(--color-text-muted)', textTransform: 'uppercase', marginBottom: 2 }}>Waiver of Subrogation</div><div>{cert.waiver_of_subrogation ? 'Yes' : 'No'}</div></div>
-                      </div>
-                      {cert.notes && <div style={{ marginTop: 10, fontSize: 13, color: 'var(--color-text-secondary)', fontStyle: 'italic' }}>{cert.notes}</div>}
-                    </div>
-                  )}
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    <button onClick={() => setViewingPolicyCert(cert)} style={{ padding: '4px 10px', fontSize: 12, border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)', backgroundColor: '#fff', cursor: 'pointer' }}>View</button>
+                    <button onClick={() => router.push('/certificates')} style={{ padding: '4px 10px', fontSize: 12, border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)', backgroundColor: '#fff', cursor: 'pointer' }}>Edit</button>
+                  </div>
                 </div>
               );
             })}
@@ -2074,6 +2051,121 @@ export default function PolicyDetailPage() {
           </div>
         )}
       </div>
+
+      {/* View Certificate Modal */}
+      {viewingPolicyCert && (() => {
+        const vc = viewingPolicyCert;
+        const vcExpired = vc.status === 'expired';
+        const vcExpiring = vc.status === 'expiring';
+        const vcBadgeBg = vcExpired ? 'var(--color-danger-bg)' : vcExpiring ? 'var(--color-warning-bg)' : 'var(--color-success-bg)';
+        const vcBadgeColor = vcExpired ? 'var(--color-danger)' : vcExpiring ? 'var(--color-warning)' : 'var(--color-success)';
+        return (
+          <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+            <div style={{ backgroundColor: '#fff', borderRadius: 'var(--radius-lg)', padding: 28, maxWidth: 560, width: '100%', maxHeight: '90vh', overflowY: 'auto' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20 }}>
+                <h2 style={{ fontSize: 18, fontWeight: 700, margin: 0 }}>Certificate Details</h2>
+                <button onClick={() => setViewingPolicyCert(null)} style={{ background: 'none', border: 'none', fontSize: 20, cursor: 'pointer', color: 'var(--color-text-muted)', padding: 0, lineHeight: 1 }}>&times;</button>
+              </div>
+
+              <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
+                <span style={{
+                  padding: '3px 12px', borderRadius: 12, fontSize: 12, fontWeight: 600,
+                  backgroundColor: vc.direction === 'issued' ? '#dbeafe' : '#fce7f3',
+                  color: vc.direction === 'issued' ? '#1e40af' : '#9d174d',
+                }}>
+                  {vc.direction === 'issued' ? 'Shared (outgoing)' : 'Received (incoming)'}
+                </span>
+                <span style={{ padding: '3px 12px', borderRadius: 12, fontSize: 12, fontWeight: 600, backgroundColor: vcBadgeBg, color: vcBadgeColor }}>
+                  {vc.status}
+                </span>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 20 }}>
+                <div>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-text-secondary)', marginBottom: 4 }}>Counterparty</div>
+                  <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--color-text)' }}>{vc.counterparty_name}</div>
+                </div>
+                <div>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-text-secondary)', marginBottom: 4 }}>Type</div>
+                  <div style={{ fontSize: 15, color: 'var(--color-text)' }}>{vc.counterparty_type}</div>
+                </div>
+              </div>
+
+              {vc.counterparty_email && (
+                <div style={{ marginBottom: 20 }}>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-text-secondary)', marginBottom: 4 }}>Email</div>
+                  <div style={{ fontSize: 14, color: 'var(--color-text)' }}>{vc.counterparty_email}</div>
+                </div>
+              )}
+
+              {(vc.carrier || vc.policy_number) && (
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 20 }}>
+                  {vc.carrier && <div>
+                    <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-text-secondary)', marginBottom: 4 }}>Carrier</div>
+                    <div style={{ fontSize: 14, color: 'var(--color-text)' }}>{vc.carrier}</div>
+                  </div>}
+                  {vc.policy_number && <div>
+                    <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-text-secondary)', marginBottom: 4 }}>Policy #</div>
+                    <div style={{ fontSize: 14, color: 'var(--color-text)' }}>{vc.policy_number}</div>
+                  </div>}
+                </div>
+              )}
+
+              {vc.coverage_types && (
+                <div style={{ marginBottom: 20 }}>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-text-secondary)', marginBottom: 6 }}>Coverage Types</div>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                    {vc.coverage_types.split(',').map(ct => ct.trim()).filter(Boolean).map(ct => (
+                      <span key={ct} style={{
+                        padding: '4px 12px', borderRadius: 12, fontSize: 12, fontWeight: 600,
+                        border: '1px solid var(--color-primary)', backgroundColor: 'var(--color-primary)', color: '#fff',
+                      }}>{ct}</span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 16, marginBottom: 20 }}>
+                {vc.coverage_amount != null && <div>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-text-secondary)', marginBottom: 4 }}>Coverage Amount</div>
+                  <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--color-text)' }}>${(vc.coverage_amount / 100).toLocaleString()}</div>
+                </div>}
+                {vc.effective_date && <div>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-text-secondary)', marginBottom: 4 }}>Effective Date</div>
+                  <div style={{ fontSize: 14, color: 'var(--color-text)' }}>{vc.effective_date}</div>
+                </div>}
+                {vc.expiration_date && <div>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-text-secondary)', marginBottom: 4 }}>Expiration Date</div>
+                  <div style={{ fontSize: 14, color: 'var(--color-text)' }}>{vc.expiration_date}</div>
+                </div>}
+              </div>
+
+              <div style={{ display: 'flex', gap: 20, marginBottom: 20 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13 }}>
+                  <span style={{ color: vc.additional_insured ? '#166534' : 'var(--color-text-muted)', fontSize: 16 }}>{vc.additional_insured ? '\u2713' : '\u2717'}</span>
+                  <span style={{ color: vc.additional_insured ? '#166534' : 'var(--color-text-muted)', fontWeight: vc.additional_insured ? 600 : 400 }}>Additional Insured</span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13 }}>
+                  <span style={{ color: vc.waiver_of_subrogation ? '#166534' : 'var(--color-text-muted)', fontSize: 16 }}>{vc.waiver_of_subrogation ? '\u2713' : '\u2717'}</span>
+                  <span style={{ color: vc.waiver_of_subrogation ? '#166534' : 'var(--color-text-muted)', fontWeight: vc.waiver_of_subrogation ? 600 : 400 }}>Waiver of Subrogation</span>
+                </div>
+              </div>
+
+              {vc.notes && (
+                <div style={{ marginBottom: 20 }}>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-text-secondary)', marginBottom: 4 }}>Notes</div>
+                  <div style={{ fontSize: 14, color: 'var(--color-text)', lineHeight: 1.6, fontStyle: 'italic' }}>{vc.notes}</div>
+                </div>
+              )}
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, borderTop: '1px solid var(--color-border)', paddingTop: 16 }}>
+                <button onClick={() => setViewingPolicyCert(null)} style={{ padding: '8px 20px', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)', backgroundColor: '#fff', cursor: 'pointer', fontSize: 14 }}>Close</button>
+                <button onClick={() => { setViewingPolicyCert(null); router.push('/certificates'); }} style={{ padding: '8px 20px', backgroundColor: 'var(--color-primary)', color: '#fff', border: 'none', borderRadius: 'var(--radius-sm)', fontWeight: 600, cursor: 'pointer', fontSize: 14 }}>Edit</button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
     </div>
   );
