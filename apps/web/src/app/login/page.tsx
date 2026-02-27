@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { useAuth } from '../../../lib/auth';
 import { authApi } from '../../../lib/api';
 import { APP_NAME, APP_DESCRIPTION } from '../config';
+import AuthHeader from '../components/AuthHeader';
 
 export default function LoginPage() {
   const { login } = useAuth();
@@ -47,7 +48,8 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="login-wrap" style={{ display: 'flex', minHeight: '100vh' }}>
+    <div className="login-wrap" style={{ display: 'flex', minHeight: '100vh', position: 'relative' }}>
+      <AuthHeader variant="auto" />
       {/* Left panel — branding */}
       <div className="login-brand" style={{ flex: 1, background: 'linear-gradient(135deg, var(--color-primary-dark) 0%, var(--color-primary) 50%, var(--color-primary-light) 100%)', display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: '64px', color: '#fff' }}>
         <div style={{ maxWidth: 420 }}>

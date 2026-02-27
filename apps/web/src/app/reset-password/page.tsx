@@ -4,6 +4,7 @@ import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { authApi } from '../../../lib/api';
+import AuthHeader from '../components/AuthHeader';
 
 function ResetPasswordContent() {
   const router = useRouter();
@@ -45,7 +46,8 @@ function ResetPasswordContent() {
 
   if (!token) {
     return (
-      <div style={{ display: 'flex', minHeight: '100vh', alignItems: 'center', justifyContent: 'center', backgroundColor: 'var(--color-surface)', padding: 24 }}>
+      <div style={{ display: 'flex', minHeight: '100vh', alignItems: 'center', justifyContent: 'center', backgroundColor: 'var(--color-surface)', padding: 24, position: 'relative' }}>
+        <AuthHeader variant="dark" />
         <div style={{ width: '100%', maxWidth: 400, textAlign: 'center' }}>
           <h1 style={{ fontSize: 22, fontWeight: 700, color: 'var(--color-text)', marginBottom: 12 }}>Invalid reset link</h1>
           <p style={{ color: 'var(--color-text-secondary)', fontSize: 14, marginBottom: 24 }}>
@@ -60,7 +62,8 @@ function ResetPasswordContent() {
   }
 
   return (
-    <div style={{ display: 'flex', minHeight: '100vh', alignItems: 'center', justifyContent: 'center', backgroundColor: 'var(--color-surface)', padding: 24 }}>
+    <div style={{ display: 'flex', minHeight: '100vh', alignItems: 'center', justifyContent: 'center', backgroundColor: 'var(--color-surface)', padding: 24, position: 'relative' }}>
+      <AuthHeader variant="dark" />
       <div style={{ width: '100%', maxWidth: 400 }}>
         <h1 style={{ margin: '0 0 4px', fontSize: 22, fontWeight: 700, color: 'var(--color-text)' }}>
           Set new password

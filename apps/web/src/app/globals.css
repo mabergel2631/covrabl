@@ -485,6 +485,11 @@ h1, h2, h3, h4, h5, h6 {
   .login-brand { display: none !important; }
   .login-form { width: 100% !important; padding: 24px !important; }
 
+  /* Auth header: switch to dark text on mobile (light background) */
+  .auth-header-auto { color: var(--color-text) !important; }
+  .auth-header-auto img { filter: brightness(0) saturate(100%); }
+  .auth-header-auto span { color: var(--color-text) !important; }
+
   /* Dashboard: single column */
   .dash-grid { grid-template-columns: 1fr !important; }
 

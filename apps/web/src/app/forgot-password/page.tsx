@@ -4,6 +4,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { authApi } from '../../../lib/api';
 import { APP_NAME } from '../config';
+import AuthHeader from '../components/AuthHeader';
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState('');
@@ -28,7 +29,8 @@ export default function ForgotPasswordPage() {
   };
 
   return (
-    <div style={{ display: 'flex', minHeight: '100vh', alignItems: 'center', justifyContent: 'center', backgroundColor: 'var(--color-surface)', padding: 24 }}>
+    <div style={{ display: 'flex', minHeight: '100vh', alignItems: 'center', justifyContent: 'center', backgroundColor: 'var(--color-surface)', padding: 24, position: 'relative' }}>
+      <AuthHeader variant="dark" />
       <div style={{ width: '100%', maxWidth: 400 }}>
         <h1 style={{ margin: '0 0 4px', fontSize: 22, fontWeight: 700, color: 'var(--color-text)' }}>
           Reset your password
