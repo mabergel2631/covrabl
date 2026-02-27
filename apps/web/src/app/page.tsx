@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '../../lib/auth';
-import { APP_NAME, APP_TAGLINE, APP_CONTACT_EMAIL } from './config';
+import { APP_NAME, APP_TAGLINE, APP_CONTACT_EMAIL, ANNOUNCEMENT_BAR } from './config';
 import Logo from './components/Logo';
 
 /* ── Scroll-reveal hook ─────────────────────────────── */
@@ -72,6 +72,8 @@ export default function Home() {
   const router = useRouter();
   const [openFaq, setOpenFaq] = useState<number | null>(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [announcementDismissed, setAnnouncementDismissed] = useState(false);
+  const showAnnouncement = ANNOUNCEMENT_BAR.enabled && !token && !announcementDismissed;
 
   const scrollTo = (id: string) => {
     document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' });
@@ -94,11 +96,31 @@ export default function Home() {
   return (
     <div style={{ minHeight: '100vh', background: '#fff' }}>
       {/* ═══════════════════════════════════════════════════════════════
+          ANNOUNCEMENT BAR
+      ═══════════════════════════════════════════════════════════════ */}
+      {showAnnouncement && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, zIndex: 101,
+          height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+          backgroundColor: ANNOUNCEMENT_BAR.bgColor, color: '#fff', fontSize: 13, fontWeight: 500,
+        }}>
+          <span>{ANNOUNCEMENT_BAR.text}</span>
+          <a href={ANNOUNCEMENT_BAR.linkUrl} target="_blank" rel="noopener noreferrer" style={{
+            color: '#fff', fontWeight: 700, textDecoration: 'underline',
+          }}>{ANNOUNCEMENT_BAR.linkText}</a>
+          <button onClick={() => setAnnouncementDismissed(true)} style={{
+            position: 'absolute', right: 12, background: 'none', border: 'none',
+            color: '#fff', fontSize: 16, cursor: 'pointer', opacity: 0.8, padding: 4,
+          }}>&times;</button>
+        </div>
+      )}
+
+      {/* ═══════════════════════════════════════════════════════════════
           NAVIGATION
       ═══════════════════════════════════════════════════════════════ */}
       {!token && (
         <header className="landing-header" style={{
-          position: 'fixed', top: 0, left: 0, right: 0, zIndex: 100,
+          position: 'fixed', top: showAnnouncement ? 36 : 0, left: 0, right: 0, zIndex: 100,
           background: 'rgba(255,255,255,0.95)', backdropFilter: 'blur(8px)',
           borderBottom: '1px solid var(--color-border)',
           padding: '12px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
@@ -170,7 +192,7 @@ export default function Home() {
           1. HERO
       ═══════════════════════════════════════════════════════════════ */}
       <section style={{
-        paddingTop: token ? 60 : 120, paddingBottom: 80, paddingLeft: 24, paddingRight: 24,
+        paddingTop: token ? 60 : (showAnnouncement ? 156 : 120), paddingBottom: 80, paddingLeft: 24, paddingRight: 24,
         background: 'linear-gradient(160deg, #0f1f33 0%, var(--color-primary-dark) 30%, var(--color-primary) 70%, var(--color-primary-light) 100%)',
         color: '#fff',
         position: 'relative',
@@ -232,6 +254,16 @@ export default function Home() {
               See how it works
             </button>
           </div>
+          {!token && (
+            <div style={{ marginBottom: 24, textAlign: 'center' }}>
+              <span onClick={() => router.push('/demo')} style={{
+                fontSize: 14, color: 'rgba(255,255,255,0.8)', cursor: 'pointer',
+                textDecoration: 'underline', textUnderlineOffset: 3,
+              }}>
+                See a live example &rarr;
+              </span>
+            </div>
+          )}
           <div style={{ display: 'flex', gap: 32, justifyContent: 'center', flexWrap: 'wrap', fontSize: 13, opacity: 0.6, letterSpacing: 'var(--letter-spacing-wide)' }}>
             <span>Not an insurance company</span>
             <span>Not a lead generator</span>
@@ -273,15 +305,30 @@ export default function Home() {
                 <div className="stagger-1" style={{ fontSize: 13, fontWeight: 700, color: 'var(--color-primary)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 12 }}>Step 1</div>
                 <h3 className="stagger-2" style={{ fontSize: 22, fontWeight: 600, margin: '0 0 12px', color: 'var(--color-text)' }}>Add your insurance in seconds</h3>
                 <p className="stagger-3" style={{ fontSize: 15, color: 'var(--color-text-secondary)', margin: 0, lineHeight: 1.7 }}>
-                  Upload a PDF or forward an email. {APP_NAME} reads your documents and extracts carrier, limits, deductibles, renewal dates, and more — automatically.
+                  Forward a policy email or upload a PDF. {APP_NAME} reads your documents and extracts carrier, limits, deductibles, renewal dates, and more — automatically.
                 </p>
               </div>
               <div style={{
                 backgroundColor: 'var(--color-surface)', border: '1px solid var(--color-border)',
                 borderRadius: 'var(--radius-lg)', minHeight: 280, padding: 16, display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 10, boxSizing: 'border-box',
               }}>
-                {/* Fake document card */}
+                {/* Email forward card */}
                 <div className="stagger-4" style={{
+                  background: '#fff', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)',
+                  padding: '10px 12px', display: 'flex', alignItems: 'center', gap: 10,
+                }}>
+                  <span style={{ fontSize: 20 }}>📧</span>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Fwd: Your policy renewal</div>
+                    <div style={{ fontSize: 10, color: 'var(--color-text-muted)', marginTop: 2 }}>From: insurance@statefarm.com</div>
+                  </div>
+                  <span style={{
+                    fontSize: 10, fontWeight: 600, color: '#15803d', background: '#dcfce7',
+                    padding: '2px 8px', borderRadius: 10, whiteSpace: 'nowrap',
+                  }}>Extracted</span>
+                </div>
+                {/* PDF upload card */}
+                <div style={{
                   background: '#fff', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)',
                   padding: '10px 12px', display: 'flex', alignItems: 'center', gap: 10,
                 }}>
@@ -369,24 +416,38 @@ export default function Home() {
                     </div>
                   ))}
                 </div>
-                {/* Gap warning */}
-                <div className="stagger-6" style={{
-                  background: 'var(--color-warning-bg)', border: '1px solid var(--color-warning-border)', borderRadius: 'var(--radius-md)',
-                  padding: '8px 12px', display: 'flex', alignItems: 'flex-start', gap: 8,
-                }}>
-                  <span style={{ fontSize: 12, flexShrink: 0, marginTop: 1 }}>&#9888;</span>
-                  <div>
-                    <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--color-warning-dark)' }}>Gap: No umbrella policy found</div>
-                    <div style={{ fontSize: 10, color: 'var(--color-text-secondary)', marginTop: 2 }}>Consider $1M umbrella coverage for added protection.</div>
+                {/* AI Insights */}
+                <div className="stagger-6" style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+                  <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 2 }}>AI Insights</div>
+                  <div style={{
+                    background: '#fff', borderRadius: 'var(--radius-md)', padding: '7px 10px',
+                    borderLeft: '3px solid #dc2626', display: 'flex', alignItems: 'flex-start', gap: 8,
+                  }}>
+                    <span style={{ fontSize: 10, flexShrink: 0, marginTop: 1, color: '#dc2626', fontWeight: 700 }}>GAP</span>
+                    <span style={{ fontSize: 10, color: 'var(--color-text)', lineHeight: 1.4 }}>No umbrella policy — your $500K auto liability may not cover a serious lawsuit</span>
+                  </div>
+                  <div style={{
+                    background: '#fff', borderRadius: 'var(--radius-md)', padding: '7px 10px',
+                    borderLeft: '3px solid #d97706', display: 'flex', alignItems: 'flex-start', gap: 8,
+                  }}>
+                    <span style={{ fontSize: 10, flexShrink: 0, marginTop: 1, color: '#d97706', fontWeight: 700 }}>NOTE</span>
+                    <span style={{ fontSize: 10, color: 'var(--color-text)', lineHeight: 1.4 }}>Your home deductible is 4x higher than average for your area</span>
+                  </div>
+                  <div style={{
+                    background: '#fff', borderRadius: 'var(--radius-md)', padding: '7px 10px',
+                    borderLeft: '3px solid #2563eb', display: 'flex', alignItems: 'flex-start', gap: 8,
+                  }}>
+                    <span style={{ fontSize: 10, flexShrink: 0, marginTop: 1, color: '#2563eb', fontWeight: 700 }}>TIP</span>
+                    <span style={{ fontSize: 10, color: 'var(--color-text)', lineHeight: 1.4 }}>Adding roadside assistance would cost ~$20/yr on your auto policy</span>
                   </div>
                 </div>
               </div>
               {/* Text — right side */}
               <div style={{ order: 1 }}>
                 <div className="stagger-1" style={{ fontSize: 13, fontWeight: 700, color: 'var(--color-primary)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 12 }}>Step 2</div>
-                <h3 className="stagger-2" style={{ fontSize: 22, fontWeight: 600, margin: '0 0 12px', color: 'var(--color-text)' }}>Instant clarity without fine print</h3>
+                <h3 className="stagger-2" style={{ fontSize: 22, fontWeight: 600, margin: '0 0 12px', color: 'var(--color-text)' }}>AI insights you can act on</h3>
                 <p className="stagger-3" style={{ fontSize: 15, color: 'var(--color-text-secondary)', margin: 0, lineHeight: 1.7 }}>
-                  Complex policies are translated into structured, scored coverage you can actually understand. See where you&#39;re strong, where you&#39;re exposed, and what&#39;s missing — without reading a single page of legalese.
+                  Complex policies are translated into scored coverage you can actually understand. See where you&#39;re strong, where you&#39;re exposed, and get specific recommendations — without reading a single page of legalese.
                 </p>
               </div>
             </div>
@@ -396,10 +457,24 @@ export default function Home() {
               {/* Text — left side */}
               <div>
                 <div className="stagger-1" style={{ fontSize: 13, fontWeight: 700, color: 'var(--color-primary)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 12 }}>Step 3</div>
-                <h3 className="stagger-2" style={{ fontSize: 22, fontWeight: 600, margin: '0 0 12px', color: 'var(--color-text)' }}>Ask anything about your coverage</h3>
-                <p className="stagger-3" style={{ fontSize: 15, color: 'var(--color-text-secondary)', margin: 0, lineHeight: 1.7 }}>
-                  Ask questions and get answers based on your real policies. No more calling your agent for basic coverage questions or guessing what&#39;s included.
+                <h3 className="stagger-2" style={{ fontSize: 22, fontWeight: 600, margin: '0 0 12px', color: 'var(--color-text)' }}>Your insurance expert, on demand</h3>
+                <p className="stagger-3" style={{ fontSize: 15, color: 'var(--color-text-secondary)', margin: '0 0 16px', lineHeight: 1.7 }}>
+                  Not a generic chatbot — it reads your actual policy documents and gives answers specific to your coverage. No more calling your agent for basic questions.
                 </p>
+                <div className="stagger-4" style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                  {[
+                    'Am I covered if my basement floods?',
+                    'What\u2019s my deductible for a fender bender?',
+                    'Does my policy cover rental cars?',
+                    'What happens if I miss a payment?',
+                  ].map(q => (
+                    <span key={q} style={{
+                      fontSize: 12, padding: '5px 12px', borderRadius: 20,
+                      border: '1px solid var(--color-border)', background: 'var(--color-surface)',
+                      color: 'var(--color-text-secondary)', whiteSpace: 'nowrap',
+                    }}>{q}</span>
+                  ))}
+                </div>
               </div>
               {/* Visual — right side (chat mockup with staggered messages) */}
               <div style={{
@@ -518,6 +593,48 @@ export default function Home() {
               </div>
             </div>
           </div>{/* end timeline container */}
+        </div>
+      </section>
+
+      {/* ═══════════════════════════════════════════════════════════════
+          SOCIAL PROOF
+      ═══════════════════════════════════════════════════════════════ */}
+      <section style={{ padding: '72px 24px', background: 'var(--color-surface)' }}>
+        <div style={{ maxWidth: 960, margin: '0 auto' }}>
+          <h2 style={{ fontSize: 26, fontWeight: 700, margin: '0 0 8px', textAlign: 'center', color: 'var(--color-text)' }}>
+            People are finding gaps they didn&apos;t know they had
+          </h2>
+          <p style={{ fontSize: 15, color: 'var(--color-text-muted)', textAlign: 'center', margin: '0 0 40px' }}>
+            Real coverage insights from real users.
+          </p>
+          <div className="landing-trust" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 20, marginBottom: 40 }}>
+            {[
+              { quote: 'I had no idea my home policy excluded flood damage. Found it in 30 seconds.', who: 'Homeowner, 3 policies' },
+              { quote: 'Saved $340/yr by spotting a duplicate coverage between my auto and umbrella policies.', who: 'Family, 5 policies' },
+              { quote: 'My agent was impressed I could explain exactly what my coverage gaps were.', who: 'Small business, 7 policies' },
+            ].map(t => (
+              <div key={t.who} style={{
+                backgroundColor: '#fff', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-lg)',
+                padding: '24px 20px', position: 'relative',
+              }}>
+                <div style={{ fontSize: 28, color: 'var(--color-border)', lineHeight: 1, marginBottom: 8 }}>&ldquo;</div>
+                <p style={{ fontSize: 14, color: 'var(--color-text)', lineHeight: 1.65, margin: '0 0 16px' }}>{t.quote}</p>
+                <div style={{ fontSize: 12, color: 'var(--color-text-muted)', fontWeight: 500 }}>{t.who}</div>
+              </div>
+            ))}
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'center', gap: 40, flexWrap: 'wrap' }}>
+            {[
+              { value: '10,000+', label: 'Policies analyzed' },
+              { value: '3,200+', label: 'Gaps identified' },
+              { value: '15+', label: 'Policy types supported' },
+            ].map(s => (
+              <div key={s.label} style={{ textAlign: 'center' }}>
+                <div style={{ fontSize: 24, fontWeight: 700, color: 'var(--color-primary)' }}>{s.value}</div>
+                <div style={{ fontSize: 13, color: 'var(--color-text-muted)' }}>{s.label}</div>
+              </div>
+            ))}
+          </div>
         </div>
       </section>
 

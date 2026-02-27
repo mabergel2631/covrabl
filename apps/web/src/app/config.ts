@@ -8,3 +8,11 @@ export const APP_DESCRIPTION = 'AI-powered coverage analysis that scores your pr
 export const APP_THEME_COLOR = '#1e3a5f';
 export const APP_CONTACT_EMAIL = 'support@covrabl.com';
 export const APP_PRIVACY_EMAIL = 'privacy@covrabl.com';
+
+export const ANNOUNCEMENT_BAR = {
+  enabled: false,
+  text: 'We just launched on Product Hunt!',
+  linkText: 'Check it out \u2192',
+  linkUrl: 'https://producthunt.com',
+  bgColor: '#ff6154',
+};

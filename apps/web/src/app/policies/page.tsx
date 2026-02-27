@@ -1067,7 +1067,7 @@ function PoliciesPageInner() {
                       }}
                     />
                   </div>
-                  <div style={{ marginTop: 16 }}>
+                  <div style={{ marginTop: 16, display: 'flex', gap: 16, justifyContent: 'center', alignItems: 'center' }}>
                     <button
                       onClick={() => { setShowAddModal(true); setWizardStep(0); }}
                       style={{
@@ -1076,6 +1076,17 @@ function PoliciesPageInner() {
                       }}
                     >
                       Or add manually
+                    </button>
+                    <span style={{ color: 'var(--color-text-muted)', fontSize: 13 }}>or</span>
+                    <button
+                      onClick={() => router.push('/demo')}
+                      style={{
+                        background: 'none', border: 'none', cursor: 'pointer',
+                        fontSize: 13, color: 'var(--color-text-secondary)', fontWeight: 500,
+                        textDecoration: 'underline', textUnderlineOffset: 3,
+                      }}
+                    >
+                      explore with sample data
                     </button>
                   </div>
                 </>
