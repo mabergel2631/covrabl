@@ -1667,7 +1667,7 @@ export default function PolicyDetailPage() {
       <div className="card" style={{ marginBottom: 32 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 12 }}>
           <h2 className="section-title" style={{ margin: 0 }}>Certificates of Insurance</h2>
-          {canEdit && <button onClick={() => router.push('/certificates')} className="btn btn-primary">+ Add COI</button>}
+          {canEdit && <button onClick={() => router.push(`/certificates?addFor=${policyId}`)} className="btn btn-primary">+ Add COI</button>}
         </div>
         {policyCertificates.length === 0 ? (
           <p style={{ color: '#999', margin: 0, fontSize: 14 }}>No certificates linked to this policy.</p>

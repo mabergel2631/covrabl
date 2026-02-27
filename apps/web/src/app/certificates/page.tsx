@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useEffect, useRef, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '../../../lib/auth';
 import { certificatesApi, policiesApi, Certificate, CertificateCreate, Policy, checkFeatureAccess } from '../../../lib/api';
 import { useToast } from '../components/Toast';
@@ -27,8 +27,14 @@ const COUNTERPARTY_TYPES = [
 const COVERAGE_TYPE_OPTIONS = ['General Liability', 'Auto', 'Workers Comp', 'Umbrella', 'Professional Liability', 'Property'];
 
 export default function CertificatesPage() {
+  return <Suspense><CertificatesContent /></Suspense>;
+}
+
+function CertificatesContent() {
   const { token, plan, logout } = useAuth();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const addForPolicyId = searchParams.get('addFor') ? Number(searchParams.get('addFor')) : null;
   const { toast } = useToast();
 
   const [certificates, setCertificates] = useState<Certificate[]>([]);
@@ -44,6 +50,7 @@ export default function CertificatesPage() {
     counterparty_type: 'client',
   });
   const [extracting, setExtracting] = useState(false);
+  const [linkingCertId, setLinkingCertId] = useState<number | null>(null);
   const coiFileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -59,6 +66,11 @@ export default function CertificatesPage() {
       ]);
       setCertificates(certs);
       setPolicies(pols);
+      // Auto-open form if navigated from a policy page with ?addFor=<policyId>
+      if (addForPolicyId && pols.some(p => p.id === addForPolicyId)) {
+        setForm(f => ({ ...f, policy_id: addForPolicyId }));
+        setShowForm(true);
+      }
     } catch {
       toast('Failed to load certificates', 'error');
     } finally {
@@ -385,34 +397,36 @@ export default function CertificatesPage() {
                         </button>
                       </div>
                     ) : (
-                      <div style={{
-                        marginTop: 12, padding: 12, borderRadius: 'var(--radius-sm)',
-                        backgroundColor: '#fef3c7', border: '1px solid #fcd34d',
-                      }}>
-                        <div style={{ fontSize: 13, fontWeight: 600, color: '#92400e', marginBottom: 8 }}>
-                          Not linked to a policy
-                        </div>
-                        <select
-                          onClick={(e) => e.stopPropagation()}
-                          onChange={async (e) => {
-                            const policyId = Number(e.target.value);
-                            if (!policyId) return;
-                            try {
-                              await certificatesApi.update(cert.id, { policy_id: policyId });
-                              toast('Certificate linked to policy');
-                              load();
-                            } catch { toast('Failed to link', 'error'); }
-                          }}
-                          value=""
-                          style={{
-                            width: '100%', padding: '8px 12px', fontSize: 13,
-                            border: '1px solid #d97706', borderRadius: 'var(--radius-sm)',
-                            backgroundColor: '#fff', cursor: 'pointer',
-                          }}
-                        >
-                          <option value="">Select a policy to link...</option>
-                          {policies.map(p => <option key={p.id} value={p.id}>{p.nickname || p.carrier} - {p.policy_type}</option>)}
-                        </select>
+                      <div style={{ marginTop: 10 }}>
+                        {cert.id === linkingCertId ? (
+                          <select
+                            autoFocus
+                            onClick={(e) => e.stopPropagation()}
+                            onBlur={() => setLinkingCertId(null)}
+                            onChange={async (e) => {
+                              const policyId = Number(e.target.value);
+                              if (!policyId) { setLinkingCertId(null); return; }
+                              try {
+                                await certificatesApi.update(cert.id, { policy_id: policyId });
+                                toast('Certificate linked to policy');
+                                setLinkingCertId(null);
+                                load();
+                              } catch { toast('Failed to link', 'error'); }
+                            }}
+                            value=""
+                            style={{ width: '100%', padding: '6px 10px', fontSize: 13, border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)' }}
+                          >
+                            <option value="">Select a policy...</option>
+                            {policies.map(p => <option key={p.id} value={p.id}>{p.nickname || p.carrier} - {p.policy_type}</option>)}
+                          </select>
+                        ) : (
+                          <span
+                            onClick={(e) => { e.stopPropagation(); setLinkingCertId(cert.id); }}
+                            style={{ fontSize: 12, color: 'var(--color-warning-dark)', cursor: 'pointer', textDecoration: 'underline' }}
+                          >
+                            Link to policy
+                          </span>
+                        )}
                       </div>
                     )}
 
