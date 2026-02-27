@@ -170,6 +170,15 @@ export default function CertificatesPage() {
     setExtracting(true);
     try {
       const { extraction } = await certificatesApi.extractFromPdf(file);
+      // Auto-match to an existing policy by carrier or policy number
+      let matchedPolicyId: number | null = null;
+      if (extraction.policy_number || extraction.carrier) {
+        const match = policies.find(p =>
+          (extraction.policy_number && p.policy_number && p.policy_number.toLowerCase() === extraction.policy_number!.toLowerCase()) ||
+          (extraction.carrier && p.carrier && p.carrier.toLowerCase() === extraction.carrier!.toLowerCase())
+        );
+        if (match) matchedPolicyId = match.id;
+      }
       setForm(f => ({
         ...f,
         counterparty_name: extraction.counterparty_name || f.counterparty_name,
@@ -184,8 +193,9 @@ export default function CertificatesPage() {
         effective_date: extraction.effective_date || f.effective_date,
         expiration_date: extraction.expiration_date || f.expiration_date,
         notes: extraction.notes || f.notes,
+        policy_id: matchedPolicyId ?? f.policy_id,
       }));
-      toast('COI data extracted successfully');
+      toast(matchedPolicyId ? 'COI extracted and linked to matching policy' : 'COI data extracted successfully');
       if (coiFileRef.current) coiFileRef.current.value = '';
     } catch (err: any) {
       toast(err.message || 'Extraction failed', 'error');
@@ -479,16 +489,14 @@ export default function CertificatesPage() {
               <input style={inputStyle} type="email" value={form.counterparty_email || ''} onChange={e => setForm(f => ({ ...f, counterparty_email: e.target.value || null }))} placeholder="Optional - for reminders" />
             </div>
 
-            {/* Linked policy (for shared/outgoing) */}
-            {form.direction === 'issued' && (
-              <div style={{ marginBottom: 12 }}>
-                <label style={labelStyle}>Backed by Policy</label>
-                <select style={inputStyle} value={form.policy_id ?? ''} onChange={e => setForm(f => ({ ...f, policy_id: e.target.value ? Number(e.target.value) : null }))}>
-                  <option value="">None</option>
-                  {policies.map(p => <option key={p.id} value={p.id}>{p.nickname || p.carrier} - {p.policy_type}</option>)}
-                </select>
-              </div>
-            )}
+            {/* Linked policy */}
+            <div style={{ marginBottom: 12 }}>
+              <label style={labelStyle}>{form.direction === 'issued' ? 'Backed by Policy' : 'Link to Your Policy'}</label>
+              <select style={inputStyle} value={form.policy_id ?? ''} onChange={e => setForm(f => ({ ...f, policy_id: e.target.value ? Number(e.target.value) : null }))}>
+                <option value="">None</option>
+                {policies.map(p => <option key={p.id} value={p.id}>{p.nickname || p.carrier} - {p.policy_type}</option>)}
+              </select>
+            </div>
 
             {/* Carrier + policy number (for received) */}
             {form.direction === 'received' && (
