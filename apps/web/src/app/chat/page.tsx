@@ -38,6 +38,7 @@ function ChatPageInner() {
   const [policySeeded, setPolicySeeded] = useState(false);
 
   const [isListening, setIsListening] = useState(false);
+  const [micError, setMicError] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const abortRef = useRef<AbortController | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -184,13 +185,28 @@ function ChatPageInner() {
       textareaRef.current?.focus();
     };
 
-    recognition.onerror = () => {
+    recognition.onerror = (event: any) => {
       setIsListening(false);
       recognitionRef.current = null;
+      if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
+        const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+        const isStandalone = window.matchMedia('(display-mode: standalone)').matches
+          || (navigator as any).standalone === true;
+        if (isIOS && isStandalone) {
+          setMicError('Microphone access was denied. To enable it, go to Settings \u203a Privacy & Security \u203a Microphone and allow access for this app.');
+        } else if (isIOS) {
+          setMicError('Microphone access was denied. To enable it, tap the "AA" icon in Safari\'s address bar \u203a Website Settings \u203a Microphone \u203a Allow.');
+        } else {
+          setMicError('Microphone access was denied. Click the lock or settings icon in your browser\'s address bar and allow microphone access for this site.');
+        }
+      } else if (event.error === 'audio-capture') {
+        setMicError('No microphone was found. Please check that your device has a working microphone.');
+      }
     };
 
     recognitionRef.current = recognition;
     setIsListening(true);
+    setMicError('');
     recognition.start();
   }, [isListening, input]);
 
@@ -425,6 +441,31 @@ function ChatPageInner() {
             Insights are extracted from your uploaded policy documents. Review against your original documents before making decisions.
           </span>
         </div>
+
+        {/* Mic permission error */}
+        {micError && (
+          <div style={{
+            margin: '0 20px',
+            padding: '10px 14px',
+            backgroundColor: '#fef3c7',
+            border: '1px solid #fde68a',
+            borderRadius: 'var(--radius-md)',
+            fontSize: 13,
+            color: '#92400e',
+            display: 'flex',
+            alignItems: 'flex-start',
+            gap: 8,
+          }}>
+            <span style={{ flex: 1, lineHeight: 1.4 }}>{micError}</span>
+            <button
+              onClick={() => setMicError('')}
+              style={{ background: 'none', border: 'none', color: '#92400e', fontSize: 16, cursor: 'pointer', padding: '0 2px', lineHeight: 1, flexShrink: 0 }}
+              aria-label="Dismiss"
+            >
+              &times;
+            </button>
+          </div>
+        )}
 
         {/* Input area */}
         <div style={{ padding: '12px 20px 20px', flexShrink: 0 }}>
