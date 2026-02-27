@@ -18,7 +18,7 @@ from .db import get_db
 from .models import User, Policy, Contact, PolicyDetail, CoverageItem, Exposure
 from .models_chat import Conversation, ChatMessage
 from .models_documents import Document
-from .models_features import Claim
+from .models_features import Claim, Certificate
 from .models_profile import UserProfile
 
 router = APIRouter(prefix="/chat", tags=["chat"])
@@ -267,7 +267,43 @@ def _build_chat_context(user: User, db: Session) -> str:
                 sections.append(f"  Amount paid: {_format_money(c.amount_paid)}")
             sections.append(f"  Description: {c.description}")
 
-    # 6. Document text (cached, lazy-extracted)
+    # 6. Certificates of Insurance
+    certs = db.execute(
+        select(Certificate).where(Certificate.user_id == user.id)
+    ).scalars().all()
+
+    if certs:
+        sections.append("\n## CERTIFICATES OF INSURANCE")
+        for cert in certs:
+            direction_label = "Shared to" if cert.direction == "issued" else "Received from"
+            linked_policy = next((p for p in policies if p.id == cert.policy_id), None) if cert.policy_id else None
+            lines = [f"- {direction_label}: {cert.counterparty_name} ({cert.counterparty_type})"]
+            lines.append(f"  Status: {cert.status}")
+            if linked_policy:
+                lines.append(f"  Linked policy: {linked_policy.carrier} ({linked_policy.policy_type})")
+            if cert.carrier:
+                lines.append(f"  Carrier: {cert.carrier}")
+            if cert.policy_number:
+                lines.append(f"  Policy #: {cert.policy_number}")
+            if cert.coverage_types:
+                lines.append(f"  Coverage types: {cert.coverage_types}")
+            if cert.coverage_amount:
+                lines.append(f"  Coverage amount: {_format_money(cert.coverage_amount)}")
+            if cert.effective_date:
+                lines.append(f"  Effective: {cert.effective_date}")
+            if cert.expiration_date:
+                lines.append(f"  Expires: {cert.expiration_date}")
+            if cert.additional_insured:
+                lines.append("  Additional insured: Yes")
+            if cert.waiver_of_subrogation:
+                lines.append("  Waiver of subrogation: Yes")
+            if cert.minimum_coverage:
+                lines.append(f"  Minimum required: {_format_money(cert.minimum_coverage)}")
+            if cert.notes:
+                lines.append(f"  Notes: {cert.notes}")
+            sections.append("\n".join(lines))
+
+    # 7. Document text (cached, lazy-extracted)
     if policies:
         docs = db.execute(
             select(Document)
