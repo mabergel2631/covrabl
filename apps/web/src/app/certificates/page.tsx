@@ -356,7 +356,7 @@ export default function CertificatesPage() {
                     </div>
 
                     {/* Linked policy + View Policy button */}
-                    {linkedPolicy && (
+                    {linkedPolicy ? (
                       <div style={{ marginTop: 12 }}>
                         <div style={{
                           padding: '8px 12px', borderRadius: 'var(--radius-sm) var(--radius-sm) 0 0',
@@ -383,6 +383,36 @@ export default function CertificatesPage() {
                         >
                           View Policy &rarr;
                         </button>
+                      </div>
+                    ) : (
+                      <div style={{
+                        marginTop: 12, padding: 12, borderRadius: 'var(--radius-sm)',
+                        backgroundColor: '#fef3c7', border: '1px solid #fcd34d',
+                      }}>
+                        <div style={{ fontSize: 13, fontWeight: 600, color: '#92400e', marginBottom: 8 }}>
+                          Not linked to a policy
+                        </div>
+                        <select
+                          onClick={(e) => e.stopPropagation()}
+                          onChange={async (e) => {
+                            const policyId = Number(e.target.value);
+                            if (!policyId) return;
+                            try {
+                              await certificatesApi.update(cert.id, { policy_id: policyId });
+                              toast('Certificate linked to policy');
+                              load();
+                            } catch { toast('Failed to link', 'error'); }
+                          }}
+                          value=""
+                          style={{
+                            width: '100%', padding: '8px 12px', fontSize: 13,
+                            border: '1px solid #d97706', borderRadius: 'var(--radius-sm)',
+                            backgroundColor: '#fff', cursor: 'pointer',
+                          }}
+                        >
+                          <option value="">Select a policy to link...</option>
+                          {policies.map(p => <option key={p.id} value={p.id}>{p.nickname || p.carrier} - {p.policy_type}</option>)}
+                        </select>
                       </div>
                     )}
 
@@ -489,13 +519,28 @@ export default function CertificatesPage() {
               <input style={inputStyle} type="email" value={form.counterparty_email || ''} onChange={e => setForm(f => ({ ...f, counterparty_email: e.target.value || null }))} placeholder="Optional - for reminders" />
             </div>
 
-            {/* Linked policy */}
-            <div style={{ marginBottom: 12 }}>
-              <label style={labelStyle}>{form.direction === 'issued' ? 'Backed by Policy' : 'Link to Your Policy'}</label>
-              <select style={inputStyle} value={form.policy_id ?? ''} onChange={e => setForm(f => ({ ...f, policy_id: e.target.value ? Number(e.target.value) : null }))}>
-                <option value="">None</option>
+            {/* Linked policy — prominent with warning when unlinked */}
+            <div style={{
+              marginBottom: 12, padding: 12, borderRadius: 'var(--radius-sm)',
+              backgroundColor: form.policy_id ? '#f0fdf4' : '#fef3c7',
+              border: `1px solid ${form.policy_id ? '#bbf7d0' : '#fcd34d'}`,
+            }}>
+              <label style={{ ...labelStyle, color: form.policy_id ? '#166534' : '#92400e' }}>
+                {form.policy_id ? 'Linked to Policy' : 'Link to a Policy (recommended)'}
+              </label>
+              <select
+                style={{ ...inputStyle, borderColor: form.policy_id ? '#86efac' : '#d97706' }}
+                value={form.policy_id ?? ''}
+                onChange={e => setForm(f => ({ ...f, policy_id: e.target.value ? Number(e.target.value) : null }))}
+              >
+                <option value="">Select a policy...</option>
                 {policies.map(p => <option key={p.id} value={p.id}>{p.nickname || p.carrier} - {p.policy_type}</option>)}
               </select>
+              {!form.policy_id && (
+                <div style={{ fontSize: 11, color: '#92400e', marginTop: 4 }}>
+                  Linking ensures the COI badge appears on the policy and certificate shows in policy details.
+                </div>
+              )}
             </div>
 
             {/* Carrier + policy number (for received) */}
