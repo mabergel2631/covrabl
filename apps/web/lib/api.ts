@@ -81,6 +81,8 @@ export type Policy = {
   deductible_type?: string | null;  // annual, per_incident
   deductible_period_start?: string | null;
   deductible_applied?: number | null;  // cents applied to deductible
+  // COI summary (only present when certificates exist for this policy)
+  coi_summary?: { status: string; count: number } | null;
   // Permission: null/undefined = owner, "view" = view-only shared, "edit" = edit shared
   permission?: string | null;
 };

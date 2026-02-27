@@ -7,7 +7,7 @@ from collections import defaultdict
 from .auth import get_current_user
 from .db import get_db
 from .models import Policy, Contact, CoverageItem, PolicyDetail, User, Exposure
-from .models_features import Premium, PolicyShare
+from .models_features import Premium, PolicyShare, Certificate
 from .schemas import PolicyCreate, PolicyUpdate, PolicyOut, BusinessGroupRename
 from .audit_helper import log_action
 from .routes_reminders import ensure_reminders
@@ -39,6 +39,20 @@ def list_policies(db: Session = Depends(get_db), user: User = Depends(get_curren
         ).scalars().all()
         for s in shares:
             shares_map[s.policy_id].append(s.shared_with_email)
+
+    # Batch load certificates (COI) for all policies in one query
+    coi_map: dict[int, dict] = {}
+    if policy_ids:
+        certs = db.execute(
+            select(Certificate).where(Certificate.policy_id.in_(policy_ids))
+        ).scalars().all()
+        certs_by_policy: dict[int, list] = defaultdict(list)
+        for c in certs:
+            certs_by_policy[c.policy_id].append(c)
+        status_priority = {"active": 0, "expiring": 1, "pending": 2, "expired": 3}
+        for pid, cert_list in certs_by_policy.items():
+            best = min(cert_list, key=lambda c: status_priority.get(c.status, 99))
+            coi_map[pid] = {"status": best.status, "count": len(cert_list)}
 
     result = []
     for p in policies:
@@ -83,6 +97,8 @@ def list_policies(db: Session = Depends(get_db), user: User = Depends(get_curren
             "deductible_type": p.deductible_type,
             "deductible_period_start": str(p.deductible_period_start) if p.deductible_period_start else None,
             "deductible_applied": p.deductible_applied,
+            # COI summary (only present when certificates exist)
+            "coi_summary": coi_map.get(p.id),
         })
 
     return result

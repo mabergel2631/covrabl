@@ -572,6 +572,20 @@ function PoliciesPageInner() {
               Shared ({p.shared_with.length})
             </span>
           )}
+          {p.coi_summary && (() => {
+            const coiColors: Record<string, { bg: string; fg: string; label: string }> = {
+              active: { bg: 'var(--color-success-light)', fg: 'var(--color-success-dark)', label: 'COI Active' },
+              expiring: { bg: 'var(--color-warning-light)', fg: 'var(--color-warning-dark)', label: 'COI Expiring' },
+              pending: { bg: '#fef3c7', fg: '#92400e', label: 'COI Pending' },
+              expired: { bg: 'var(--color-danger-light)', fg: 'var(--color-danger-dark)', label: 'COI Expired' },
+            };
+            const c = coiColors[p.coi_summary.status] || coiColors.pending;
+            return (
+              <span style={{ padding: '3px 8px', backgroundColor: c.bg, color: c.fg, borderRadius: 12, fontSize: 11, fontWeight: 600 }}>
+                {c.label}{p.coi_summary.count > 1 ? ` (${p.coi_summary.count})` : ''}
+              </span>
+            );
+          })()}
           <div style={{ flex: 1 }} />
           {p.scope === 'business' && currentGroup && (
             <div style={{ position: 'relative' }}>
