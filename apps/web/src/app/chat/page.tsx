@@ -467,8 +467,8 @@ function ChatPageInner() {
           </div>
         )}
 
-        {/* Input area */}
-        <div style={{ padding: '12px 20px 20px', flexShrink: 0 }}>
+        {/* Input area — extra bottom padding for iOS safe area */}
+        <div style={{ padding: '12px 20px calc(20px + env(safe-area-inset-bottom, 0px))', flexShrink: 0 }}>
           <div style={{
             display: 'flex',
             gap: 8,
