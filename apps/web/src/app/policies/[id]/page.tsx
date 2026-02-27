@@ -3,10 +3,12 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useAuth } from '../../../../lib/auth';
-import { API_BASE, policiesApi, contactsApi, documentsApi, coverageApi, policyDetailsApi, claimsApi, sharingApi, exportApi, premiumHistoryApi, exposuresApi, gapsApi, certificatesApi, Policy, Contact, DocMeta, ContactCreate, ExtractionData, CoverageItem, CoverageItemCreate, PolicyDetail, PolicyDetailCreate, PolicyUpdate, Claim, ClaimCreate, PolicyShareType, ShareCreate, PremiumHistoryEntry, Exposure, CoverageGap, Certificate } from '../../../../lib/api';
+import { API_BASE, policiesApi, contactsApi, documentsApi, coverageApi, policyDetailsApi, claimsApi, sharingApi, exportApi, premiumHistoryApi, exposuresApi, gapsApi, certificatesApi, Policy, Contact, DocMeta, ContactCreate, ExtractionData, CoverageItem, CoverageItemCreate, PolicyDetail, PolicyDetailCreate, PolicyUpdate, Claim, ClaimCreate, PolicyShareType, ShareCreate, PremiumHistoryEntry, Exposure, CoverageGap, Certificate, checkFeatureAccess, parseUpgradeError } from '../../../../lib/api';
 import { formatPhone, cleanPhone } from '../../../../lib/format';
 import { useToast } from '../../components/Toast';
 import { Skeleton } from '../../components/Skeleton';
+import UpgradePrompt from '../../components/UpgradePrompt';
+import BackButton from '../../components/BackButton';
 import { POLICY_TYPES, POLICY_TYPE_CONFIG } from '../../constants';
 
 const DOC_TYPES = [
@@ -44,7 +46,7 @@ const SUGGESTED_FIELDS: Record<string, string[]> = {
 export default function PolicyDetailPage() {
   const { id } = useParams();
   const policyId = Number(id);
-  const { token, logout } = useAuth();
+  const { token, plan, logout } = useAuth();
   const router = useRouter();
 
   const [policy, setPolicy] = useState<Policy | null>(null);
@@ -344,7 +346,10 @@ export default function PolicyDetailPage() {
       const d = await documentsApi.list(policyId);
       setDocs(d);
     } catch (err: any) {
-      if (err.message?.includes('authentication') || err.message?.includes('api_key')) {
+      const upgrade = parseUpgradeError(err);
+      if (upgrade) {
+        setError(upgrade.message);
+      } else if (err.message?.includes('authentication') || err.message?.includes('api_key')) {
         // No API key configured — skip silently
       } else {
         setError(err.message);
@@ -611,7 +616,7 @@ export default function PolicyDetailPage() {
                       </>
                     )}
                   </div>
-                  {isOwner && (
+                  {isOwner && checkFeatureAccess(plan || 'free', 'sharing').allowed && (
                     <button
                       onClick={() => setShowShareForm(!showShareForm)}
                       className="btn btn-outline"
@@ -1160,7 +1165,7 @@ export default function PolicyDetailPage() {
       {/* Deductible Tracking - Only show if policy has a deductible */}
       {policy.deductible && policy.deductible > 0 && (
         <div className="card" style={{ marginBottom: 32 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 12 }}>
             <h2 className="section-title" style={{ margin: 0 }}>Deductible Tracking</h2>
             {canEdit && (
               <button
@@ -1396,9 +1401,12 @@ export default function PolicyDetailPage() {
       })()}
 
       {/* Premium History */}
-      {(premiumHistory.length > 0 || policy.premium_amount) && (
+      {(premiumHistory.length > 0 || policy.premium_amount) && !checkFeatureAccess(plan || 'free', 'premium_history').allowed && (
+        <UpgradePrompt feature="premium_history" requiredPlan={checkFeatureAccess(plan || 'free', 'premium_history').requiredPlan} message="Upgrade to Pro to track how your premiums change over time." />
+      )}
+      {(premiumHistory.length > 0 || policy.premium_amount) && checkFeatureAccess(plan || 'free', 'premium_history').allowed && (
         <div className="card" style={{ marginBottom: 32 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 12 }}>
             <div>
               <h2 className="section-title" style={{ margin: 0 }}>Premium History</h2>
               {premiumHistoryChange !== 0 && (
@@ -1663,9 +1671,9 @@ export default function PolicyDetailPage() {
 
       {/* Certificates of Insurance */}
       <div className="card" style={{ marginBottom: 32 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 12 }}>
           <h2 className="section-title" style={{ margin: 0 }}>Certificates of Insurance</h2>
-          {canEdit && <button onClick={() => router.push('/certificates')} className="btn btn-primary">+ Issue COI</button>}
+          {canEdit && <button onClick={() => router.push('/certificates')} className="btn btn-primary">+ Add COI</button>}
         </div>
         {policyCertificates.length === 0 ? (
           <p style={{ color: '#999', margin: 0, fontSize: 14 }}>No certificates linked to this policy.</p>
@@ -1677,12 +1685,12 @@ export default function PolicyDetailPage() {
               const badgeBg = isExpired ? 'var(--color-danger-bg)' : isExpiring ? 'var(--color-warning-bg)' : 'var(--color-success-bg)';
               const badgeColor = isExpired ? 'var(--color-danger)' : isExpiring ? 'var(--color-warning)' : 'var(--color-success)';
               return (
-                <div key={cert.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: 14, backgroundColor: '#fff', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)' }}>
+                <div key={cert.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: 14, backgroundColor: '#fff', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', flexWrap: 'wrap', gap: 8 }}>
                   <div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4, flexWrap: 'wrap' }}>
                       <span style={{ fontSize: 14, fontWeight: 600 }}>{cert.counterparty_name || 'Unnamed'}</span>
                       <span style={{ padding: '1px 8px', borderRadius: 10, fontSize: 11, fontWeight: 600, backgroundColor: '#e8e8e8', color: '#555', textTransform: 'uppercase' }}>
-                        {cert.direction === 'issued' ? 'Issued' : 'Received'}
+                        {cert.direction === 'issued' ? 'Shared' : 'Received'}
                       </span>
                       <span style={{ padding: '1px 8px', borderRadius: 10, fontSize: 11, fontWeight: 600, backgroundColor: badgeBg, color: badgeColor }}>
                         {cert.status}
@@ -1704,7 +1712,7 @@ export default function PolicyDetailPage() {
 
       {/* Contacts */}
       <div className="card" style={{ marginBottom: 32 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 12 }}>
           <h2 className="section-title" style={{ margin: 0 }}>Contacts</h2>
           {canEdit && (
             <button onClick={() => setShowContactForm(!showContactForm)} className="btn btn-primary">
@@ -1772,7 +1780,7 @@ export default function PolicyDetailPage() {
 
       {/* Coverage Items (Inclusions / Exclusions) */}
       <div className="card" style={{ marginBottom: 32 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 12 }}>
           <h2 className="section-title" style={{ margin: 0 }}>Inclusions &amp; Exclusions</h2>
           {canEdit && (
             <button onClick={() => setShowCoverageForm(!showCoverageForm)} className="btn btn-primary">
@@ -1839,7 +1847,7 @@ export default function PolicyDetailPage() {
 
       {/* Policy Details (type-specific key-value fields) */}
       <div className="card" style={{ marginBottom: 32 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 12 }}>
           <h2 className="section-title" style={{ margin: 0 }}>Policy Details</h2>
           {canEdit && (
             <button onClick={toggleDetailForm} className="btn btn-primary">
@@ -1905,10 +1913,10 @@ export default function PolicyDetailPage() {
 
       {/* Claims */}
       <div className="card" style={{ marginBottom: 32 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 12 }}>
           <h2 className="section-title" style={{ margin: 0 }}>Track Claims</h2>
           {canEdit && (
-            <div style={{ display: 'flex', gap: 8 }}>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
               <input
                 type="file"
                 ref={claimFileRef}

@@ -10,7 +10,7 @@ class User(Base):
     email: Mapped[str] = mapped_column(String(255), unique=True, index=True)
     hashed_password: Mapped[str] = mapped_column(String(255))
     role: Mapped[str] = mapped_column(String(20), default="individual")  # "individual" or "agent"
-    plan: Mapped[str] = mapped_column(String(20), default="trial")  # trial, free, basic, pro
+    plan: Mapped[str] = mapped_column(String(20), default="free")  # free, pro, business (legacy: trial, basic)
     is_suspended: Mapped[bool] = mapped_column(Boolean, default=False)
     stripe_customer_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
     stripe_subscription_id: Mapped[str | None] = mapped_column(String(100), nullable=True)

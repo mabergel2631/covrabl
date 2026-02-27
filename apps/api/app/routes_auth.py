@@ -81,8 +81,7 @@ def register(payload: UserCreate, db: Session = Depends(get_db)):
     user = User(
         email=email,
         hashed_password=hashed,
-        plan="trial",
-        trial_ends_at=datetime.now(timezone.utc) + timedelta(days=30),
+        plan="free",
     )
     db.add(user)
     db.commit()

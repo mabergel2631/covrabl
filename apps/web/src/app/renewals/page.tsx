@@ -3,9 +3,11 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '../../../lib/auth';
-import { renewalsApi, RenewalSummaryResult, RenewalPolicySummary, RenewalChange } from '../../../lib/api';
+import { renewalsApi, RenewalSummaryResult, RenewalPolicySummary, RenewalChange, checkFeatureAccess } from '../../../lib/api';
 import { formatDate, formatCurrency, formatPhone, cleanPhone } from '../../../lib/format';
 import EmptyState from '../components/EmptyState';
+import UpgradePrompt from '../components/UpgradePrompt';
+import BackButton from '../components/BackButton';
 import { getPolicyTypeDisplay, ALERT_SEVERITY_CONFIG } from '../constants';
 
 const fieldLabels: Record<string, string> = {
@@ -315,6 +317,8 @@ function RenewalSummaryOverlay({
           top: 0,
           backgroundColor: '#fff',
           zIndex: 10,
+          flexWrap: 'wrap',
+          gap: 8,
         }}
       >
         <button
@@ -496,7 +500,7 @@ function RenewalSummaryOverlay({
 // ── Main Page ────────────────────────────────────────
 
 export default function RenewalsPage() {
-  const { token, logout } = useAuth();
+  const { token, plan, logout } = useAuth();
   const router = useRouter();
   const [data, setData] = useState<RenewalSummaryResult | null>(null);
   const [loading, setLoading] = useState(true);
@@ -522,8 +526,14 @@ export default function RenewalsPage() {
 
   if (!token) return null;
 
+  const featureGate = checkFeatureAccess(plan || 'free', 'deltas');
+  if (!featureGate.allowed) {
+    return <UpgradePrompt feature="deltas" requiredPlan={featureGate.requiredPlan} />;
+  }
+
   return (
     <div style={{ padding: '24px 24px 48px', maxWidth: 900, margin: '0 auto' }}>
+      <BackButton href="/" label="Renewals" parentLabel="Home" />
       {/* Header */}
       <div style={{ marginBottom: 24 }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>

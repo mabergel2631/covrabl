@@ -15,6 +15,7 @@ from .models import Policy, Contact, CoverageItem, PolicyDetail, User
 from .models_documents import Document
 from .storage import presign_get_url
 from .audit_helper import log_action
+from .routes_billing import check_extraction_limit
 from .routes_deltas import detect_deltas
 
 router = APIRouter(prefix="/documents", tags=["extraction"])
@@ -31,6 +32,8 @@ def extract_document(document_id: int, db: Session = Depends(get_db), user: User
     policy = db.get(Policy, doc.policy_id)
     if not policy or policy.user_id != user.id:
         raise HTTPException(status_code=404, detail="Document not found")
+
+    check_extraction_limit(user, db)
 
     doc.extraction_status = "pending"
     db.commit()

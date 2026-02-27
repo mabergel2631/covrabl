@@ -122,7 +122,7 @@ def on_startup():
             if "role" not in user_cols:
                 conn.execute(text("ALTER TABLE users ADD COLUMN role VARCHAR(20) DEFAULT 'individual'"))
             if "plan" not in user_cols:
-                conn.execute(text("ALTER TABLE users ADD COLUMN plan VARCHAR(20) DEFAULT 'trial'"))
+                conn.execute(text("ALTER TABLE users ADD COLUMN plan VARCHAR(20) DEFAULT 'free'"))
             if "stripe_customer_id" not in user_cols:
                 conn.execute(text("ALTER TABLE users ADD COLUMN stripe_customer_id VARCHAR(100)"))
             if "stripe_subscription_id" not in user_cols:

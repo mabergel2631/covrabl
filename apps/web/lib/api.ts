@@ -38,6 +38,7 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
       `${res.status} ${res.statusText}`;
     const err: any = new Error(typeof message === "string" ? message : JSON.stringify(message));
     err.status = res.status;
+    err.data = data;
     throw err;
   }
 
@@ -1699,6 +1700,7 @@ export const profileApi = {
 export type PlanInfo = {
   id: string;
   name: string;
+  tagline?: string;
   description: string;
   max_active_policies: number;
   features: string[];
@@ -1709,6 +1711,8 @@ export type PlanInfo = {
 export type BillingStatus = {
   plan: string;
   max_active_policies: number;
+  max_extractions: number;
+  extractions_used: number;
   has_subscription: boolean;
   trial_active: boolean;
   trial_days_left: number;
@@ -1719,8 +1723,8 @@ export const billingApi = {
   status(): Promise<BillingStatus> {
     return request<BillingStatus>("/billing/status");
   },
-  plans(): Promise<{ plans: PlanInfo[]; trial_days: number }> {
-    return request<{ plans: PlanInfo[]; trial_days: number }>("/billing/plans");
+  plans(): Promise<{ plans: PlanInfo[] }> {
+    return request<{ plans: PlanInfo[] }>("/billing/plans");
   },
   checkout(plan: string, interval: string): Promise<{ checkout_url: string }> {
     return request<{ checkout_url: string }>("/billing/checkout", {
@@ -1733,6 +1737,50 @@ export const billingApi = {
     return request<{ portal_url: string }>("/billing/portal", { method: "POST" });
   },
 };
+
+// ── Feature gating ──────────────────────────────────
+
+export type UpgradeError = {
+  error: "upgrade_required";
+  feature: string;
+  required_plan: string;
+  current_plan: string;
+  message: string;
+};
+
+export function parseUpgradeError(err: any): UpgradeError | null {
+  const data = err?.data?.detail ?? err?.data;
+  if (data && data.error === "upgrade_required") return data as UpgradeError;
+  return null;
+}
+
+const PLAN_TIER: Record<string, number> = {
+  free: 0,
+  trial: 2,
+  basic: 2,
+  pro: 2,
+  business: 3,
+};
+
+const FEATURE_ACCESS: Record<string, number> = {
+  deltas: 2,
+  premiums: 2,
+  premium_history: 2,
+  certificates: 3,
+  business_grouping: 3,
+  sharing: 3,
+};
+
+const TIER_PLAN_NAME: Record<number, string> = { 0: "free", 2: "pro", 3: "business" };
+
+export function checkFeatureAccess(plan: string, feature: string): { allowed: boolean; requiredPlan: string } {
+  const userTier = PLAN_TIER[plan] ?? 0;
+  const requiredTier = FEATURE_ACCESS[feature] ?? 0;
+  return {
+    allowed: userTier >= requiredTier,
+    requiredPlan: TIER_PLAN_NAME[requiredTier] ?? "pro",
+  };
+}
 
 export type COIExtraction = {
   counterparty_name: string;

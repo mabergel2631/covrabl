@@ -13,6 +13,7 @@ from .models import Policy, User
 from .models_features import Certificate, CertificateReminder
 from .schemas import CertificateCreate, CertificateUpdate
 from .audit_helper import log_action
+from .routes_billing import check_feature
 
 router = APIRouter(prefix="/certificates", tags=["certificates"])
 
@@ -78,6 +79,7 @@ def _enrich(cert: Certificate, db: Session, policy_map: dict[int, Policy] | None
 
 @router.post("", status_code=201)
 def create_certificate(payload: CertificateCreate, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    check_feature(user, "certificates")
     cert = Certificate(**payload.model_dump(), user_id=user.id)
     db.add(cert)
     db.flush()
@@ -90,6 +92,7 @@ def create_certificate(payload: CertificateCreate, db: Session = Depends(get_db)
 
 @router.get("")
 def list_certificates(direction: str | None = None, policy_id: int | None = None, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    check_feature(user, "certificates")
     q = select(Certificate).where(Certificate.user_id == user.id)
     if direction:
         q = q.where(Certificate.direction == direction)
@@ -119,6 +122,7 @@ async def extract_coi_pdf(
     user: User = Depends(get_current_user),
 ):
     """Upload a COI PDF and extract certificate fields via LLM."""
+    check_feature(user, "certificates")
     if not file.filename or not file.filename.lower().endswith(".pdf"):
         raise HTTPException(status_code=400, detail="Only PDF files are supported")
 
@@ -177,6 +181,7 @@ async def extract_coi_pdf(
 
 @router.get("/{cert_id}")
 def get_certificate(cert_id: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    check_feature(user, "certificates")
     cert = db.get(Certificate, cert_id)
     if not cert or cert.user_id != user.id:
         raise HTTPException(status_code=404, detail="Certificate not found")
@@ -185,6 +190,7 @@ def get_certificate(cert_id: int, db: Session = Depends(get_db), user: User = De
 
 @router.put("/{cert_id}")
 def update_certificate(cert_id: int, payload: CertificateUpdate, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    check_feature(user, "certificates")
     cert = db.get(Certificate, cert_id)
     if not cert or cert.user_id != user.id:
         raise HTTPException(status_code=404, detail="Certificate not found")
@@ -199,6 +205,7 @@ def update_certificate(cert_id: int, payload: CertificateUpdate, db: Session = D
 
 @router.delete("/{cert_id}")
 def delete_certificate(cert_id: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    check_feature(user, "certificates")
     cert = db.get(Certificate, cert_id)
     if not cert or cert.user_id != user.id:
         raise HTTPException(status_code=404, detail="Certificate not found")

@@ -76,7 +76,7 @@ function PricingContent() {
           Simple, transparent pricing
         </h1>
         <p style={{ fontSize: 18, opacity: 0.8, marginTop: 12, maxWidth: 500, margin: '12px auto 0' }}>
-          Start with a free 30-day Pro trial. No credit card required.
+          Start free. Upgrade when you need more.
         </p>
 
         {isTrialing && (
@@ -117,7 +117,7 @@ function PricingContent() {
               }}
             >
               {iv === 'monthly' ? 'Monthly' : 'Annual'}
-              {iv === 'annual' && <span style={{ color: 'var(--color-secondary)', marginLeft: 6, fontSize: 12, fontWeight: 600 }}>Save ~30%</span>}
+              {iv === 'annual' && <span style={{ color: 'var(--color-secondary)', marginLeft: 6, fontSize: 12, fontWeight: 600 }}>Save ~25%</span>}
             </button>
           ))}
         </div>
@@ -141,7 +141,7 @@ function PricingContent() {
 
       {/* Plan cards */}
       <div style={{
-        maxWidth: 1000,
+        maxWidth: 1100,
         margin: '-40px auto 0',
         padding: '0 24px 80px',
         display: 'grid',
@@ -173,6 +173,7 @@ function PricingContent() {
         ) : plans.map(p => {
           const isCurrentPlan = effectivePlan === p.id || (isTrialing && p.id === 'pro');
           const isPro = p.id === 'pro';
+          const isBusiness = p.id === 'business';
           const price = interval === 'monthly' ? p.monthly_price : p.annual_price;
           const monthlyEquiv = interval === 'annual' && p.annual_price > 0 ? Math.round(p.annual_price / 12) : null;
 
@@ -212,6 +213,11 @@ function PricingContent() {
               <h3 style={{ fontSize: 22, fontWeight: 700, margin: 0, fontFamily: 'var(--font-heading)' }}>
                 {p.name}
               </h3>
+              {p.tagline && (
+                <div style={{ fontSize: 13, color: 'var(--color-secondary-dark)', fontWeight: 500, marginTop: 4 }}>
+                  {p.tagline}
+                </div>
+              )}
               <p style={{ fontSize: 14, color: 'var(--color-text-secondary)', margin: '8px 0 20px' }}>
                 {p.description}
               </p>
@@ -275,7 +281,7 @@ function PricingContent() {
                     padding: '12px 20px',
                     border: 'none',
                     borderRadius: 'var(--radius-md)',
-                    backgroundColor: isCurrentPlan && !isTrialing ? 'var(--color-bg)' : isPro ? 'var(--color-secondary)' : 'var(--color-primary)',
+                    backgroundColor: isCurrentPlan && !isTrialing ? 'var(--color-bg)' : isPro ? 'var(--color-secondary)' : isBusiness ? 'var(--color-primary)' : 'var(--color-primary)',
                     color: isCurrentPlan && !isTrialing ? 'var(--color-text-secondary)' : '#fff',
                     fontSize: 15,
                     fontWeight: 600,
@@ -302,24 +308,24 @@ function PricingContent() {
         </h2>
         {[
           {
-            q: 'What happens after my trial ends?',
-            a: 'Your account automatically moves to the Free plan with up to 3 active policies. Your data is never deleted. Upgrade anytime to restore full access.',
+            q: 'What can I do on the Free plan?',
+            a: 'You get full AI-powered coverage insights, gap analysis, policy comparison, chat assistant, and emergency ICE card for up to 3 policies with 3 PDF extractions. The product is fully functional — Free users see the same intelligence as paid users.',
+          },
+          {
+            q: 'When should I upgrade to Pro?',
+            a: 'Upgrade when you need more than 3 policies or want continuous monitoring — change detection alerts, renewal tracking, and premium cost history across all your policies.',
+          },
+          {
+            q: 'What does Business add over Pro?',
+            a: 'Business adds entity/business folders to organize policies by organization, COI (Certificate of Insurance) tracking and management, and multi-user policy sharing.',
           },
           {
             q: 'Can I switch between monthly and annual?',
             a: 'Yes. You can switch billing intervals at any time from your billing settings. When switching to annual, you\'ll receive prorated credit for your current period.',
           },
           {
-            q: 'What counts as an "active" policy?',
-            a: 'Only policies with an "active" status count toward your limit. Expired or archived policies don\'t count, so you can keep your full history.',
-          },
-          {
             q: 'Can I cancel anytime?',
-            a: 'Absolutely. Cancel from your billing settings with one click. You\'ll keep access through the end of your paid period.',
-          },
-          {
-            q: 'Is my data safe?',
-            a: 'Yes. We use bank-level encryption for all data in transit and at rest. We never share your information with insurers or third parties.',
+            a: 'Absolutely. Cancel from your billing settings with one click. You\'ll keep access through the end of your paid period, then move to Free.',
           },
         ].map((faq, i) => (
           <div key={i} style={{

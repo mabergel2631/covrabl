@@ -12,6 +12,7 @@ from .schemas import PolicyCreate, PolicyUpdate, PolicyOut, BusinessGroupRename
 from .audit_helper import log_action
 from .routes_reminders import ensure_reminders
 from .access import get_policy_for_user
+from .routes_billing import check_feature
 
 router = APIRouter(prefix="/policies", tags=["policies"])
 
@@ -106,6 +107,7 @@ def list_policies(db: Session = Depends(get_db), user: User = Depends(get_curren
 
 @router.get("/business-names")
 def list_business_names(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    check_feature(user, "business_grouping")
     from sqlalchemy import distinct
     names = db.execute(
         select(distinct(Policy.business_name))
@@ -118,6 +120,7 @@ def list_business_names(db: Session = Depends(get_db), user: User = Depends(get_
 
 @router.put("/business-names/rename")
 def rename_business_group(payload: BusinessGroupRename, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    check_feature(user, "business_grouping")
     old_val = payload.old_name if payload.old_name else None
     new_val = payload.new_name if payload.new_name else None
 

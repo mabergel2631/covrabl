@@ -15,6 +15,7 @@ from .db import get_db
 from .models import Policy, User
 from .models_features import PolicyDelta, DeltaExplanation
 from .config import settings
+from .routes_billing import check_feature
 
 router = APIRouter(tags=["deltas"])
 
@@ -185,6 +186,7 @@ def list_all_deltas(
     user: User = Depends(get_current_user)
 ):
     """List all deltas for the current user across all policies."""
+    check_feature(user, "deltas")
     # Get user's policy IDs
     policy_ids = db.execute(
         select(Policy.id).where(Policy.user_id == user.id)
@@ -251,6 +253,7 @@ def list_policy_deltas(
     user: User = Depends(get_current_user)
 ):
     """List all deltas for a specific policy."""
+    check_feature(user, "deltas")
     policy = db.get(Policy, policy_id)
     if not policy or policy.user_id != user.id:
         raise HTTPException(status_code=404, detail="Policy not found")
@@ -291,6 +294,7 @@ def acknowledge_delta(
     user: User = Depends(get_current_user)
 ):
     """Mark a delta as acknowledged."""
+    check_feature(user, "deltas")
     delta = db.get(PolicyDelta, delta_id)
     if not delta:
         raise HTTPException(status_code=404, detail="Delta not found")
@@ -312,6 +316,7 @@ def acknowledge_all_deltas(
     user: User = Depends(get_current_user)
 ):
     """Mark all deltas as acknowledged for the current user."""
+    check_feature(user, "deltas")
     policy_ids = db.execute(
         select(Policy.id).where(Policy.user_id == user.id)
     ).scalars().all()
@@ -339,6 +344,7 @@ def explain_delta(
     user: User = Depends(get_current_user)
 ):
     """Generate an AI explanation for a delta."""
+    check_feature(user, "deltas")
     delta = db.get(PolicyDelta, delta_id)
     if not delta:
         raise HTTPException(status_code=404, detail="Delta not found")

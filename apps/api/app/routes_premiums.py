@@ -8,6 +8,7 @@ from .models import Policy, User
 from .models_features import Premium
 from .schemas import PremiumCreate, PremiumUpdate, PremiumOut
 from .audit_helper import log_action
+from .routes_billing import check_feature
 
 router = APIRouter(tags=["premiums"])
 
@@ -23,6 +24,7 @@ def _get_user_policy(policy_id: int, db: Session, user: User) -> Policy:
 
 @router.get("/policies/{policy_id}/premiums", response_model=list[PremiumOut])
 def list_premiums(policy_id: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    check_feature(user, "premiums")
     _get_user_policy(policy_id, db, user)
     rows = db.execute(
         select(Premium).where(Premium.policy_id == policy_id).order_by(Premium.due_date.desc())
@@ -32,6 +34,7 @@ def list_premiums(policy_id: int, db: Session = Depends(get_db), user: User = De
 
 @router.post("/policies/{policy_id}/premiums", response_model=PremiumOut, status_code=201)
 def create_premium(policy_id: int, payload: PremiumCreate, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    check_feature(user, "premiums")
     _get_user_policy(policy_id, db, user)
     premium = Premium(policy_id=policy_id, **payload.model_dump())
     db.add(premium)
@@ -44,6 +47,7 @@ def create_premium(policy_id: int, payload: PremiumCreate, db: Session = Depends
 
 @router.put("/policies/{policy_id}/premiums/{premium_id}", response_model=PremiumOut)
 def update_premium(policy_id: int, premium_id: int, payload: PremiumUpdate, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    check_feature(user, "premiums")
     _get_user_policy(policy_id, db, user)
     premium = db.get(Premium, premium_id)
     if not premium or premium.policy_id != policy_id:
@@ -58,6 +62,7 @@ def update_premium(policy_id: int, premium_id: int, payload: PremiumUpdate, db: 
 
 @router.delete("/policies/{policy_id}/premiums/{premium_id}")
 def delete_premium(policy_id: int, premium_id: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    check_feature(user, "premiums")
     _get_user_policy(policy_id, db, user)
     premium = db.get(Premium, premium_id)
     if not premium or premium.policy_id != policy_id:
@@ -69,6 +74,7 @@ def delete_premium(policy_id: int, premium_id: int, db: Session = Depends(get_db
 
 @router.get("/premiums/annual-spend")
 def annual_spend(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    check_feature(user, "premiums")
     rows = db.execute(
         select(Premium).join(Policy, Premium.policy_id == Policy.id).where(Policy.user_id == user.id)
     ).scalars().all()

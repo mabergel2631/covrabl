@@ -3,13 +3,15 @@ from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 from typing import Literal, Optional
 
 from .auth import get_current_user
 from .config import settings
 from .db import get_db
-from .models import User
+from .models import User, Policy
+from .models_documents import Document
 
 logger = logging.getLogger(__name__)
 
@@ -17,10 +19,37 @@ router = APIRouter(prefix="/billing", tags=["billing"])
 
 # ── Plan limits ──────────────────────────────────────
 PLAN_LIMITS = {
-    "free": {"max_active_policies": 3},
-    "trial": {"max_active_policies": 999},  # Trial = Pro access
-    "basic": {"max_active_policies": 5},
-    "pro": {"max_active_policies": 999},
+    "free": {"max_active_policies": 3, "max_extractions": 3},
+    "trial": {"max_active_policies": 999, "max_extractions": 999},  # Legacy, maps to Pro
+    "basic": {"max_active_policies": 5, "max_extractions": 999},    # Legacy, maps to Pro
+    "pro": {"max_active_policies": 999, "max_extractions": 999},
+    "business": {"max_active_policies": 999, "max_extractions": 999},
+}
+
+# ── Plan tier hierarchy ──────────────────────────────
+PLAN_TIER = {
+    "free": 0,
+    "trial": 2,    # Legacy trial = Pro-level access
+    "basic": 2,    # Legacy basic = Pro-level access
+    "pro": 2,
+    "business": 3,
+}
+
+# ── Feature access requirements ──────────────────────
+# Value = minimum tier required to access feature
+FEATURE_ACCESS = {
+    "deltas": 2,
+    "premiums": 2,
+    "premium_history": 2,
+    "certificates": 3,
+    "business_grouping": 3,
+    "sharing": 3,
+}
+
+PLAN_NAMES = {
+    0: "free",
+    2: "pro",
+    3: "business",
 }
 
 PRICE_MAP = {
@@ -28,6 +57,8 @@ PRICE_MAP = {
     "basic_annual": lambda: settings.stripe_basic_annual_price_id,
     "pro_monthly": lambda: settings.stripe_pro_monthly_price_id,
     "pro_annual": lambda: settings.stripe_pro_annual_price_id,
+    "business_monthly": lambda: settings.stripe_business_monthly_price_id,
+    "business_annual": lambda: settings.stripe_business_annual_price_id,
 }
 
 
@@ -46,6 +77,54 @@ def get_policy_limit(user: User) -> int:
     return PLAN_LIMITS.get(plan, PLAN_LIMITS["free"])["max_active_policies"]
 
 
+def check_feature(user: User, feature_name: str):
+    """Check if user's plan tier allows access to a feature. Raises 403 if not."""
+    plan = get_effective_plan(user)
+    user_tier = PLAN_TIER.get(plan, 0)
+    required_tier = FEATURE_ACCESS.get(feature_name)
+    if required_tier is None:
+        return  # Unknown feature = no gate
+    if user_tier >= required_tier:
+        return  # Access granted
+    required_plan = PLAN_NAMES.get(required_tier, "pro")
+    raise HTTPException(
+        status_code=403,
+        detail={
+            "error": "upgrade_required",
+            "feature": feature_name,
+            "required_plan": required_plan,
+            "current_plan": plan,
+            "message": f"Upgrade to {required_plan.title()} to access this feature.",
+        },
+    )
+
+
+def check_extraction_limit(user: User, db: Session):
+    """Check if free user has hit their extraction limit. Raises 403 if so."""
+    plan = get_effective_plan(user)
+    limits = PLAN_LIMITS.get(plan, PLAN_LIMITS["free"])
+    max_extractions = limits["max_extractions"]
+    if max_extractions >= 999:
+        return  # Unlimited
+    used = db.execute(
+        select(Document.id)
+        .join(Policy, Document.policy_id == Policy.id)
+        .where(Policy.user_id == user.id)
+        .where(Document.extraction_status.in_(["done", "review"]))
+    ).scalars().all()
+    if len(used) >= max_extractions:
+        raise HTTPException(
+            status_code=403,
+            detail={
+                "error": "upgrade_required",
+                "feature": "extractions",
+                "required_plan": "pro",
+                "current_plan": plan,
+                "message": f"You've used all {max_extractions} free extractions. Upgrade to Pro for unlimited extractions.",
+            },
+        )
+
+
 def _get_stripe():
     """Lazy import stripe to avoid import errors when not installed."""
     try:
@@ -61,7 +140,7 @@ def _get_stripe():
 # ── Status ───────────────────────────────────────────
 
 @router.get("/status")
-def billing_status(user: User = Depends(get_current_user)):
+def billing_status(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     plan = get_effective_plan(user)
     limits = PLAN_LIMITS.get(plan, PLAN_LIMITS["free"])
 
@@ -74,9 +153,23 @@ def billing_status(user: User = Depends(get_current_user)):
             trial_active = True
             trial_days_left = max(0, (trial_end - now).days)
 
+    # Count extractions used
+    max_extractions = limits["max_extractions"]
+    if max_extractions >= 999:
+        extractions_used = 0  # Don't bother counting for unlimited plans
+    else:
+        extractions_used = len(db.execute(
+            select(Document.id)
+            .join(Policy, Document.policy_id == Policy.id)
+            .where(Policy.user_id == user.id)
+            .where(Document.extraction_status.in_(["done", "review"]))
+        ).scalars().all())
+
     return {
         "plan": plan,
         "max_active_policies": limits["max_active_policies"],
+        "max_extractions": max_extractions,
+        "extractions_used": extractions_used,
         "has_subscription": bool(user.stripe_subscription_id),
         "trial_active": trial_active,
         "trial_days_left": trial_days_left,
@@ -93,60 +186,61 @@ def list_plans():
             {
                 "id": "free",
                 "name": "Free",
-                "description": "Get started with the basics",
+                "tagline": "Understand your policies",
+                "description": "Get started with full AI insights",
                 "max_active_policies": 3,
                 "features": [
                     "Up to 3 active policies",
-                    "Basic policy tracking",
+                    "3 PDF extractions",
+                    "AI coverage insights & gaps",
+                    "Policy comparison",
                     "Emergency ICE card",
-                    "Renewal reminders",
+                    "AI chat assistant",
                 ],
                 "monthly_price": 0,
                 "annual_price": 0,
             },
             {
-                "id": "basic",
-                "name": "Basic",
-                "description": "For individuals managing their coverage",
-                "max_active_policies": 5,
-                "features": [
-                    "Up to 5 active policies",
-                    "Full policy tracking",
-                    "Emergency ICE card",
-                    "Renewal reminders",
-                    "Coverage gap analysis",
-                    "Policy sharing (2 people)",
-                    "Document storage",
-                ],
-                "monthly_price": 249,
-                "annual_price": 2000,
-            },
-            {
                 "id": "pro",
                 "name": "Pro",
-                "description": "Complete insurance intelligence",
+                "tagline": "Monitor your protection continuously",
+                "description": "Unlimited policies with change tracking",
                 "max_active_policies": 999,
                 "features": [
                     "Unlimited active policies",
-                    "AI document extraction",
-                    "Full gap analysis with recommendations",
-                    "Unlimited policy sharing",
+                    "Unlimited PDF extractions",
+                    "Change detection alerts",
+                    "Renewal tracking & alerts",
                     "Premium tracking & history",
-                    "Coverage score insights",
-                    "Priority support",
+                    "Everything in Free",
                 ],
-                "monthly_price": 599,
-                "annual_price": 5500,
+                "monthly_price": 999,
+                "annual_price": 8900,
+            },
+            {
+                "id": "business",
+                "name": "Business",
+                "tagline": "Manage insurance across organizations",
+                "description": "Entity management & COI tracking",
+                "max_active_policies": 999,
+                "features": [
+                    "Entity/business folders",
+                    "COI tracking & management",
+                    "Multi-user policy sharing",
+                    "Priority support",
+                    "Everything in Pro",
+                ],
+                "monthly_price": 2499,
+                "annual_price": 22900,
             },
         ],
-        "trial_days": 30,
     }
 
 
 # ── Checkout ─────────────────────────────────────────
 
 class CheckoutRequest(BaseModel):
-    plan: Literal["basic", "pro"]
+    plan: Literal["pro", "business"]
     interval: Literal["monthly", "annual"]
 
 
@@ -228,7 +322,6 @@ async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
 
 
 def _find_user_by_customer(customer_id: str, db: Session) -> Optional[User]:
-    from sqlalchemy import select
     return db.execute(
         select(User).where(User.stripe_customer_id == customer_id)
     ).scalar_one_or_none()
@@ -237,7 +330,7 @@ def _find_user_by_customer(customer_id: str, db: Session) -> Optional[User]:
 def _handle_checkout_completed(data: dict, db: Session):
     customer_id = data.get("customer")
     subscription_id = data.get("subscription")
-    plan = data.get("metadata", {}).get("plan", "basic")
+    plan = data.get("metadata", {}).get("plan", "pro")
 
     user = _find_user_by_customer(customer_id, db)
     if not user:

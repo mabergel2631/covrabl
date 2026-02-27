@@ -4,6 +4,7 @@ import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '../../../lib/auth';
 import { billingApi, type BillingStatus } from '../../../lib/api';
+import BackButton from '../components/BackButton';
 
 export default function BillingPage() {
   return <Suspense><BillingContent /></Suspense>;
@@ -37,18 +38,20 @@ function BillingContent() {
   };
 
   const planLabel = (p: string) => {
-    const labels: Record<string, string> = { trial: 'Pro Trial', free: 'Free', basic: 'Basic', pro: 'Pro' };
+    const labels: Record<string, string> = { trial: 'Pro Trial', free: 'Free', basic: 'Basic', pro: 'Pro', business: 'Business' };
     return labels[p] || p;
   };
 
   const planColor = (p: string) => {
     if (p === 'pro' || p === 'trial') return 'var(--color-secondary)';
+    if (p === 'business') return 'var(--color-primary)';
     if (p === 'basic') return 'var(--color-primary)';
     return 'var(--color-text-secondary)';
   };
 
   return (
     <div style={{ padding: '32px 24px', maxWidth: 700, margin: '0 auto' }}>
+      <BackButton href="/" label="Billing" parentLabel="Home" />
       <h1 style={{ fontSize: 24, fontWeight: 700, margin: '0 0 8px', fontFamily: 'var(--font-heading)' }}>
         Billing & Plan
       </h1>
@@ -146,9 +149,9 @@ function BillingContent() {
             </div>
           </div>
           <div style={{ padding: 16, backgroundColor: 'var(--color-bg)', borderRadius: 'var(--radius-md)' }}>
-            <div style={{ fontSize: 12, color: 'var(--color-text-muted)', marginBottom: 4 }}>Subscription</div>
+            <div style={{ fontSize: 12, color: 'var(--color-text-muted)', marginBottom: 4 }}>PDF Extractions</div>
             <div style={{ fontSize: 18, fontWeight: 600 }}>
-              {status?.has_subscription ? 'Active' : 'None'}
+              {status ? (status.max_extractions >= 999 ? 'Unlimited' : `${status.extractions_used}/${status.max_extractions} used`) : '...'}
             </div>
           </div>
         </div>

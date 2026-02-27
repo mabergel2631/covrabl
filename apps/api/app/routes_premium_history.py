@@ -13,6 +13,7 @@ from .auth import get_current_user
 from .db import get_db
 from .models import Policy, User
 from .models_features import PremiumHistory
+from .routes_billing import check_feature
 
 router = APIRouter(prefix="/policies/{policy_id}/premium-history", tags=["premium-history"])
 
@@ -36,6 +37,7 @@ def list_premium_history(
     user: User = Depends(get_current_user)
 ):
     """Get premium history for a policy, ordered by date."""
+    check_feature(user, "premium_history")
     from .access import get_policy_for_user
     get_policy_for_user(policy_id, db, user)
 
@@ -87,6 +89,7 @@ def add_premium_history(
     user: User = Depends(get_current_user)
 ):
     """Add a premium history entry."""
+    check_feature(user, "premium_history")
     policy = db.get(Policy, policy_id)
     if not policy or policy.user_id != user.id:
         raise HTTPException(status_code=404, detail="Policy not found")
@@ -118,6 +121,7 @@ def update_premium_history(
     user: User = Depends(get_current_user)
 ):
     """Update a premium history entry."""
+    check_feature(user, "premium_history")
     policy = db.get(Policy, policy_id)
     if not policy or policy.user_id != user.id:
         raise HTTPException(status_code=404, detail="Policy not found")
@@ -145,6 +149,7 @@ def delete_premium_history(
     user: User = Depends(get_current_user)
 ):
     """Delete a premium history entry."""
+    check_feature(user, "premium_history")
     policy = db.get(Policy, policy_id)
     if not policy or policy.user_id != user.id:
         raise HTTPException(status_code=404, detail="Policy not found")

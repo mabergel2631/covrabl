@@ -3,17 +3,17 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { useAuth } from '../../../lib/auth';
-import { fetchActiveAnnouncements } from '../../../lib/api';
+import { fetchActiveAnnouncements, checkFeatureAccess } from '../../../lib/api';
 import { APP_NAME, APP_SIDEBAR_TAGLINE } from '../config';
 import Logo from './Logo';
 
-const NAV_ITEMS = [
+const NAV_ITEMS: { href: string; label: string; icon: string; urgent?: boolean; feature?: string }[] = [
   { href: '/', label: 'Home', icon: '🏠' },
   { href: '/policies', label: 'Policies', icon: '📋' },
-  { href: '/certificates', label: 'Certificates', icon: '📜' },
+  { href: '/certificates', label: 'Certificates', icon: '📜', feature: 'certificates' },
   { href: '/emergency', label: 'Emergency', icon: '🚨', urgent: true },
   { href: '/audit', label: 'Alerts', icon: '🔔' },
-  { href: '/renewals', label: 'Renewals', icon: '🔄' },
+  { href: '/renewals', label: 'Renewals', icon: '🔄', feature: 'deltas' },
   { href: '/chat', label: 'Policy Insights', icon: '💬' },
   { href: '/policies/compare', label: 'Compare', icon: '⚖️' },
   { href: '/profile', label: 'Profile', icon: '👤' },
@@ -101,6 +101,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             const isPolActive = item.href === '/policies' && (pathname === '/policies' || (pathname.startsWith('/policies/') && !pathname.startsWith('/policies/compare')));
             const isActive = active || isPolActive;
             const isUrgent = 'urgent' in item && item.urgent;
+            const isLocked = item.feature ? !checkFeatureAccess(plan || 'free', item.feature).allowed : false;
             return (
               <button
                 key={item.href}
@@ -114,7 +115,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
                   border: isUrgent && !isActive ? '1px solid rgba(239,68,68,0.4)' : 'none',
                   borderRadius: 'var(--radius-md)',
                   backgroundColor: isActive ? 'rgba(255,255,255,0.12)' : isUrgent ? 'rgba(239,68,68,0.1)' : 'transparent',
-                  color: isUrgent ? '#fca5a5' : '#fff',
+                  color: isLocked ? 'rgba(255,255,255,0.45)' : isUrgent ? '#fca5a5' : '#fff',
                   fontSize: 14,
                   fontWeight: isActive ? 600 : isUrgent ? 600 : 400,
                   cursor: 'pointer',
@@ -124,6 +125,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
               >
                 <span style={{ fontSize: 16 }}>{item.icon}</span>
                 {item.label}
+                {isLocked && <span style={{ marginLeft: 'auto', fontSize: 11, opacity: 0.6 }}>&#128274;</span>}
               </button>
             );
           })}

@@ -11,12 +11,14 @@ from .models import Policy, User
 from .models_features import PolicyShare
 from .audit_helper import log_action
 from .schemas import ShareCreate, ShareOut, BulkShareCreate, BulkShareResult
+from .routes_billing import check_feature
 
 router = APIRouter(tags=["sharing"])
 
 
 @router.post("/policies/share-bulk", response_model=BulkShareResult)
 def bulk_share(payload: BulkShareCreate, background_tasks: BackgroundTasks, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    check_feature(user, "sharing")
     payload.shared_with_email = payload.shared_with_email.strip().lower()
     if payload.shared_with_email == user.email:
         raise HTTPException(status_code=400, detail="Cannot share with yourself")
@@ -75,6 +77,7 @@ def bulk_share(payload: BulkShareCreate, background_tasks: BackgroundTasks, db: 
 
 @router.post("/policies/{policy_id}/share", response_model=ShareOut, status_code=201)
 def share_policy(policy_id: int, payload: ShareCreate, background_tasks: BackgroundTasks, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    check_feature(user, "sharing")
     policy = db.get(Policy, policy_id)
     if not policy or policy.user_id != user.id:
         raise HTTPException(status_code=404, detail="Policy not found")

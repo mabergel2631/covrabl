@@ -31,6 +31,8 @@ class Settings(BaseSettings):
     stripe_basic_annual_price_id: str = ""
     stripe_pro_monthly_price_id: str = ""
     stripe_pro_annual_price_id: str = ""
+    stripe_business_monthly_price_id: str = ""
+    stripe_business_annual_price_id: str = ""
 
     class Config:
         env_file = ".env"

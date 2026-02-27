@@ -3,10 +3,12 @@
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '../../../lib/auth';
-import { certificatesApi, policiesApi, Certificate, CertificateCreate, Policy } from '../../../lib/api';
+import { certificatesApi, policiesApi, Certificate, CertificateCreate, Policy, checkFeatureAccess } from '../../../lib/api';
 import { useToast } from '../components/Toast';
 import ConfirmDialog from '../components/ConfirmDialog';
 import TabNav from '../components/TabNav';
+import UpgradePrompt from '../components/UpgradePrompt';
+import BackButton from '../components/BackButton';
 import { CERT_STATUS_COLORS } from '../constants';
 
 const COUNTERPARTY_TYPES = [
@@ -25,7 +27,7 @@ const COUNTERPARTY_TYPES = [
 const COVERAGE_TYPE_OPTIONS = ['General Liability', 'Auto', 'Workers Comp', 'Umbrella', 'Professional Liability', 'Property'];
 
 export default function CertificatesPage() {
-  const { token, logout } = useAuth();
+  const { token, plan, logout } = useAuth();
   const router = useRouter();
   const { toast } = useToast();
 
@@ -206,13 +208,19 @@ export default function CertificatesPage() {
     );
   }
 
+  const featureGate = checkFeatureAccess(plan || 'free', 'certificates');
+  if (!featureGate.allowed) {
+    return <UpgradePrompt feature="certificates" requiredPlan={featureGate.requiredPlan} />;
+  }
+
   return (
     <div style={{ padding: 32, maxWidth: 960, margin: '0 auto' }}>
+      <BackButton href="/" label="Certificates" parentLabel="Home" />
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24, flexWrap: 'wrap', gap: 12 }}>
         <div>
           <h1 style={{ fontSize: 22, fontWeight: 700 }}>Certificates of Insurance</h1>
-          <p style={{ fontSize: 13, color: 'var(--color-text-secondary)', marginTop: 4 }}>Track COIs you issue and receive</p>
+          <p style={{ fontSize: 13, color: 'var(--color-text-secondary)', marginTop: 4 }}>Track COIs you share and receive</p>
         </div>
         <button
           onClick={() => { resetForm(); setShowForm(true); }}
@@ -233,7 +241,7 @@ export default function CertificatesPage() {
           onSelect={(key) => setTab(key as 'all' | 'issued' | 'received')}
           tabs={[
             { key: 'all', label: `All (${certificates.length})` },
-            { key: 'issued', label: `Issued (${certificates.filter(c => c.direction === 'issued').length})` },
+            { key: 'issued', label: `Shared (${certificates.filter(c => c.direction === 'issued').length})` },
             { key: 'received', label: `Received (${certificates.filter(c => c.direction === 'received').length})` },
           ]}
         />
@@ -245,9 +253,9 @@ export default function CertificatesPage() {
           <div style={{ fontSize: 48, marginBottom: 16 }}>📜</div>
           <p style={{ fontSize: 16, fontWeight: 600, marginBottom: 8 }}>No certificates yet</p>
           <p style={{ fontSize: 13 }}>
-            {tab === 'issued' ? 'Track COIs you provide to landlords, lenders, or clients.' :
+            {tab === 'issued' ? 'Track COIs you share with landlords, lenders, or clients.' :
              tab === 'received' ? 'Track COIs you receive from vendors, contractors, or tenants.' :
-             'Add certificates to track proof of insurance you issue or receive.'}
+             'Add certificates to track proof of insurance you share or receive.'}
           </p>
         </div>
       )}
@@ -299,7 +307,7 @@ export default function CertificatesPage() {
                             backgroundColor: cert.direction === 'issued' ? '#dbeafe' : '#fce7f3',
                             color: cert.direction === 'issued' ? '#1e40af' : '#9d174d',
                           }}>
-                            {cert.direction === 'issued' ? 'Issued' : 'Received'}
+                            {cert.direction === 'issued' ? 'Shared' : 'Received'}
                           </span>
                           <span style={{
                             display: 'inline-block', padding: '2px 8px', borderRadius: 12, fontSize: 11, fontWeight: 600,
@@ -403,8 +411,8 @@ export default function CertificatesPage() {
                 border: '1px dashed #93c5fd', borderRadius: 'var(--radius-md)',
               }}>
                 <label style={{ ...labelStyle, marginBottom: 8 }}>Upload COI PDF to auto-fill fields</label>
-                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                  <input ref={coiFileRef} type="file" accept=".pdf" style={{ fontSize: 13, flex: 1 }} />
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                  <input ref={coiFileRef} type="file" accept=".pdf" style={{ fontSize: 13, flex: 1, minWidth: 0 }} />
                   <button
                     type="button"
                     onClick={handleExtractCOI}
@@ -441,7 +449,7 @@ export default function CertificatesPage() {
                       color: form.direction === d ? '#fff' : 'var(--color-text)',
                     }}
                   >
-                    {d === 'issued' ? 'I Issued (outgoing)' : 'I Received (incoming)'}
+                    {d === 'issued' ? 'Shared (outgoing)' : 'Received (incoming)'}
                   </button>
                 ))}
               </div>
@@ -466,7 +474,7 @@ export default function CertificatesPage() {
               <input style={inputStyle} type="email" value={form.counterparty_email || ''} onChange={e => setForm(f => ({ ...f, counterparty_email: e.target.value || null }))} placeholder="Optional - for reminders" />
             </div>
 
-            {/* Linked policy (for issued) */}
+            {/* Linked policy (for shared/outgoing) */}
             {form.direction === 'issued' && (
               <div style={{ marginBottom: 12 }}>
                 <label style={labelStyle}>Backed by Policy</label>

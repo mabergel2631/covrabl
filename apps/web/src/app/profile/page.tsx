@@ -6,6 +6,7 @@ import { useAuth } from '../../../lib/auth';
 import { profileApi, authApi, UserProfile, ProfileContact, ProfileContactCreate } from '../../../lib/api';
 import { formatPhone } from '../../../lib/format';
 import { useToast } from '../components/Toast';
+import BackButton from '../components/BackButton';
 
 const CONTEXT_FLAGS: { key: keyof UserProfile; label: string; help: string }[] = [
   { key: 'is_homeowner', label: 'I own a home', help: 'Helps identify homeowners insurance gaps' },
@@ -201,6 +202,7 @@ export default function ProfilePage() {
 
   return (
     <div style={{ maxWidth: 720, margin: '0 auto', padding: 24 }}>
+      <BackButton href="/" label="Profile" parentLabel="Home" />
       <h1 style={{ fontSize: 24, fontWeight: 700, marginBottom: 4 }}>Your Profile</h1>
       <p style={{ fontSize: 14, color: 'var(--color-text-secondary)', marginBottom: 24 }}>
         Your personal info helps pre-fill forms and powers smarter coverage recommendations.
@@ -582,6 +584,8 @@ function ContactCard({ contact, onEdit, onDelete }: {
       borderRadius: 8,
       marginBottom: 8,
       border: '1px solid var(--color-border)',
+      flexWrap: 'wrap',
+      gap: 8,
     }}>
       <div>
         <div style={{ fontSize: 14, fontWeight: 600 }}>{contact.name}</div>

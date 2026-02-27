@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '../../../lib/auth';
-import { API_BASE, policiesApi, renewalsApi, remindersApi, premiumsApi, sharingApi, documentsApi, gapsApi, inboundApi, profileApi, Policy, PolicyCreate, RenewalItem, SmartAlert, SharedPolicy, PendingShare, CoverageGap, CoverageSummary, InboundAddress, PolicyDraftData } from '../../../lib/api';
+import { API_BASE, policiesApi, renewalsApi, remindersApi, premiumsApi, sharingApi, documentsApi, gapsApi, inboundApi, profileApi, Policy, PolicyCreate, RenewalItem, SmartAlert, SharedPolicy, PendingShare, CoverageGap, CoverageSummary, InboundAddress, PolicyDraftData, checkFeatureAccess } from '../../../lib/api';
 import { useToast } from '../components/Toast';
 import ConfirmDialog from '../components/ConfirmDialog';
 import BulkShareModal from '../components/BulkShareModal';
@@ -20,7 +20,7 @@ export default function PoliciesPage() {
 }
 
 function PoliciesPageInner() {
-  const { token, logout } = useAuth();
+  const { token, plan, logout } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
   const [policies, setPolicies] = useState<Policy[]>([]);
@@ -843,7 +843,7 @@ function PoliciesPageInner() {
               tabs={[
                 { key: 'all', label: 'All' },
                 { key: 'personal', label: 'Personal' },
-                { key: 'business', label: 'Business' },
+                ...(checkFeatureAccess(plan || 'free', 'business_grouping').allowed ? [{ key: 'business', label: 'Business' }] : []),
               ]}
             />
           </div>
@@ -1108,7 +1108,7 @@ function PoliciesPageInner() {
               )}
 
               {/* ── BUSINESS SECTION ── */}
-              {businessPolicies.length > 0 && scopeTab !== 'personal' && (
+              {businessPolicies.length > 0 && scopeTab !== 'personal' && checkFeatureAccess(plan || 'free', 'business_grouping').allowed && (
                 <div>
                   <h3 style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 16 }}>
                     Business ({businessPolicies.length})
