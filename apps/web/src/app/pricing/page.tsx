@@ -40,7 +40,10 @@ function PricingContent() {
       const { checkout_url } = await billingApi.checkout(planId, interval);
       window.location.href = checkout_url;
     } catch (err: any) {
-      setError(err.message || 'Failed to start checkout');
+      const msg = err.message || 'Failed to start checkout';
+      setError(msg.includes('not configured') || msg.includes('not available')
+        ? 'Paid plans are coming soon! You currently have full access to all features.'
+        : msg);
       setLoading(null);
     }
   };
