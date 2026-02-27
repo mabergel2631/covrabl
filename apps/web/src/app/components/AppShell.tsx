@@ -271,7 +271,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       </div>
 
       {/* Floating SOS Button */}
-      {pathname !== '/emergency' && (
+      {pathname !== '/emergency' && pathname !== '/chat' && (
         <button
           onClick={() => router.push('/emergency')}
           aria-label="Emergency access"

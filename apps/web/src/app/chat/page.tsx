@@ -37,9 +37,11 @@ function ChatPageInner() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [policySeeded, setPolicySeeded] = useState(false);
 
+  const [isListening, setIsListening] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const abortRef = useRef<AbortController | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const recognitionRef = useRef<any>(null);
 
   useEffect(() => {
     if (!token) { router.replace('/login'); return; }
@@ -142,6 +144,60 @@ function ChatPageInner() {
       sendMessage();
     }
   };
+
+  const toggleVoice = useCallback(() => {
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRecognition) return;
+
+    if (isListening && recognitionRef.current) {
+      recognitionRef.current.stop();
+      setIsListening(false);
+      return;
+    }
+
+    const recognition = new SpeechRecognition();
+    recognition.continuous = false;
+    recognition.interimResults = true;
+    recognition.lang = 'en-US';
+
+    // Capture the input value at the time dictation starts
+    const baseText = input.trimEnd();
+
+    recognition.onresult = (event: any) => {
+      let final = '';
+      let interim = '';
+      for (let i = 0; i < event.results.length; i++) {
+        const t = event.results[i][0].transcript;
+        if (event.results[i].isFinal) {
+          final += t;
+        } else {
+          interim += t;
+        }
+      }
+      const prefix = baseText ? baseText + ' ' : '';
+      setInput(prefix + final + interim);
+    };
+
+    recognition.onend = () => {
+      setIsListening(false);
+      recognitionRef.current = null;
+      textareaRef.current?.focus();
+    };
+
+    recognition.onerror = () => {
+      setIsListening(false);
+      recognitionRef.current = null;
+    };
+
+    recognitionRef.current = recognition;
+    setIsListening(true);
+    recognition.start();
+  }, [isListening, input]);
+
+  const [hasSpeechRecognition, setHasSpeechRecognition] = useState(false);
+  useEffect(() => {
+    setHasSpeechRecognition(!!((window as any).SpeechRecognition || (window as any).webkitSpeechRecognition));
+  }, []);
 
   const showEmptyState = messages.length === 0 && !isStreaming;
 
@@ -408,6 +464,35 @@ function ChatPageInner() {
                 el.style.height = Math.min(el.scrollHeight, 120) + 'px';
               }}
             />
+            {hasSpeechRecognition && (
+              <button
+                onClick={toggleVoice}
+                disabled={isStreaming}
+                aria-label={isListening ? 'Stop dictation' : 'Start voice dictation'}
+                title={isListening ? 'Stop dictation' : 'Dictate your question'}
+                style={{
+                  padding: '6px',
+                  border: 'none',
+                  borderRadius: 8,
+                  backgroundColor: isListening ? 'var(--color-danger)' : 'transparent',
+                  color: isListening ? '#fff' : 'var(--color-text-muted)',
+                  fontSize: 18,
+                  cursor: isStreaming ? 'default' : 'pointer',
+                  flexShrink: 0,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  width: 36,
+                  height: 36,
+                  transition: 'background-color 0.15s, color 0.15s',
+                }}
+              >
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M12 1C10.34 1 9 2.34 9 4V12C9 13.66 10.34 15 12 15C13.66 15 15 13.66 15 12V4C15 2.34 13.66 1 12 1Z" fill="currentColor"/>
+                  <path d="M17 12C17 14.76 14.76 17 12 17C9.24 17 7 14.76 7 12H5C5 15.53 7.61 18.43 11 18.92V22H13V18.92C16.39 18.43 19 15.53 19 12H17Z" fill="currentColor"/>
+                </svg>
+              </button>
+            )}
             <button
               onClick={() => sendMessage()}
               disabled={isStreaming || !input.trim()}
