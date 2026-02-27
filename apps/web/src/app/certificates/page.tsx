@@ -51,6 +51,7 @@ function CertificatesContent() {
   });
   const [extracting, setExtracting] = useState(false);
   const [linkingCertId, setLinkingCertId] = useState<number | null>(null);
+  const [expandedCertId, setExpandedCertId] = useState<number | null>(null);
   const coiFileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -341,6 +342,9 @@ function CertificatesContent() {
                         <div style={{ fontSize: 12, color: 'var(--color-text-secondary)' }}>{ctLabel}</div>
                       </div>
                       <div style={{ display: 'flex', gap: 6 }}>
+                        <button onClick={() => setExpandedCertId(expandedCertId === cert.id ? null : cert.id)} style={{ padding: '4px 10px', fontSize: 12, border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)', backgroundColor: '#fff', cursor: 'pointer' }}>
+                          {expandedCertId === cert.id ? 'Hide' : 'View'}
+                        </button>
                         <button onClick={() => startEdit(cert)} style={{ padding: '4px 10px', fontSize: 12, border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)', backgroundColor: '#fff', cursor: 'pointer' }}>Edit</button>
                         <button onClick={() => setDeleteConfirm(cert.id)} style={{ padding: '4px 10px', fontSize: 12, border: '1px solid var(--color-danger-border)', borderRadius: 'var(--radius-sm)', backgroundColor: '#fff', color: 'var(--color-danger)', cursor: 'pointer' }}>Delete</button>
                       </div>
@@ -367,34 +371,35 @@ function CertificatesContent() {
                       )}
                     </div>
 
-                    {/* Linked policy + View Policy button */}
-                    {linkedPolicy ? (
-                      <div style={{ marginTop: 12 }}>
-                        <div style={{
-                          padding: '8px 12px', borderRadius: 'var(--radius-sm) var(--radius-sm) 0 0',
-                          backgroundColor: '#f9fafb', border: '1px solid #e5e7eb', borderBottom: 'none',
-                          display: 'flex', alignItems: 'center', gap: 8, fontSize: 13,
-                        }}>
-                          <span style={{ color: 'var(--color-text-secondary)' }}>Linked policy:</span>
-                          <span style={{ fontWeight: 600, color: 'var(--color-text)' }}>
-                            {linkedPolicy.nickname || linkedPolicy.carrier}
-                          </span>
-                          <span style={{ color: 'var(--color-text-muted)' }}>
-                            {linkedPolicy.policy_type}
-                          </span>
+                    {/* Expanded detail view */}
+                    {expandedCertId === cert.id && (
+                      <div style={{ marginTop: 12, padding: 14, backgroundColor: 'var(--color-surface)', borderRadius: 'var(--radius-md)', border: '1px solid var(--color-border)' }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 12, fontSize: 13 }}>
+                          {cert.carrier && <div><div style={{ fontSize: 10, fontWeight: 600, color: 'var(--color-text-muted)', textTransform: 'uppercase', marginBottom: 2 }}>Carrier</div><div style={{ color: 'var(--color-text)' }}>{cert.carrier}</div></div>}
+                          {cert.policy_number && <div><div style={{ fontSize: 10, fontWeight: 600, color: 'var(--color-text-muted)', textTransform: 'uppercase', marginBottom: 2 }}>Policy #</div><div style={{ color: 'var(--color-text)' }}>{cert.policy_number}</div></div>}
+                          {cert.coverage_types && <div><div style={{ fontSize: 10, fontWeight: 600, color: 'var(--color-text-muted)', textTransform: 'uppercase', marginBottom: 2 }}>Coverage Types</div><div style={{ color: 'var(--color-text)' }}>{cert.coverage_types}</div></div>}
+                          {cert.coverage_amount != null && <div><div style={{ fontSize: 10, fontWeight: 600, color: 'var(--color-text-muted)', textTransform: 'uppercase', marginBottom: 2 }}>Coverage Amount</div><div style={{ color: 'var(--color-text)' }}>${(cert.coverage_amount / 100).toLocaleString()}</div></div>}
+                          {cert.effective_date && <div><div style={{ fontSize: 10, fontWeight: 600, color: 'var(--color-text-muted)', textTransform: 'uppercase', marginBottom: 2 }}>Effective</div><div style={{ color: 'var(--color-text)' }}>{cert.effective_date}</div></div>}
+                          {cert.expiration_date && <div><div style={{ fontSize: 10, fontWeight: 600, color: 'var(--color-text-muted)', textTransform: 'uppercase', marginBottom: 2 }}>Expires</div><div style={{ color: 'var(--color-text)' }}>{cert.expiration_date}</div></div>}
+                          {cert.counterparty_email && <div><div style={{ fontSize: 10, fontWeight: 600, color: 'var(--color-text-muted)', textTransform: 'uppercase', marginBottom: 2 }}>Email</div><div style={{ color: 'var(--color-text)' }}>{cert.counterparty_email}</div></div>}
+                          <div><div style={{ fontSize: 10, fontWeight: 600, color: 'var(--color-text-muted)', textTransform: 'uppercase', marginBottom: 2 }}>Additional Insured</div><div style={{ color: 'var(--color-text)' }}>{cert.additional_insured ? 'Yes' : 'No'}</div></div>
+                          <div><div style={{ fontSize: 10, fontWeight: 600, color: 'var(--color-text-muted)', textTransform: 'uppercase', marginBottom: 2 }}>Waiver of Subrogation</div><div style={{ color: 'var(--color-text)' }}>{cert.waiver_of_subrogation ? 'Yes' : 'No'}</div></div>
+                          {cert.minimum_coverage != null && <div><div style={{ fontSize: 10, fontWeight: 600, color: 'var(--color-text-muted)', textTransform: 'uppercase', marginBottom: 2 }}>Min Required</div><div style={{ color: 'var(--color-text)' }}>${(cert.minimum_coverage / 100).toLocaleString()}</div></div>}
                         </div>
-                        <button
+                        {cert.notes && <div style={{ marginTop: 10, fontSize: 13, color: 'var(--color-text-secondary)', fontStyle: 'italic' }}>{cert.notes}</div>}
+                      </div>
+                    )}
+
+                    {/* Linked policy */}
+                    {linkedPolicy ? (
+                      <div style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 8, fontSize: 12 }}>
+                        <span style={{ color: 'var(--color-text-muted)' }}>Linked:</span>
+                        <span
                           onClick={(e) => { e.stopPropagation(); router.push(`/policies/${linkedPolicy.id}`); }}
-                          style={{
-                            width: '100%', padding: '10px 16px',
-                            backgroundColor: 'var(--color-primary)', color: '#fff',
-                            border: 'none', borderRadius: '0 0 var(--radius-sm) var(--radius-sm)',
-                            fontSize: 14, fontWeight: 600, cursor: 'pointer',
-                            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-                          }}
+                          style={{ color: 'var(--color-primary)', cursor: 'pointer', fontWeight: 600 }}
                         >
-                          View Policy &rarr;
-                        </button>
+                          {linkedPolicy.nickname || linkedPolicy.carrier} &middot; {linkedPolicy.policy_type} &rarr;
+                        </span>
                       </div>
                     ) : (
                       <div style={{ marginTop: 10 }}>
@@ -444,9 +449,6 @@ function CertificatesContent() {
                       </div>
                     )}
 
-                    {cert.notes && (
-                      <div style={{ marginTop: 8, fontSize: 12, color: 'var(--color-text-secondary)', fontStyle: 'italic' }}>{cert.notes}</div>
-                    )}
                   </div>
                 );
               })}

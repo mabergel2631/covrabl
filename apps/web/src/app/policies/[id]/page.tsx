@@ -110,6 +110,7 @@ export default function PolicyDetailPage() {
   const [exposures, setExposures] = useState<Exposure[]>([]);
   const [policyGaps, setPolicyGaps] = useState<CoverageGap[]>([]);
   const [policyCertificates, setPolicyCertificates] = useState<Certificate[]>([]);
+  const [expandedPolicyCertId, setExpandedPolicyCertId] = useState<number | null>(null);
 
   // Claims quick-start
   const [copiedPolicyNumber, setCopiedPolicyNumber] = useState(false);
@@ -1678,25 +1679,51 @@ export default function PolicyDetailPage() {
               const isExpiring = cert.status === 'expiring';
               const badgeBg = isExpired ? 'var(--color-danger-bg)' : isExpiring ? 'var(--color-warning-bg)' : 'var(--color-success-bg)';
               const badgeColor = isExpired ? 'var(--color-danger)' : isExpiring ? 'var(--color-warning)' : 'var(--color-success)';
+              const isExpanded = expandedPolicyCertId === cert.id;
               return (
-                <div key={cert.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: 14, backgroundColor: '#fff', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', flexWrap: 'wrap', gap: 8 }}>
-                  <div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4, flexWrap: 'wrap' }}>
-                      <span style={{ fontSize: 14, fontWeight: 600 }}>{cert.counterparty_name || 'Unnamed'}</span>
-                      <span style={{ padding: '1px 8px', borderRadius: 10, fontSize: 11, fontWeight: 600, backgroundColor: '#e8e8e8', color: '#555', textTransform: 'uppercase' }}>
-                        {cert.direction === 'issued' ? 'Shared' : 'Received'}
-                      </span>
-                      <span style={{ padding: '1px 8px', borderRadius: 10, fontSize: 11, fontWeight: 600, backgroundColor: badgeBg, color: badgeColor }}>
-                        {cert.status}
-                      </span>
+                <div key={cert.id} style={{ padding: 14, backgroundColor: '#fff', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
+                    <div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4, flexWrap: 'wrap' }}>
+                        <span style={{ fontSize: 14, fontWeight: 600 }}>{cert.counterparty_name || 'Unnamed'}</span>
+                        <span style={{ padding: '1px 8px', borderRadius: 10, fontSize: 11, fontWeight: 600, backgroundColor: '#e8e8e8', color: '#555', textTransform: 'uppercase' }}>
+                          {cert.direction === 'issued' ? 'Shared' : 'Received'}
+                        </span>
+                        <span style={{ padding: '1px 8px', borderRadius: 10, fontSize: 11, fontWeight: 600, backgroundColor: badgeBg, color: badgeColor }}>
+                          {cert.status}
+                        </span>
+                      </div>
+                      <div style={{ fontSize: 13, color: 'var(--color-text-secondary)' }}>
+                        {cert.coverage_types && <span style={{ marginRight: 12 }}>{cert.coverage_types}</span>}
+                        {cert.coverage_amount && <span style={{ marginRight: 12 }}>${Number(cert.coverage_amount).toLocaleString()}</span>}
+                        {cert.expiration_date && <span>Exp: {cert.expiration_date}</span>}
+                      </div>
                     </div>
-                    <div style={{ fontSize: 13, color: 'var(--color-text-secondary)' }}>
-                      {cert.coverage_types && <span style={{ marginRight: 12 }}>{cert.coverage_types}</span>}
-                      {cert.coverage_amount && <span style={{ marginRight: 12 }}>${Number(cert.coverage_amount).toLocaleString()}</span>}
-                      {cert.expiration_date && <span>Exp: {cert.expiration_date}</span>}
+                    <div style={{ display: 'flex', gap: 6 }}>
+                      <button onClick={() => setExpandedPolicyCertId(isExpanded ? null : cert.id)} style={{ padding: '4px 10px', fontSize: 12, border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)', backgroundColor: '#fff', cursor: 'pointer' }}>
+                        {isExpanded ? 'Hide' : 'View'}
+                      </button>
+                      <button onClick={() => router.push('/certificates')} style={{ padding: '4px 10px', fontSize: 12, border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)', backgroundColor: '#fff', cursor: 'pointer' }}>
+                        Edit
+                      </button>
                     </div>
                   </div>
-                  <button onClick={() => router.push(`/certificates`)} className="btn btn-outline" style={{ fontSize: 12, padding: '4px 12px' }}>View</button>
+                  {isExpanded && (
+                    <div style={{ marginTop: 12, padding: 14, backgroundColor: 'var(--color-surface)', borderRadius: 'var(--radius-md)', border: '1px solid var(--color-border)' }}>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: 12, fontSize: 13 }}>
+                        {cert.carrier && <div><div style={{ fontSize: 10, fontWeight: 600, color: 'var(--color-text-muted)', textTransform: 'uppercase', marginBottom: 2 }}>Carrier</div><div>{cert.carrier}</div></div>}
+                        {cert.policy_number && <div><div style={{ fontSize: 10, fontWeight: 600, color: 'var(--color-text-muted)', textTransform: 'uppercase', marginBottom: 2 }}>Policy #</div><div>{cert.policy_number}</div></div>}
+                        {cert.coverage_types && <div><div style={{ fontSize: 10, fontWeight: 600, color: 'var(--color-text-muted)', textTransform: 'uppercase', marginBottom: 2 }}>Coverage Types</div><div>{cert.coverage_types}</div></div>}
+                        {cert.coverage_amount != null && <div><div style={{ fontSize: 10, fontWeight: 600, color: 'var(--color-text-muted)', textTransform: 'uppercase', marginBottom: 2 }}>Coverage Amount</div><div>${(cert.coverage_amount / 100).toLocaleString()}</div></div>}
+                        {cert.effective_date && <div><div style={{ fontSize: 10, fontWeight: 600, color: 'var(--color-text-muted)', textTransform: 'uppercase', marginBottom: 2 }}>Effective</div><div>{cert.effective_date}</div></div>}
+                        {cert.expiration_date && <div><div style={{ fontSize: 10, fontWeight: 600, color: 'var(--color-text-muted)', textTransform: 'uppercase', marginBottom: 2 }}>Expires</div><div>{cert.expiration_date}</div></div>}
+                        {cert.counterparty_email && <div><div style={{ fontSize: 10, fontWeight: 600, color: 'var(--color-text-muted)', textTransform: 'uppercase', marginBottom: 2 }}>Email</div><div>{cert.counterparty_email}</div></div>}
+                        <div><div style={{ fontSize: 10, fontWeight: 600, color: 'var(--color-text-muted)', textTransform: 'uppercase', marginBottom: 2 }}>Additional Insured</div><div>{cert.additional_insured ? 'Yes' : 'No'}</div></div>
+                        <div><div style={{ fontSize: 10, fontWeight: 600, color: 'var(--color-text-muted)', textTransform: 'uppercase', marginBottom: 2 }}>Waiver of Subrogation</div><div>{cert.waiver_of_subrogation ? 'Yes' : 'No'}</div></div>
+                      </div>
+                      {cert.notes && <div style={{ marginTop: 10, fontSize: 13, color: 'var(--color-text-secondary)', fontStyle: 'italic' }}>{cert.notes}</div>}
+                    </div>
+                  )}
                 </div>
               );
             })}
