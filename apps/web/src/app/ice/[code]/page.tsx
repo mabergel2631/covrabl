@@ -4,19 +4,9 @@ import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { iceApi, EmergencyCardPublic } from '../../../../lib/api';
 import { APP_NAME } from '../../config';
+import { getPolicyTypeDisplay } from '../../constants';
 import { cacheEmergencyData, getCachedEmergencyData, formatCacheTimestamp } from '../../../../lib/offlineCache';
 import { formatPhone, cleanPhone } from '../../../../lib/format';
-
-const POLICY_TYPE_CONFIG: Record<string, { icon: string; label: string }> = {
-  auto: { icon: '🚗', label: 'Auto' },
-  home: { icon: '🏠', label: 'Home' },
-  life: { icon: '❤️', label: 'Life' },
-  health: { icon: '🏥', label: 'Health' },
-  liability: { icon: '🛡️', label: 'Liability' },
-  umbrella: { icon: '☂️', label: 'Umbrella' },
-  workers_comp: { icon: '👷', label: 'Workers Comp' },
-  other: { icon: '📋', label: 'Other' },
-};
 
 export default function EmergencyCardPage() {
   const params = useParams();
@@ -309,10 +299,10 @@ export default function EmergencyCardPage() {
             >
               {/* Policy Header */}
               <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
-                <span style={{ fontSize: 28 }}>{POLICY_TYPE_CONFIG[policy.policy_type]?.icon || '📋'}</span>
+                <span style={{ fontSize: 28 }}>{getPolicyTypeDisplay(policy.policy_type).icon}</span>
                 <div>
                   <div style={{ fontSize: 12, color: '#6b7280', textTransform: 'uppercase', fontWeight: 600 }}>
-                    {POLICY_TYPE_CONFIG[policy.policy_type]?.label || policy.policy_type}
+                    {getPolicyTypeDisplay(policy.policy_type).label}
                   </div>
                   <div style={{ fontSize: 18, fontWeight: 600, color: '#1f2937' }}>{policy.carrier}</div>
                 </div>

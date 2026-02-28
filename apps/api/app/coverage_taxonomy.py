@@ -177,6 +177,52 @@ COVERAGE_CATEGORIES = {
         typical_sources=["auto"]
     ),
 
+    # Health & Wellness
+    "health_insurance": CoverageCategory(
+        id="health_insurance",
+        name="Health Insurance",
+        description="Covers medical expenses, doctor visits, and hospital stays",
+        importance="critical",
+        typical_sources=["health"]
+    ),
+    "dental_insurance": CoverageCategory(
+        id="dental_insurance",
+        name="Dental Insurance",
+        description="Covers preventive, basic, and major dental care",
+        importance="recommended",
+        typical_sources=["dental"]
+    ),
+    "vision_insurance": CoverageCategory(
+        id="vision_insurance",
+        name="Vision Insurance",
+        description="Covers eye exams, glasses, and contact lenses",
+        importance="recommended",
+        typical_sources=["vision"]
+    ),
+    "pet_insurance": CoverageCategory(
+        id="pet_insurance",
+        name="Pet Insurance",
+        description="Covers veterinary expenses for illness and injury",
+        importance="recommended",
+        typical_sources=["pet"]
+    ),
+
+    # Watercraft
+    "watercraft_liability": CoverageCategory(
+        id="watercraft_liability",
+        name="Watercraft Liability",
+        description="Covers damage or injury caused by your boat or watercraft",
+        importance="critical",
+        typical_sources=["boat"]
+    ),
+    "hull_coverage": CoverageCategory(
+        id="hull_coverage",
+        name="Hull / Physical Damage",
+        description="Covers physical damage to your boat or watercraft",
+        importance="important",
+        typical_sources=["boat"]
+    ),
+
     # Business Coverage
     "general_liability": CoverageCategory(
         id="general_liability",
