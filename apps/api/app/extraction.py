@@ -74,7 +74,7 @@ CRITICAL INSTRUCTIONS:
    - life: insured_name, beneficiary, contingent_beneficiary, face_value, term_length, cash_value, policy_owner, policy_subtype (e.g. "Term Life", "Whole Life", "Universal Life")
    - liability/umbrella: underlying_policies, aggregate_limit, per_occurrence_limit, employer_liability_limit
    - workers_comp: business_name, classification_code, payroll_amount, experience_modifier, state, employer_liability_limit
-   - renters: personal_property_limit, liability_limit, loss_of_use, landlord_name, lease_end_date
+   - renters: personal_property_limit, liability_limit, loss_of_use, medical_payments, rental_address, landlord_name, lease_end_date, replacement_cost_or_actual_cash_value, identity_theft_coverage
    - flood: flood_zone, building_coverage, contents_coverage, waiting_period, nfip_or_private
    - earthquake: dwelling_coverage, deductible_percent, foundation_type
    - disability: benefit_amount, benefit_period, elimination_period, own_occupation, definition_of_disability

@@ -350,6 +350,8 @@ export type CoverageItemCreate = {
   limit?: string | null;
 };
 
+export type CoverageItemUpdate = Partial<CoverageItemCreate>;
+
 export const coverageApi = {
   list(policyId: number): Promise<CoverageItem[]> {
     return request<CoverageItem[]>(`/policies/${policyId}/coverage`);
@@ -357,6 +359,13 @@ export const coverageApi = {
   create(policyId: number, payload: CoverageItemCreate): Promise<CoverageItem> {
     return request<CoverageItem>(`/policies/${policyId}/coverage`, {
       method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+  },
+  update(policyId: number, itemId: number, payload: CoverageItemUpdate): Promise<CoverageItem> {
+    return request<CoverageItem>(`/policies/${policyId}/coverage/${itemId}`, {
+      method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     });

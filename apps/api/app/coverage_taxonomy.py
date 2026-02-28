@@ -160,7 +160,14 @@ COVERAGE_CATEGORIES = {
         name="Medical Payments",
         description="Covers medical bills regardless of fault",
         importance="recommended",
-        typical_sources=["auto", "home"]
+        typical_sources=["auto", "home", "renters"]
+    ),
+    "loss_of_use": CoverageCategory(
+        id="loss_of_use",
+        name="Loss of Use / Additional Living Expenses",
+        description="Covers temporary housing and living costs if your home becomes uninhabitable",
+        importance="important",
+        typical_sources=["home", "renters"]
     ),
     "uninsured_motorist": CoverageCategory(
         id="uninsured_motorist",
@@ -324,8 +331,8 @@ def get_policy_coverages(policy_type: str) -> list[str]:
         "boat": ["watercraft_liability", "hull_coverage"],
         "rv": ["auto_liability", "auto_collision", "auto_comprehensive"],
         # Personal — property
-        "home": ["dwelling_coverage", "personal_property", "home_liability", "medical_payments"],
-        "renters": ["personal_property", "home_liability"],
+        "home": ["dwelling_coverage", "personal_property", "home_liability", "medical_payments", "loss_of_use"],
+        "renters": ["personal_property", "home_liability", "medical_payments", "loss_of_use"],
         "flood": [],
         "earthquake": [],
         # Personal — health & life
@@ -657,7 +664,7 @@ def analyze_coverage_gaps(
     for policy in policies:
         if not policy.get("coverage_amount") and policy.get("carrier") != "Pending extraction...":
             ptype = policy.get("policy_type", "")
-            if ptype in ("auto", "home", "umbrella", "liability", "general_liability", "professional_liability", "commercial_property", "cyber"):
+            if ptype in ("auto", "home", "renters", "umbrella", "liability", "general_liability", "professional_liability", "commercial_property", "cyber"):
                 gaps.append({
                     "id": f"unknown_coverage_{policy.get('id')}",
                     "name": "Unknown Coverage Limit",

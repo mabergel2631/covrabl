@@ -18,8 +18,11 @@ from .db import get_db
 from .models import User, Policy, Contact, PolicyDetail, CoverageItem, Exposure
 from .models_chat import Conversation, ChatMessage
 from .models_documents import Document
-from .models_features import Claim, Certificate
-from .models_profile import UserProfile
+from .models_features import (
+    Claim, Certificate, Premium, PremiumHistory,
+    PolicyDelta, DeltaExplanation, CoverageScore, PolicyShare,
+)
+from .models_profile import UserProfile, ProfileContact
 
 router = APIRouter(prefix="/chat", tags=["chat"])
 
@@ -303,7 +306,128 @@ def _build_chat_context(user: User, db: Session) -> str:
                 lines.append(f"  Notes: {cert.notes}")
             sections.append("\n".join(lines))
 
-    # 7. Document text (cached, lazy-extracted)
+    # 7. Premium payment schedule
+    if policies:
+        premiums = db.execute(
+            select(Premium)
+            .where(Premium.policy_id.in_([p.id for p in policies]))
+            .order_by(Premium.due_date.desc())
+        ).scalars().all()
+
+        if premiums:
+            sections.append("\n## PREMIUM PAYMENTS")
+            for pm in premiums:
+                policy = next((p for p in policies if p.id == pm.policy_id), None)
+                carrier = policy.carrier if policy else "Unknown"
+                paid_str = f"Paid {pm.paid_date}" if pm.paid_date else "Unpaid"
+                sections.append(f"- {carrier}: {_format_money(pm.amount)} ({pm.frequency}) — Due: {pm.due_date} — {paid_str}")
+                if pm.payment_method:
+                    sections.append(f"  Payment method: {pm.payment_method}")
+
+    # 8. Premium history (rate changes over time)
+    if policies:
+        history = db.execute(
+            select(PremiumHistory)
+            .where(PremiumHistory.policy_id.in_([p.id for p in policies]))
+            .order_by(PremiumHistory.effective_date.desc())
+            .limit(20)
+        ).scalars().all()
+
+        if history:
+            sections.append("\n## PREMIUM HISTORY")
+            for h in history:
+                policy = next((p for p in policies if p.id == h.policy_id), None)
+                carrier = policy.carrier if policy else "Unknown"
+                sections.append(f"- {carrier}: {_format_money(h.amount)} effective {h.effective_date} (source: {h.source})")
+                if h.notes:
+                    sections.append(f"  Note: {h.notes}")
+
+    # 9. Policy changes (deltas)
+    if policies:
+        deltas = db.execute(
+            select(PolicyDelta)
+            .where(PolicyDelta.policy_id.in_([p.id for p in policies]))
+            .order_by(PolicyDelta.created_at.desc())
+            .limit(20)
+        ).scalars().all()
+
+        if deltas:
+            sections.append("\n## POLICY CHANGES DETECTED")
+            delta_ids = [d.id for d in deltas]
+            explanations = db.execute(
+                select(DeltaExplanation)
+                .where(DeltaExplanation.delta_id.in_(delta_ids))
+            ).scalars().all()
+            expl_map = {e.delta_id: e for e in explanations}
+
+            for d in deltas:
+                policy = next((p for p in policies if p.id == d.policy_id), None)
+                carrier = policy.carrier if policy else "Unknown"
+                old_val = d.old_value or "none"
+                new_val = d.new_value or "none"
+                sections.append(f"- [{d.severity.upper()}] {carrier} — {d.field_key}: {old_val} → {new_val} ({d.delta_type})")
+                expl = expl_map.get(d.id)
+                if expl:
+                    sections.append(f"  Explanation: {expl.explanation}")
+
+    # 10. Coverage scores
+    scores = db.execute(
+        select(CoverageScore)
+        .where(CoverageScore.user_id == user.id)
+        .order_by(CoverageScore.last_calculated.desc())
+    ).scalars().all()
+
+    if scores:
+        sections.append("\n## COVERAGE SCORES")
+        for s in scores:
+            sections.append(f"- {s.category}: {s.score_total}/100")
+            if s.insights:
+                try:
+                    import json as _json
+                    insights_list = _json.loads(s.insights)
+                    for insight in insights_list[:3]:
+                        sections.append(f"  - {insight}")
+                except Exception:
+                    pass
+
+    # 11. Profile contacts (emergency, broker)
+    profile_contacts = db.execute(
+        select(ProfileContact).where(ProfileContact.user_id == user.id)
+    ).scalars().all()
+
+    if profile_contacts:
+        sections.append("\n## YOUR CONTACTS")
+        for pc in profile_contacts:
+            parts = [f"- {pc.contact_type.title()}: {pc.name}"]
+            if pc.relationship:
+                parts.append(f" ({pc.relationship})")
+            if pc.company:
+                parts.append(f" — {pc.company}")
+            sections.append("".join(parts))
+            if pc.phone:
+                sections.append(f"  Phone: {pc.phone}")
+            if pc.email:
+                sections.append(f"  Email: {pc.email}")
+
+    # 12. Policy sharing
+    if policies:
+        shares = db.execute(
+            select(PolicyShare)
+            .where(PolicyShare.policy_id.in_([p.id for p in policies]))
+        ).scalars().all()
+
+        if shares:
+            sections.append("\n## POLICY SHARING")
+            for sh in shares:
+                policy = next((p for p in policies if p.id == sh.policy_id), None)
+                carrier = policy.carrier if policy else "Unknown"
+                status = "accepted" if sh.accepted else "pending"
+                role = f" ({sh.role_label})" if sh.role_label else ""
+                sections.append(f"- {carrier} shared with {sh.shared_with_email}{role} — {sh.permission} access — {status}")
+                if sh.expires_at:
+                    sections.append(f"  Expires: {sh.expires_at}")
+
+    # 13. Document text (cached, lazy-extracted)
     if policies:
         docs = db.execute(
             select(Document)
