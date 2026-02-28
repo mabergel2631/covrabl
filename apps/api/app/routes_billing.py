@@ -19,7 +19,7 @@ router = APIRouter(prefix="/billing", tags=["billing"])
 
 # ── Plan limits ──────────────────────────────────────
 PLAN_LIMITS = {
-    "free": {"max_active_policies": 3, "max_extractions": 3},
+    "free": {"max_active_policies": 999, "max_extractions": 999},  # Unrestricted until public launch
     "trial": {"max_active_policies": 999, "max_extractions": 999},  # Legacy, maps to Pro
     "basic": {"max_active_policies": 5, "max_extractions": 999},    # Legacy, maps to Pro
     "pro": {"max_active_policies": 999, "max_extractions": 999},

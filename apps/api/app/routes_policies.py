@@ -203,18 +203,18 @@ def compare_policies(ids: str = Query(...), db: Session = Depends(get_db), user:
 
 @router.post("", response_model=PolicyOut, status_code=201)
 def create_policy(payload: PolicyCreate, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
-    # Enforce plan-based policy limit
-    from .routes_billing import get_policy_limit, get_effective_plan
-    limit = get_policy_limit(user)
-    active_count = db.execute(
-        select(Policy).where(Policy.user_id == user.id, Policy.status == "active")
-    ).scalars().all()
-    if len(active_count) >= limit:
-        plan = get_effective_plan(user)
-        raise HTTPException(
-            status_code=403,
-            detail=f"Your {plan} plan allows up to {limit} active policies. Upgrade to add more.",
-        )
+    # TEMPORARILY DISABLED — all limits open until public launch
+    # from .routes_billing import get_policy_limit, get_effective_plan
+    # limit = get_policy_limit(user)
+    # active_count = db.execute(
+    #     select(Policy).where(Policy.user_id == user.id, Policy.status == "active")
+    # ).scalars().all()
+    # if len(active_count) >= limit:
+    #     plan = get_effective_plan(user)
+    #     raise HTTPException(
+    #         status_code=403,
+    #         detail=f"Your {plan} plan allows up to {limit} active policies. Upgrade to add more.",
+    #     )
 
     policy = Policy(**payload.model_dump(), user_id=user.id)
     db.add(policy)
