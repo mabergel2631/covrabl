@@ -72,7 +72,7 @@ const DEMO_SCENES = [
   { id: 'upload', duration: 4500, label: 'Upload any insurance policy' },
   { id: 'extract', duration: 6000, label: 'AI reads your policy instantly' },
   { id: 'chat', duration: 7500, label: 'Ask your policy anything' },
-  { id: 'gaps', duration: 6000, label: 'Coverage gaps detected automatically' },
+  { id: 'score', duration: 6000, label: 'Your Coverage Health Score' },
   { id: 'emergency', duration: 5000, label: 'Emergency access when it matters' },
   { id: 'summary', duration: 5000, label: 'Finally understand your insurance' },
 ];
@@ -261,54 +261,69 @@ function ProductDemo() {
                 </div>
               )}
 
-              {/* Scene 4: Coverage Gap Alert */}
+              {/* Scene 4: Coverage Health Score */}
               {activeIdx === 3 && (
                 <div style={{ maxWidth: 440, margin: '0 auto' }}>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: '#111827', marginBottom: 10 }}>Coverage Insights</div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                    {/* High priority gap */}
-                    <div style={{
-                      padding: '10px 14px', backgroundColor: '#fef2f2', borderRadius: 8,
-                      borderLeft: '4px solid #dc2626',
-                      opacity: sceneProgress > 0.05 ? 1 : 0, transition: 'opacity 0.5s',
-                    }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-                        <span style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', padding: '2px 6px', borderRadius: 4, backgroundColor: '#fecaca', color: '#991b1b' }}>Gap</span>
-                        <span style={{ fontSize: 12, fontWeight: 600, color: '#991b1b' }}>Liability coverage may be low</span>
-                      </div>
-                      <div style={{ fontSize: 11, color: '#7f1d1d', lineHeight: 1.4 }}>
-                        Home liability is <strong>$300K</strong>. Recommended minimum: <strong>$1M</strong>. Consider an umbrella policy.
-                      </div>
-                    </div>
-                    {/* Medium priority finding */}
-                    <div style={{
-                      padding: '10px 14px', backgroundColor: '#fffbeb', borderRadius: 8,
-                      borderLeft: '4px solid #d97706',
-                      opacity: sceneProgress > 0.3 ? 1 : 0, transition: 'opacity 0.5s',
-                    }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-                        <span style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', padding: '2px 6px', borderRadius: 4, backgroundColor: '#fde68a', color: '#92400e' }}>Finding</span>
-                        <span style={{ fontSize: 12, fontWeight: 600, color: '#92400e' }}>Deductible is above average</span>
-                      </div>
-                      <div style={{ fontSize: 11, color: '#78350f', lineHeight: 1.4 }}>
-                        Home deductible of <strong>$2,500</strong> is 2x the typical $1,000 in your area.
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 20, marginBottom: 14 }}>
+                    {/* Animated circular gauge */}
+                    <div style={{ position: 'relative', width: 72, height: 72, flexShrink: 0 }}>
+                      <svg viewBox="0 0 72 72" width={72} height={72}>
+                        <circle cx={36} cy={36} r={28} fill="none" stroke="#e5e7eb" strokeWidth={6} />
+                        <circle
+                          cx={36} cy={36} r={28} fill="none"
+                          stroke={sceneProgress > 0.2 ? '#f59e0b' : '#e5e7eb'}
+                          strokeWidth={6} strokeLinecap="round"
+                          strokeDasharray={`${Math.min(sceneProgress * 2, 1) * 0.68 * 176} 176`}
+                          transform="rotate(-90 36 36)"
+                          style={{ transition: 'stroke-dasharray 0.5s ease, stroke 0.3s' }}
+                        />
+                      </svg>
+                      <div style={{
+                        position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        fontSize: 20, fontWeight: 700, color: '#111827',
+                        opacity: sceneProgress > 0.15 ? 1 : 0, transition: 'opacity 0.3s',
+                      }}>
+                        {sceneProgress > 0.15 ? '68' : ''}
                       </div>
                     </div>
-                    {/* Low priority tip */}
-                    <div style={{
-                      padding: '10px 14px', backgroundColor: '#eff6ff', borderRadius: 8,
-                      borderLeft: '4px solid #2563eb',
-                      opacity: sceneProgress > 0.55 ? 1 : 0, transition: 'opacity 0.5s',
-                    }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-                        <span style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', padding: '2px 6px', borderRadius: 4, backgroundColor: '#dbeafe', color: '#1e40af' }}>Tip</span>
-                        <span style={{ fontSize: 12, fontWeight: 600, color: '#1e40af' }}>No flood coverage detected</span>
-                      </div>
-                      <div style={{ fontSize: 11, color: '#1e3a5f', lineHeight: 1.4 }}>
-                        Your homeowners policy excludes flood. NFIP starts at ~<strong>$500/yr</strong>.
-                      </div>
+                    <div>
+                      <div style={{ fontSize: 14, fontWeight: 700, color: '#111827' }}>Coverage Health Score</div>
+                      <div style={{ fontSize: 11, color: '#9ca3af' }}>Based on 3 policies · moderate confidence</div>
                     </div>
                   </div>
+                  {/* Category progress bars */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    {[
+                      { cat: 'Liability', score: 82, color: '#22c55e', delay: 0.15 },
+                      { cat: 'Property', score: 71, color: '#f59e0b', delay: 0.3 },
+                      { cat: 'Income', score: 45, color: '#ef4444', delay: 0.45 },
+                      { cat: 'Catastrophic', score: 60, color: '#f59e0b', delay: 0.6 },
+                    ].map(c => (
+                      <div key={c.cat} style={{ opacity: sceneProgress > c.delay ? 1 : 0, transition: 'opacity 0.4s' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, marginBottom: 3 }}>
+                          <span style={{ color: '#6b7280', fontWeight: 500 }}>{c.cat}</span>
+                          <span style={{ fontWeight: 700, color: c.color }}>{c.score}</span>
+                        </div>
+                        <div style={{ height: 6, backgroundColor: '#e5e7eb', borderRadius: 3, overflow: 'hidden' }}>
+                          <div style={{
+                            height: '100%', borderRadius: 3, backgroundColor: c.color,
+                            width: sceneProgress > c.delay + 0.1 ? `${c.score}%` : '0%',
+                            transition: 'width 0.8s ease',
+                          }} />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  {/* Recommendation hint */}
+                  {sceneProgress > 0.7 && (
+                    <div style={{
+                      marginTop: 10, padding: '8px 12px', backgroundColor: '#fffbeb', borderRadius: 6,
+                      borderLeft: '3px solid #f59e0b', fontSize: 11, color: '#92400e', lineHeight: 1.4,
+                      opacity: sceneProgress > 0.7 ? 1 : 0, transition: 'opacity 0.4s',
+                    }}>
+                      Consider asking your agent about umbrella coverage to strengthen catastrophic protection.
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -377,9 +392,9 @@ function ProductDemo() {
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 24, alignItems: 'flex-start' }}>
                     {[
-                      { text: 'Know what you\u2019re covered for', delay: 0.05 },
-                      { text: 'See coverage gaps before they cost you', delay: 0.2 },
-                      { text: 'Ask questions, get real answers', delay: 0.35 },
+                      { text: 'See your personalized Coverage Health Score', delay: 0.05 },
+                      { text: 'Understand where you\u2019re protected and exposed', delay: 0.2 },
+                      { text: 'Get questions to ask your insurance agent', delay: 0.35 },
                       { text: 'Access everything in an emergency', delay: 0.5 },
                     ].map((item, i) => (
                       <div key={i} style={{
@@ -608,13 +623,16 @@ export default function Home() {
             letterSpacing: 'var(--letter-spacing-tight)',
             fontFamily: 'var(--font-heading)',
           }}>
-            Do you actually know what your insurance covers?
+            Understand what your insurance actually covers
           </h1>
           <p style={{ fontSize: 18, opacity: 0.95, margin: '0 0 8px', lineHeight: 1.7, maxWidth: 720, marginLeft: 'auto', marginRight: 'auto', fontWeight: 500 }}>
-            Upload your policies. See your real coverage, spot the gaps, and be ready when something goes wrong.
+            Upload your policies and get a personalized Coverage Health Score — showing where you&apos;re protected, where you may be exposed, and what questions to ask your agent.
+          </p>
+          <p style={{ fontSize: 15, opacity: 0.7, margin: '0 0 8px', lineHeight: 1.7, maxWidth: 600, marginLeft: 'auto', marginRight: 'auto', letterSpacing: 'var(--letter-spacing-wide)' }}>
+            Coverage insights are based only on the policies you upload.
           </p>
           <p style={{ fontSize: 15, opacity: 0.7, margin: '0 0 36px', lineHeight: 1.7, maxWidth: 600, marginLeft: 'auto', marginRight: 'auto', letterSpacing: 'var(--letter-spacing-wide)' }}>
-            Free for up to 3 policies. No credit card required.
+            Free forever. No credit card required.
           </p>
           <div style={{ display: 'flex', gap: 12, justifyContent: 'center', flexWrap: 'wrap', marginBottom: 36 }}>
             <button onClick={ctaAction} style={{
@@ -668,7 +686,7 @@ export default function Home() {
             How it works
           </h2>
           <p style={{ fontSize: 15, color: 'var(--color-text-secondary)', textAlign: 'center', margin: '0 0 56px', maxWidth: 540, marginLeft: 'auto', marginRight: 'auto' }}>
-            Add your policies once. Everything else stays organized, clear, and ready.
+            Add your policies once. Get intelligent coverage analysis, a personalized health score, and ongoing protection insights.
           </p>
 
           {/* Timeline container — wraps all 4 steps */}
@@ -758,7 +776,7 @@ export default function Home() {
                 <div className="stagger-1" style={{ fontSize: 13, fontWeight: 700, color: 'var(--color-primary)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 12 }}>Step 2</div>
                 <h3 className="stagger-2" style={{ fontSize: 22, fontWeight: 600, margin: '0 0 12px', color: 'var(--color-text)' }}>AI insights you can act on</h3>
                 <p className="stagger-3" style={{ fontSize: 15, color: 'var(--color-text-secondary)', margin: 0, lineHeight: 1.7 }}>
-                  Complex policies are translated into clear, color-coded coverage you can actually understand. See where you&#39;re strong, where you&#39;re exposed, and get specific recommendations — without reading a single page of legalese.
+                  Complex policies are translated into clear, color-coded coverage you can actually understand. Your Coverage Health Score shows where you&#39;re strong, where you&#39;re exposed, and gives you specific questions to ask your agent — without reading a single page of legalese.
                 </p>
               </div>
               {/* Visual — right side */}
@@ -997,8 +1015,8 @@ export default function Home() {
           </div>
           <div style={{ display: 'flex', justifyContent: 'center', gap: 40, flexWrap: 'wrap' }}>
             {[
-              { value: '10,000+', label: 'Policies analyzed' },
-              { value: '3,200+', label: 'Gaps identified' },
+              { value: '500+', label: 'Policies analyzed' },
+              { value: '200+', label: 'Gaps identified' },
               { value: '15+', label: 'Policy types supported' },
             ].map(s => (
               <div key={s.label} style={{ textAlign: 'center' }}>
@@ -1144,7 +1162,7 @@ export default function Home() {
             Insurance is too important to feel this unclear.
           </p>
           <p style={{ fontSize: 16, color: 'var(--color-text-secondary)', lineHeight: 1.8, margin: '0 0 20px' }}>
-            {APP_NAME} exists to turn dense policy documents into simple, understandable coverage — so you can see exactly what you have, what you&apos;re missing, and what&apos;s coming up next.
+            {APP_NAME} exists to turn dense policy documents into an intelligent coverage picture — a single health score that shows where you stand, where the gaps are, and what to discuss with your agent.
           </p>
           <p style={{ fontSize: 15, color: 'var(--color-text)', fontWeight: 600, margin: '0 0 20px', letterSpacing: '0.01em' }}>
             Built for clarity. Built for emergencies. Built for peace of mind.
@@ -1242,7 +1260,7 @@ export default function Home() {
             {ctaLabel}
           </button>
           <div style={{ marginTop: 16, fontSize: 13, opacity: 0.6, letterSpacing: 'var(--letter-spacing-wide)' }}>
-            Free for up to 3 policies, forever. No credit card required.
+            Free forever. No credit card required.
           </div>
         </div>
       </section>
