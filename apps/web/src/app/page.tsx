@@ -159,7 +159,7 @@ function ProductDemo() {
           </div>
 
           {/* Screen content */}
-          <div style={{ padding: '24px 28px', minHeight: 300, maxHeight: 340, backgroundColor: '#f8f9fa', position: 'relative', overflow: 'hidden' }}>
+          <div style={{ padding: '20px 28px', minHeight: 300, maxHeight: 360, backgroundColor: '#f8f9fa', position: 'relative', overflow: 'hidden' }}>
             <div style={{ opacity: fadeOpacity, transition: 'opacity 0.15s ease' }}>
 
               {/* Scene 1: Upload */}
@@ -224,35 +224,35 @@ function ProductDemo() {
               {/* Scene 3: Ask Your Policy — the killer feature */}
               {activeIdx === 2 && (
                 <div style={{ maxWidth: 440, margin: '0 auto' }}>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                     {sceneProgress > 0.04 && (
                       <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                        <div style={{ padding: '8px 14px', backgroundColor: '#2563eb', color: '#fff', borderRadius: '12px 12px 4px 12px', fontSize: 13, maxWidth: '80%' }}>
+                        <div style={{ padding: '7px 12px', backgroundColor: '#2563eb', color: '#fff', borderRadius: '12px 12px 4px 12px', fontSize: 12, maxWidth: '80%' }}>
                           Am I covered if I hit someone else&apos;s car?
                         </div>
                       </div>
                     )}
                     {sceneProgress > 0.15 && (
                       <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
-                        <div style={{ padding: '10px 14px', backgroundColor: '#fff', border: '1px solid #e5e7eb', color: '#111827', borderRadius: '12px 12px 12px 4px', fontSize: 13, maxWidth: '88%', lineHeight: 1.6 }}>
+                        <div style={{ padding: '7px 12px', backgroundColor: '#fff', border: '1px solid #e5e7eb', color: '#111827', borderRadius: '12px 12px 12px 4px', fontSize: 12, maxWidth: '88%', lineHeight: 1.5 }}>
                           {sceneProgress > 0.35
-                            ? (<>Yes. Your State Farm auto policy (<strong>SF-8834201</strong>) includes liability coverage of <strong>$500,000 per accident</strong>. This covers damage to other vehicles and property you cause in an at-fault accident.</>)
+                            ? (<>Yes. Your State Farm policy (<strong>SF-8834201</strong>) includes <strong>$500K per accident</strong> liability. This covers damage to other vehicles and property in an at-fault accident.</>)
                             : (<span style={{ color: '#9ca3af' }}>Reading your policies...</span>)}
                         </div>
                       </div>
                     )}
                     {sceneProgress > 0.55 && (
                       <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                        <div style={{ padding: '8px 14px', backgroundColor: '#2563eb', color: '#fff', borderRadius: '12px 12px 4px 12px', fontSize: 13, maxWidth: '80%' }}>
+                        <div style={{ padding: '7px 12px', backgroundColor: '#2563eb', color: '#fff', borderRadius: '12px 12px 4px 12px', fontSize: 12, maxWidth: '80%' }}>
                           What about a rental car on vacation?
                         </div>
                       </div>
                     )}
                     {sceneProgress > 0.7 && (
                       <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
-                        <div style={{ padding: '10px 14px', backgroundColor: '#fff', border: '1px solid #e5e7eb', color: '#111827', borderRadius: '12px 12px 12px 4px', fontSize: 13, maxWidth: '88%', lineHeight: 1.6 }}>
+                        <div style={{ padding: '7px 12px', backgroundColor: '#fff', border: '1px solid #e5e7eb', color: '#111827', borderRadius: '12px 12px 12px 4px', fontSize: 12, maxWidth: '88%', lineHeight: 1.5 }}>
                           {sceneProgress > 0.82
-                            ? (<>Your policy extends to rental cars within the US. For international rentals, you&apos;d need the rental company&apos;s coverage. <strong>Skip the rental counter upsell.</strong></>)
+                            ? (<>Your policy covers rentals in the US. For international trips, you&apos;d need the rental company&apos;s coverage. <strong>Skip the counter upsell.</strong></>)
                             : (<span style={{ color: '#9ca3af' }}>Checking your policy details...</span>)}
                         </div>
                       </div>
@@ -264,48 +264,48 @@ function ProductDemo() {
               {/* Scene 4: Coverage Gap Alert */}
               {activeIdx === 3 && (
                 <div style={{ maxWidth: 440, margin: '0 auto' }}>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: '#111827', marginBottom: 14 }}>Coverage Insights</div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: '#111827', marginBottom: 10 }}>Coverage Insights</div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                     {/* High priority gap */}
                     <div style={{
-                      padding: '14px 16px', backgroundColor: '#fef2f2', borderRadius: 10,
+                      padding: '10px 14px', backgroundColor: '#fef2f2', borderRadius: 8,
                       borderLeft: '4px solid #dc2626',
                       opacity: sceneProgress > 0.05 ? 1 : 0, transition: 'opacity 0.5s',
                     }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-                        <span style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', padding: '2px 7px', borderRadius: 4, backgroundColor: '#fecaca', color: '#991b1b' }}>Gap</span>
-                        <span style={{ fontSize: 13, fontWeight: 600, color: '#991b1b' }}>Liability coverage may be low</span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                        <span style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', padding: '2px 6px', borderRadius: 4, backgroundColor: '#fecaca', color: '#991b1b' }}>Gap</span>
+                        <span style={{ fontSize: 12, fontWeight: 600, color: '#991b1b' }}>Liability coverage may be low</span>
                       </div>
-                      <div style={{ fontSize: 12, color: '#7f1d1d', lineHeight: 1.5 }}>
-                        Your home liability limit is <strong>$300,000</strong>. With your assets, the recommended minimum is <strong>$1,000,000</strong>. Consider an umbrella policy.
+                      <div style={{ fontSize: 11, color: '#7f1d1d', lineHeight: 1.4 }}>
+                        Home liability is <strong>$300K</strong>. Recommended minimum: <strong>$1M</strong>. Consider an umbrella policy.
                       </div>
                     </div>
                     {/* Medium priority finding */}
                     <div style={{
-                      padding: '14px 16px', backgroundColor: '#fffbeb', borderRadius: 10,
+                      padding: '10px 14px', backgroundColor: '#fffbeb', borderRadius: 8,
                       borderLeft: '4px solid #d97706',
                       opacity: sceneProgress > 0.3 ? 1 : 0, transition: 'opacity 0.5s',
                     }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-                        <span style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', padding: '2px 7px', borderRadius: 4, backgroundColor: '#fde68a', color: '#92400e' }}>Finding</span>
-                        <span style={{ fontSize: 13, fontWeight: 600, color: '#92400e' }}>Your deductible is above average</span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                        <span style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', padding: '2px 6px', borderRadius: 4, backgroundColor: '#fde68a', color: '#92400e' }}>Finding</span>
+                        <span style={{ fontSize: 12, fontWeight: 600, color: '#92400e' }}>Deductible is above average</span>
                       </div>
-                      <div style={{ fontSize: 12, color: '#78350f', lineHeight: 1.5 }}>
-                        Home deductible of <strong>$2,500</strong> is 2x higher than the typical $1,000 in your area.
+                      <div style={{ fontSize: 11, color: '#78350f', lineHeight: 1.4 }}>
+                        Home deductible of <strong>$2,500</strong> is 2x the typical $1,000 in your area.
                       </div>
                     </div>
                     {/* Low priority tip */}
                     <div style={{
-                      padding: '14px 16px', backgroundColor: '#eff6ff', borderRadius: 10,
+                      padding: '10px 14px', backgroundColor: '#eff6ff', borderRadius: 8,
                       borderLeft: '4px solid #2563eb',
                       opacity: sceneProgress > 0.55 ? 1 : 0, transition: 'opacity 0.5s',
                     }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-                        <span style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', padding: '2px 7px', borderRadius: 4, backgroundColor: '#dbeafe', color: '#1e40af' }}>Tip</span>
-                        <span style={{ fontSize: 13, fontWeight: 600, color: '#1e40af' }}>No flood coverage detected</span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                        <span style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', padding: '2px 6px', borderRadius: 4, backgroundColor: '#dbeafe', color: '#1e40af' }}>Tip</span>
+                        <span style={{ fontSize: 12, fontWeight: 600, color: '#1e40af' }}>No flood coverage detected</span>
                       </div>
-                      <div style={{ fontSize: 12, color: '#1e3a5f', lineHeight: 1.5 }}>
-                        Your homeowners policy excludes flood damage. NFIP coverage starts at ~<strong>$500/yr</strong>.
+                      <div style={{ fontSize: 11, color: '#1e3a5f', lineHeight: 1.4 }}>
+                        Your homeowners policy excludes flood. NFIP starts at ~<strong>$500/yr</strong>.
                       </div>
                     </div>
                   </div>
@@ -343,12 +343,25 @@ function ProductDemo() {
                       ))}
                     </div>
                     {sceneProgress > 0.4 && (
-                      <div style={{ marginTop: 8, padding: '5px 10px', backgroundColor: '#ecfdf5', borderRadius: 8, textAlign: 'center' }}>
+                      <div style={{
+                        marginTop: 6, padding: '6px 10px', backgroundColor: '#f0f9ff', borderRadius: 8,
+                        display: 'flex', alignItems: 'center', gap: 8,
+                        opacity: sceneProgress > 0.4 ? 1 : 0, transition: 'opacity 0.4s',
+                      }}>
+                        <span style={{ fontSize: 12 }}>{'\u{1F4DE}'}</span>
+                        <div>
+                          <div style={{ fontSize: 10, fontWeight: 600, color: '#1e40af' }}>Your Agent: Mike Johnson</div>
+                          <div style={{ fontSize: 9, color: '#6b7280' }}>ABC Insurance &middot; (555) 012-3456</div>
+                        </div>
+                      </div>
+                    )}
+                    {sceneProgress > 0.55 && (
+                      <div style={{ marginTop: 5, padding: '5px 10px', backgroundColor: '#ecfdf5', borderRadius: 8, textAlign: 'center' }}>
                         <div style={{ fontSize: 10, fontWeight: 600, color: '#059669' }}>Emergency Contact: 555-0199</div>
                       </div>
                     )}
-                    {sceneProgress > 0.6 && (
-                      <div style={{ marginTop: 6, textAlign: 'center', fontSize: 10, color: '#9ca3af' }}>
+                    {sceneProgress > 0.7 && (
+                      <div style={{ marginTop: 4, textAlign: 'center', fontSize: 9, color: '#9ca3af' }}>
                         Share via link or add to phone wallet
                       </div>
                     )}
