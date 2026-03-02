@@ -70,7 +70,7 @@ function useTimelineFill() {
 /* ── Product Demo Simulation ──────────────────────────── */
 const DEMO_SCENES = [
   { id: 'upload', duration: 4000, label: 'Upload any insurance policy' },
-  { id: 'extract', duration: 6000, label: 'Covrabl automatically extracts coverage details' },
+  { id: 'extract', duration: 6000, label: 'AI extracts every detail automatically' },
   { id: 'dashboard', duration: 7000, label: 'Your coverage becomes clear instantly' },
   { id: 'chat', duration: 8000, label: 'Ask anything about your coverage' },
   { id: 'gaps', duration: 6000, label: 'Spot gaps and risks automatically' },
@@ -83,7 +83,6 @@ function ProductDemo() {
   const [isVisible, setIsVisible] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // Start animation only when visible
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
@@ -111,20 +110,19 @@ function ProductDemo() {
     cumulative += DEMO_SCENES[i].duration;
   }
   const scene = DEMO_SCENES[activeIdx];
+  const overallProgress = elapsed / TOTAL_DURATION;
+
+  // Fade: first 8% of each scene fades in, last 8% fades out
+  const fadeOpacity = sceneProgress < 0.08 ? sceneProgress / 0.08 : sceneProgress > 0.92 ? (1 - sceneProgress) / 0.08 : 1;
 
   const extractFields = [
     { label: 'Carrier', value: 'State Farm' },
     { label: 'Policy #', value: 'SF-8834201' },
     { label: 'Type', value: 'Auto' },
-    { label: 'Coverage', value: '$500,000 / $1,000,000' },
+    { label: 'Coverage', value: '$500K / $1M' },
     { label: 'Deductible', value: '$500' },
     { label: 'Premium', value: '$1,840/yr' },
     { label: 'Renewal', value: 'Mar 14, 2026' },
-  ];
-
-  const dashFields = [
-    { icon: '\u{1F697}', carrier: 'State Farm', type: 'Auto', coverage: '$500K/$1M', deductible: '$500', status: 'Active', statusColor: '#16a34a', statusBg: '#dcfce7' },
-    { icon: '\u{1F3E0}', carrier: 'Allstate', type: 'Home', coverage: '$450K dwelling', deductible: '$2,500', status: 'Review', statusColor: '#d97706', statusBg: '#fef3c7' },
   ];
 
   const gaps = [
@@ -135,7 +133,7 @@ function ProductDemo() {
 
   return (
     <section ref={containerRef} style={{ padding: '0 24px 80px', background: '#fff' }}>
-      <div style={{ maxWidth: 800, margin: '0 auto' }}>
+      <div style={{ maxWidth: 720, margin: '0 auto' }}>
         <div style={{ textAlign: 'center', marginBottom: 24 }}>
           <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-text-muted)', letterSpacing: '0.04em' }}>
             See how Covrabl works in 30 seconds
@@ -166,213 +164,236 @@ function ProductDemo() {
           </div>
 
           {/* Screen content */}
-          <div style={{ padding: '28px 32px', minHeight: 320, backgroundColor: '#f8f9fa', position: 'relative' }}>
+          <div style={{ padding: '24px 28px', minHeight: 300, maxHeight: 340, backgroundColor: '#f8f9fa', position: 'relative', overflow: 'hidden' }}>
+            <div style={{ opacity: fadeOpacity, transition: 'opacity 0.15s ease' }}>
 
-            {/* Scene 1: Upload */}
-            {activeIdx === 0 && (
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: 264, gap: 20 }}>
-                <div style={{
-                  width: '80%', maxWidth: 400, padding: '40px 32px',
-                  border: `2px dashed ${sceneProgress > 0.3 ? '#2563eb' : '#d1d5db'}`,
-                  borderRadius: 12, textAlign: 'center', backgroundColor: '#fff',
-                  transition: 'border-color 0.5s',
-                }}>
-                  <div style={{ fontSize: 40, marginBottom: 12 }}>{sceneProgress > 0.5 ? '\u{1F4C4}' : '\u{2B06}\u{FE0F}'}</div>
-                  <div style={{ fontSize: 14, fontWeight: 600, color: '#111827', marginBottom: 4 }}>
-                    {sceneProgress > 0.5 ? 'StateFarm_Auto_2026.pdf' : 'Drop your policy here'}
-                  </div>
-                  <div style={{ fontSize: 12, color: '#9ca3af' }}>
-                    {sceneProgress > 0.5 ? '2.1 MB — Uploaded' : 'PDF, declarations page, or insurance card'}
-                  </div>
-                  {sceneProgress > 0.3 && sceneProgress <= 0.7 && (
-                    <div style={{ marginTop: 16, height: 4, backgroundColor: '#e5e7eb', borderRadius: 2, overflow: 'hidden' }}>
-                      <div style={{ height: '100%', width: `${Math.min((sceneProgress - 0.3) * 250, 100)}%`, backgroundColor: '#2563eb', borderRadius: 2, transition: 'width 0.1s' }} />
+              {/* Scene 1: Upload */}
+              {activeIdx === 0 && (
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: 252 }}>
+                  <div style={{
+                    width: '75%', maxWidth: 360, padding: '32px 28px',
+                    border: `2px dashed ${sceneProgress > 0.3 ? '#2563eb' : '#d1d5db'}`,
+                    borderRadius: 12, textAlign: 'center', backgroundColor: '#fff',
+                    transition: 'border-color 0.5s',
+                  }}>
+                    <div style={{ fontSize: 36, marginBottom: 10 }}>{sceneProgress > 0.5 ? '\u{1F4C4}' : '\u{2B06}\u{FE0F}'}</div>
+                    <div style={{ fontSize: 14, fontWeight: 600, color: '#111827', marginBottom: 4 }}>
+                      {sceneProgress > 0.5 ? 'StateFarm_Auto_2026.pdf' : 'Drop your policy here'}
                     </div>
-                  )}
-                  {sceneProgress > 0.7 && (
-                    <div style={{ marginTop: 12, fontSize: 13, fontWeight: 600, color: '#16a34a' }}>{'\u2713'} Upload complete</div>
-                  )}
+                    <div style={{ fontSize: 12, color: '#9ca3af' }}>
+                      {sceneProgress > 0.5 ? '2.1 MB' : 'PDF, declarations page, or insurance card'}
+                    </div>
+                    {sceneProgress > 0.3 && sceneProgress <= 0.7 && (
+                      <div style={{ marginTop: 14, height: 4, backgroundColor: '#e5e7eb', borderRadius: 2, overflow: 'hidden' }}>
+                        <div style={{ height: '100%', width: `${Math.min((sceneProgress - 0.3) * 250, 100)}%`, backgroundColor: '#2563eb', borderRadius: 2, transition: 'width 0.1s' }} />
+                      </div>
+                    )}
+                    {sceneProgress > 0.7 && (
+                      <div style={{ marginTop: 10, fontSize: 13, fontWeight: 600, color: '#16a34a' }}>{'\u2713'} Upload complete</div>
+                    )}
+                  </div>
                 </div>
-              </div>
-            )}
+              )}
 
-            {/* Scene 2: Extraction */}
-            {activeIdx === 1 && (
-              <div style={{ maxWidth: 440, margin: '0 auto' }}>
-                <div style={{ fontSize: 14, fontWeight: 600, color: '#111827', marginBottom: 4 }}>Extracting policy data...</div>
-                <div style={{ fontSize: 12, color: '#9ca3af', marginBottom: 16 }}>StateFarm_Auto_2026.pdf</div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  {extractFields.map((f, i) => {
-                    const fieldProgress = sceneProgress * extractFields.length;
-                    const isRevealed = fieldProgress > i;
-                    const isAnimating = fieldProgress > i && fieldProgress < i + 1;
-                    return (
-                      <div key={f.label} style={{
-                        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                        padding: '8px 14px', backgroundColor: '#fff', border: '1px solid #e5e7eb', borderRadius: 8,
-                        opacity: isRevealed ? 1 : 0.15, transition: 'opacity 0.3s',
-                      }}>
-                        <span style={{ fontSize: 12, fontWeight: 600, color: '#9ca3af', textTransform: 'uppercase' }}>{f.label}</span>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                          <span style={{ fontSize: 13, fontWeight: 600, color: '#111827' }}>{f.value}</span>
-                          {isRevealed && !isAnimating && <span style={{ color: '#16a34a', fontSize: 13 }}>{'\u2713'}</span>}
-                          {isAnimating && <span style={{ color: '#2563eb', fontSize: 11 }}>{'\u25CF'}</span>}
+              {/* Scene 2: Extraction */}
+              {activeIdx === 1 && (
+                <div style={{ maxWidth: 400, margin: '0 auto' }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: '#111827', marginBottom: 3 }}>Extracting policy data...</div>
+                  <div style={{ fontSize: 11, color: '#9ca3af', marginBottom: 12 }}>StateFarm_Auto_2026.pdf</div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+                    {extractFields.map((f, i) => {
+                      const fieldProgress = sceneProgress * extractFields.length;
+                      const isRevealed = fieldProgress > i;
+                      const isAnimating = fieldProgress > i && fieldProgress < i + 1;
+                      return (
+                        <div key={f.label} style={{
+                          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                          padding: '6px 12px', backgroundColor: '#fff', border: '1px solid #e5e7eb', borderRadius: 6,
+                          opacity: isRevealed ? 1 : 0.15, transition: 'opacity 0.3s',
+                        }}>
+                          <span style={{ fontSize: 11, fontWeight: 600, color: '#9ca3af', textTransform: 'uppercase' }}>{f.label}</span>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <span style={{ fontSize: 12, fontWeight: 600, color: '#111827' }}>{f.value}</span>
+                            {isRevealed && !isAnimating && <span style={{ color: '#16a34a', fontSize: 12 }}>{'\u2713'}</span>}
+                            {isAnimating && <span style={{ color: '#2563eb', fontSize: 10 }}>{'\u25CF'}</span>}
+                          </div>
                         </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-
-            {/* Scene 3: Dashboard */}
-            {activeIdx === 2 && (
-              <div>
-                <div style={{ fontSize: 14, fontWeight: 600, color: '#111827', marginBottom: 16 }}>My Policies</div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                  {dashFields.map((p, i) => (
-                    <div key={i} style={{
-                      backgroundColor: '#fff', border: '1px solid #e5e7eb', borderRadius: 10, padding: 16,
-                      opacity: sceneProgress > i * 0.3 ? 1 : 0.2, transition: 'opacity 0.4s',
-                    }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
-                        <span style={{ fontSize: 24 }}>{p.icon}</span>
-                        <div style={{ flex: 1 }}>
-                          <div style={{ fontSize: 14, fontWeight: 600, color: '#111827' }}>{p.carrier}</div>
-                          <div style={{ fontSize: 11, color: '#9ca3af' }}>{p.type}</div>
-                        </div>
-                        <span style={{ fontSize: 10, fontWeight: 600, color: p.statusColor, backgroundColor: p.statusBg, padding: '2px 8px', borderRadius: 8 }}>{p.status}</span>
-                      </div>
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-                        <div><div style={{ fontSize: 9, fontWeight: 600, color: '#9ca3af', textTransform: 'uppercase' }}>Coverage</div><div style={{ fontSize: 12, fontWeight: 500, color: '#111827' }}>{p.coverage}</div></div>
-                        <div><div style={{ fontSize: 9, fontWeight: 600, color: '#9ca3af', textTransform: 'uppercase' }}>Deductible</div><div style={{ fontSize: 12, fontWeight: 500, color: '#111827' }}>{p.deductible}</div></div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Scene 4: Chat */}
-            {activeIdx === 3 && (
-              <div style={{ maxWidth: 480, margin: '0 auto' }}>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                  {sceneProgress > 0.05 && (
-                    <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                      <div style={{ padding: '10px 16px', backgroundColor: '#2563eb', color: '#fff', borderRadius: '12px 12px 4px 12px', fontSize: 13, maxWidth: '80%' }}>
-                        Do I have flood coverage?
-                      </div>
-                    </div>
-                  )}
-                  {sceneProgress > 0.25 && (
-                    <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
-                      <div style={{ padding: '10px 16px', backgroundColor: '#fff', border: '1px solid #e5e7eb', color: '#111827', borderRadius: '12px 12px 12px 4px', fontSize: 13, maxWidth: '80%', lineHeight: 1.6 }}>
-                        {sceneProgress > 0.5
-                          ? 'Based on your Allstate homeowners policy (AL-7729104), standard flood damage is not covered. Your policy explicitly excludes surface water and rising water events. Consider NFIP or private flood insurance if you\'re in a flood-prone area.'
-                          : 'Checking your policies...'}
-                      </div>
-                    </div>
-                  )}
-                  {sceneProgress > 0.7 && (
-                    <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                      <div style={{ padding: '10px 16px', backgroundColor: '#2563eb', color: '#fff', borderRadius: '12px 12px 4px 12px', fontSize: 13, maxWidth: '80%' }}>
-                        What would flood insurance cost?
-                      </div>
-                    </div>
-                  )}
-                  {sceneProgress > 0.85 && (
-                    <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
-                      <div style={{ padding: '10px 16px', backgroundColor: '#fff', border: '1px solid #e5e7eb', color: '#111827', borderRadius: '12px 12px 12px 4px', fontSize: 13, maxWidth: '80%', lineHeight: 1.6 }}>
-                        NFIP flood insurance typically ranges from <strong>$500-$1,200/yr</strong> depending on your flood zone. Your home at your current address should qualify. Contact your agent to add a policy.
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-
-            {/* Scene 5: Gaps */}
-            {activeIdx === 4 && (
-              <div style={{ maxWidth: 480, margin: '0 auto' }}>
-                <div style={{ fontSize: 14, fontWeight: 600, color: '#111827', marginBottom: 16 }}>Coverage Insights</div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  {gaps.map((g, i) => {
-                    const colors: Record<string, { bg: string; fg: string }> = {
-                      high: { bg: '#fef2f2', fg: '#991b1b' },
-                      medium: { bg: '#fffbeb', fg: '#92400e' },
-                      low: { bg: '#eff6ff', fg: '#1e40af' },
-                    };
-                    const c = colors[g.severity];
-                    return (
-                      <div key={i} style={{
-                        padding: '12px 16px', backgroundColor: c.bg, borderRadius: 8,
-                        display: 'flex', alignItems: 'center', gap: 10,
-                        opacity: sceneProgress > i * 0.25 ? 1 : 0.1, transition: 'opacity 0.5s',
-                      }}>
-                        <span style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', padding: '2px 6px', borderRadius: 4, backgroundColor: `${c.fg}18`, color: c.fg }}>{g.severity}</span>
-                        <span style={{ fontSize: 13, fontWeight: 500, color: c.fg }}>{g.text}</span>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-
-            {/* Scene 6: Emergency Card */}
-            {activeIdx === 5 && (
-              <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: 264 }}>
-                <div style={{
-                  width: 320, backgroundColor: '#fff', borderRadius: 16, padding: 24,
-                  border: '1px solid #e5e7eb', boxShadow: '0 4px 16px rgba(0,0,0,0.06)',
-                  opacity: sceneProgress > 0.1 ? 1 : 0, transition: 'opacity 0.5s',
-                }}>
-                  <div style={{ textAlign: 'center', marginBottom: 16 }}>
-                    <div style={{ fontSize: 28, marginBottom: 4 }}>{'\u{1F6D1}'}</div>
-                    <div style={{ fontSize: 16, fontWeight: 700, color: '#111827' }}>Emergency Card</div>
-                    <div style={{ fontSize: 12, color: '#9ca3af' }}>Jane Smith</div>
+                      );
+                    })}
                   </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                </div>
+              )}
+
+              {/* Scene 3: Dashboard */}
+              {activeIdx === 2 && (
+                <div style={{ maxWidth: 440, margin: '0 auto' }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: '#111827', marginBottom: 12 }}>My Policies</div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                     {[
-                      { icon: '\u{1F697}', type: 'Auto', carrier: 'State Farm', number: 'SF-8834201' },
-                      { icon: '\u{1F3E0}', type: 'Home', carrier: 'Allstate', number: 'AL-7729104' },
+                      { icon: '\u{1F697}', carrier: 'State Farm', type: 'Auto', num: 'SF-8834201', coverage: '$500K/$1M', deductible: '$500', premium: '$1,840/yr', status: 'Active', statusColor: '#16a34a', statusBg: '#dcfce7' },
+                      { icon: '\u{1F3E0}', carrier: 'Allstate', type: 'Home', num: 'AL-7729104', coverage: '$450K', deductible: '$2,500', premium: '$2,180/yr', status: 'Review', statusColor: '#d97706', statusBg: '#fef3c7' },
                     ].map((p, i) => (
                       <div key={i} style={{
-                        display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px',
-                        backgroundColor: '#f9fafb', borderRadius: 8,
-                        opacity: sceneProgress > 0.2 + i * 0.2 ? 1 : 0.2, transition: 'opacity 0.4s',
+                        backgroundColor: '#fff', border: '1px solid #e5e7eb', borderRadius: 10, padding: '14px 16px',
+                        opacity: sceneProgress > i * 0.3 ? 1 : 0.15, transition: 'opacity 0.4s',
                       }}>
-                        <span style={{ fontSize: 18 }}>{p.icon}</span>
-                        <div style={{ flex: 1 }}>
-                          <div style={{ fontSize: 12, fontWeight: 600, color: '#111827' }}>{p.carrier}</div>
-                          <div style={{ fontSize: 10, color: '#9ca3af' }}>{p.type} {'\u00B7'} {p.number}</div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                          <span style={{ fontSize: 22 }}>{p.icon}</span>
+                          <div style={{ flex: 1 }}>
+                            <div style={{ fontSize: 14, fontWeight: 600, color: '#111827' }}>{p.carrier}</div>
+                            <div style={{ fontSize: 11, color: '#9ca3af' }}>{p.type} &middot; {p.num}</div>
+                          </div>
+                          <span style={{ fontSize: 10, fontWeight: 600, color: p.statusColor, backgroundColor: p.statusBg, padding: '2px 8px', borderRadius: 8 }}>{p.status}</span>
+                        </div>
+                        <div style={{ display: 'flex', gap: 16, marginTop: 10, paddingTop: 10, borderTop: '1px solid #f3f4f6' }}>
+                          {[{ l: 'Coverage', v: p.coverage }, { l: 'Deductible', v: p.deductible }, { l: 'Premium', v: p.premium }].map(f => (
+                            <div key={f.l}>
+                              <div style={{ fontSize: 9, fontWeight: 600, color: '#9ca3af', textTransform: 'uppercase' }}>{f.l}</div>
+                              <div style={{ fontSize: 12, fontWeight: 500, color: '#111827', marginTop: 1 }}>{f.v}</div>
+                            </div>
+                          ))}
                         </div>
                       </div>
                     ))}
                   </div>
-                  {sceneProgress > 0.5 && (
-                    <div style={{ marginTop: 12, padding: '8px 12px', backgroundColor: '#ecfdf5', borderRadius: 8, textAlign: 'center' }}>
-                      <div style={{ fontSize: 11, fontWeight: 600, color: '#059669' }}>Emergency Contact: 555-0199</div>
-                    </div>
-                  )}
                 </div>
-              </div>
-            )}
+              )}
+
+              {/* Scene 4: Chat */}
+              {activeIdx === 3 && (
+                <div style={{ maxWidth: 440, margin: '0 auto' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    {sceneProgress > 0.05 && (
+                      <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                        <div style={{ padding: '8px 14px', backgroundColor: '#2563eb', color: '#fff', borderRadius: '12px 12px 4px 12px', fontSize: 13, maxWidth: '75%' }}>
+                          Do I have flood coverage?
+                        </div>
+                      </div>
+                    )}
+                    {sceneProgress > 0.2 && (
+                      <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
+                        <div style={{ padding: '8px 14px', backgroundColor: '#fff', border: '1px solid #e5e7eb', color: '#111827', borderRadius: '12px 12px 12px 4px', fontSize: 13, maxWidth: '85%', lineHeight: 1.6 }}>
+                          {sceneProgress > 0.45
+                            ? 'Based on your Allstate homeowners policy (AL-7729104), flood damage is not covered. Your policy excludes surface water and rising water events. Consider NFIP or private flood insurance.'
+                            : 'Checking your policies...'}
+                        </div>
+                      </div>
+                    )}
+                    {sceneProgress > 0.65 && (
+                      <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                        <div style={{ padding: '8px 14px', backgroundColor: '#2563eb', color: '#fff', borderRadius: '12px 12px 4px 12px', fontSize: 13, maxWidth: '75%' }}>
+                          What would flood insurance cost?
+                        </div>
+                      </div>
+                    )}
+                    {sceneProgress > 0.8 && (
+                      <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
+                        <div style={{ padding: '8px 14px', backgroundColor: '#fff', border: '1px solid #e5e7eb', color: '#111827', borderRadius: '12px 12px 12px 4px', fontSize: 13, maxWidth: '85%', lineHeight: 1.6 }}>
+                          NFIP flood insurance typically ranges from <strong>$500-$1,200/yr</strong> depending on your flood zone. Contact your agent to add a policy.
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Scene 5: Gaps */}
+              {activeIdx === 4 && (
+                <div style={{ maxWidth: 440, margin: '0 auto' }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: '#111827', marginBottom: 12 }}>Coverage Insights</div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    {gaps.map((g, i) => {
+                      const colors: Record<string, { bg: string; fg: string }> = {
+                        high: { bg: '#fef2f2', fg: '#991b1b' },
+                        medium: { bg: '#fffbeb', fg: '#92400e' },
+                        low: { bg: '#eff6ff', fg: '#1e40af' },
+                      };
+                      const c = colors[g.severity];
+                      return (
+                        <div key={i} style={{
+                          padding: '10px 14px', backgroundColor: c.bg, borderRadius: 8,
+                          display: 'flex', alignItems: 'center', gap: 10,
+                          opacity: sceneProgress > i * 0.25 ? 1 : 0.1, transition: 'opacity 0.5s',
+                        }}>
+                          <span style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', padding: '2px 6px', borderRadius: 4, backgroundColor: `${c.fg}18`, color: c.fg }}>{g.severity}</span>
+                          <span style={{ fontSize: 13, fontWeight: 500, color: c.fg }}>{g.text}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* Scene 6: Emergency Card */}
+              {activeIdx === 5 && (
+                <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: 252 }}>
+                  <div style={{
+                    width: 300, backgroundColor: '#fff', borderRadius: 16, padding: 20,
+                    border: '1px solid #e5e7eb', boxShadow: '0 4px 16px rgba(0,0,0,0.06)',
+                  }}>
+                    <div style={{ textAlign: 'center', marginBottom: 14 }}>
+                      <div style={{ fontSize: 26, marginBottom: 4 }}>{'\u{1F6D1}'}</div>
+                      <div style={{ fontSize: 15, fontWeight: 700, color: '#111827' }}>Emergency Card</div>
+                      <div style={{ fontSize: 11, color: '#9ca3af' }}>Jane Smith</div>
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                      {[
+                        { icon: '\u{1F697}', type: 'Auto', carrier: 'State Farm', number: 'SF-8834201' },
+                        { icon: '\u{1F3E0}', type: 'Home', carrier: 'Allstate', number: 'AL-7729104' },
+                      ].map((p, i) => (
+                        <div key={i} style={{
+                          display: 'flex', alignItems: 'center', gap: 10, padding: '7px 10px',
+                          backgroundColor: '#f9fafb', borderRadius: 8,
+                          opacity: sceneProgress > 0.15 + i * 0.2 ? 1 : 0.15, transition: 'opacity 0.4s',
+                        }}>
+                          <span style={{ fontSize: 16 }}>{p.icon}</span>
+                          <div style={{ flex: 1 }}>
+                            <div style={{ fontSize: 12, fontWeight: 600, color: '#111827' }}>{p.carrier}</div>
+                            <div style={{ fontSize: 10, color: '#9ca3af' }}>{p.type} {'\u00B7'} {p.number}</div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                    {sceneProgress > 0.45 && (
+                      <div style={{ marginTop: 10, padding: '6px 10px', backgroundColor: '#ecfdf5', borderRadius: 8, textAlign: 'center' }}>
+                        <div style={{ fontSize: 11, fontWeight: 600, color: '#059669' }}>Emergency Contact: 555-0199</div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
 
-          {/* Caption overlay */}
-          <div style={{
-            padding: '14px 24px', backgroundColor: '#111827',
-            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          }}>
-            <span style={{ fontSize: 14, fontWeight: 600, color: '#fff' }}>{scene.label}</span>
-            <div style={{ display: 'flex', gap: 4 }}>
-              {DEMO_SCENES.map((_, i) => (
-                <div key={i} style={{
-                  width: i === activeIdx ? 24 : 6, height: 6, borderRadius: 3,
-                  backgroundColor: i === activeIdx ? '#3fa7a3' : '#374151',
-                  transition: 'all 0.3s',
-                }} />
-              ))}
+          {/* Bottom bar: label + scene indicators + progress */}
+          <div style={{ backgroundColor: '#111827' }}>
+            <div style={{
+              padding: '12px 20px',
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <span style={{ fontSize: 11, fontWeight: 700, color: '#3fa7a3', fontVariantNumeric: 'tabular-nums' }}>
+                  {activeIdx + 1}/{DEMO_SCENES.length}
+                </span>
+                <span style={{ fontSize: 13, fontWeight: 500, color: '#e5e7eb' }}>{scene.label}</span>
+              </div>
+              <div style={{ display: 'flex', gap: 4 }}>
+                {DEMO_SCENES.map((_, i) => (
+                  <div key={i} style={{
+                    width: i === activeIdx ? 20 : 6, height: 6, borderRadius: 3,
+                    backgroundColor: i < activeIdx ? '#3fa7a3' : i === activeIdx ? '#fff' : '#374151',
+                    transition: 'all 0.3s',
+                  }} />
+                ))}
+              </div>
+            </div>
+            {/* Overall progress bar */}
+            <div style={{ height: 3, backgroundColor: '#1f2937' }}>
+              <div style={{
+                height: '100%', width: `${overallProgress * 100}%`,
+                backgroundColor: '#3fa7a3',
+                transition: 'width 0.05s linear',
+              }} />
             </div>
           </div>
         </div>
