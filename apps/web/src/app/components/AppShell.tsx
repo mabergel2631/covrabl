@@ -10,6 +10,7 @@ import Logo from './Logo';
 const NAV_ITEMS: { href: string; label: string; icon: string; urgent?: boolean; feature?: string }[] = [
   { href: '/', label: 'Home', icon: '🏠' },
   { href: '/policies', label: 'Policies', icon: '📋' },
+  { href: '/score', label: 'Score', icon: '📊' },
   { href: '/certificates', label: 'Certificates', icon: '📜', feature: 'certificates' },
   { href: '/emergency', label: 'Emergency', icon: '🚨', urgent: true },
   { href: '/audit', label: 'Alerts', icon: '🔔' },

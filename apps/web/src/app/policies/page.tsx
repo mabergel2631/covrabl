@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '../../../lib/auth';
-import { API_BASE, policiesApi, renewalsApi, remindersApi, premiumsApi, sharingApi, documentsApi, gapsApi, inboundApi, profileApi, Policy, PolicyCreate, RenewalItem, SmartAlert, SharedPolicy, PendingShare, CoverageGap, CoverageSummary, InboundAddress, PolicyDraftData, checkFeatureAccess } from '../../../lib/api';
+import { API_BASE, policiesApi, renewalsApi, remindersApi, premiumsApi, sharingApi, documentsApi, gapsApi, inboundApi, profileApi, scoresApi, Policy, PolicyCreate, RenewalItem, SmartAlert, SharedPolicy, PendingShare, CoverageGap, CoverageSummary, InboundAddress, PolicyDraftData, CoverageScoresResult, checkFeatureAccess } from '../../../lib/api';
 import { useToast } from '../components/Toast';
 import ConfirmDialog from '../components/ConfirmDialog';
 import BulkShareModal from '../components/BulkShareModal';
@@ -33,6 +33,7 @@ function PoliciesPageInner() {
   const [coverageSummary, setCoverageSummary] = useState<CoverageSummary | null>(null);
   const [inboundAddress, setInboundAddress] = useState<InboundAddress | null>(null);
   const [pendingDrafts, setPendingDrafts] = useState<PolicyDraftData[]>([]);
+  const [scoreData, setScoreData] = useState<CoverageScoresResult | null>(null);
   const [showDraftModal, setShowDraftModal] = useState<PolicyDraftData | null>(null);
   const [showEmailSettings, setShowEmailSettings] = useState(false);
   const [creatingAddress, setCreatingAddress] = useState(false);
@@ -98,7 +99,7 @@ function PoliciesPageInner() {
   const loadAll = async () => {
     try {
       setLoading(true);
-      const [pols, rens, spend, shared, pending, alerts, gapsResult, addressResult, draftsResult] = await Promise.all([
+      const [pols, rens, spend, shared, pending, alerts, gapsResult, addressResult, draftsResult, scoresResult] = await Promise.all([
         policiesApi.list(),
         renewalsApi.upcoming(90),
         premiumsApi.annualSpend(),
@@ -108,6 +109,7 @@ function PoliciesPageInner() {
         gapsApi.analyze().catch(() => ({ gaps: [], summary: null, policy_count: 0 })),
         inboundApi.getAddress().catch(() => ({ address: null })),
         inboundApi.listDrafts('pending').catch(() => ({ items: [], total: 0 })),
+        scoresApi.get().catch(() => null),
       ]);
       setPolicies(Array.isArray(pols) ? pols : []);
       setRenewals(Array.isArray(rens) ? rens : []);
@@ -119,6 +121,7 @@ function PoliciesPageInner() {
       setCoverageSummary(gapsResult.summary || null);
       setInboundAddress(addressResult?.address || null);
       setPendingDrafts(draftsResult?.items || []);
+      if (scoresResult) setScoreData(scoresResult);
 
       // Check profile completion (non-blocking)
       try {
@@ -720,6 +723,78 @@ function PoliciesPageInner() {
               </div>
             )}
           </div>
+
+          {/* ── Coverage Health Score Widget ── */}
+          {!loading && scopedPolicies.length > 0 && scoreData && (
+            <div
+              onClick={() => router.push('/score')}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 28,
+                padding: '20px 28px', marginBottom: 16,
+                backgroundColor: '#fff', border: '1px solid var(--color-border)',
+                borderRadius: 'var(--radius-lg)', cursor: 'pointer',
+                transition: 'box-shadow 0.15s',
+              }}
+              onMouseEnter={e => (e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.06)')}
+              onMouseLeave={e => (e.currentTarget.style.boxShadow = 'none')}
+            >
+              {/* SVG Circular Gauge */}
+              <div style={{ position: 'relative', width: 72, height: 72, flexShrink: 0 }}>
+                <svg viewBox="0 0 72 72" width={72} height={72}>
+                  <circle cx={36} cy={36} r={30} fill="none" stroke="#e5e7eb" strokeWidth={6} />
+                  <circle
+                    cx={36} cy={36} r={30} fill="none"
+                    stroke={scoreData.overall_score >= 75 ? '#22c55e' : scoreData.overall_score >= 50 ? '#f59e0b' : '#ef4444'}
+                    strokeWidth={6} strokeLinecap="round"
+                    strokeDasharray={`${(scoreData.overall_score / 100) * 188.5} 188.5`}
+                    transform="rotate(-90 36 36)"
+                  />
+                </svg>
+                <div style={{
+                  position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: 20, fontWeight: 700, color: 'var(--color-text)',
+                }}>
+                  {scoreData.overall_score}
+                </div>
+              </div>
+
+              {/* Category bars */}
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 8 }}>
+                  <span style={{ fontSize: 16, fontWeight: 700, color: 'var(--color-text)' }}>Coverage Health Score</span>
+                  <span style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>
+                    Based on {scoreData.policies_analyzed} {scoreData.policies_analyzed === 1 ? 'policy' : 'policies'} · {scoreData.confidence} confidence
+                  </span>
+                </div>
+                <div className="mobile-grid-1" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10 }}>
+                  {(['liability', 'property', 'income', 'catastrophic'] as const).map(cat => {
+                    const c = scoreData.categories[cat];
+                    if (!c) return null;
+                    const color = c.score >= 75 ? '#22c55e' : c.score >= 50 ? '#f59e0b' : '#ef4444';
+                    return (
+                      <div key={cat}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'var(--color-text-muted)', marginBottom: 3, textTransform: 'capitalize' }}>
+                          <span>{cat}</span>
+                          <span style={{ fontWeight: 600 }}>{c.score}</span>
+                        </div>
+                        <div style={{ height: 4, backgroundColor: '#e5e7eb', borderRadius: 2, overflow: 'hidden' }}>
+                          <div style={{ height: '100%', width: `${c.score}%`, backgroundColor: color, borderRadius: 2, transition: 'width 0.5s ease' }} />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+                {scoreData.not_visible.length > 0 && (
+                  <div style={{ fontSize: 11, color: 'var(--color-text-muted)', marginTop: 6 }}>
+                    Not yet visible: {scoreData.not_visible.join(', ')}
+                  </div>
+                )}
+              </div>
+
+              {/* Arrow */}
+              <div style={{ color: 'var(--color-text-muted)', fontSize: 18, flexShrink: 0 }}>→</div>
+            </div>
+          )}
 
           {!loading && scopedPolicies.length > 0 && (
             <div className="mobile-grid-1" style={{

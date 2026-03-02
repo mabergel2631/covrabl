@@ -1843,6 +1843,53 @@ export default function PolicyDetailPage() {
         )}
       </div>
 
+      {/* Score Contribution */}
+      {policy && (() => {
+        const TYPE_TO_CATEGORIES: Record<string, string[]> = {
+          auto: ['Liability Protection', 'Property Protection'],
+          home: ['Liability Protection', 'Property Protection', 'Catastrophic Protection'],
+          renters: ['Liability Protection', 'Property Protection'],
+          umbrella: ['Liability Protection', 'Catastrophic Protection'],
+          liability: ['Liability Protection', 'Catastrophic Protection'],
+          life: ['Income Protection'],
+          disability: ['Income Protection'],
+          flood: ['Catastrophic Protection'],
+          earthquake: ['Catastrophic Protection'],
+          general_liability: ['Liability Protection'],
+          bop: ['Liability Protection', 'Property Protection'],
+          professional_liability: ['Liability Protection'],
+          commercial_property: ['Property Protection'],
+        };
+        const cats = TYPE_TO_CATEGORIES[(policy.policy_type || '').toLowerCase()] || [];
+        if (cats.length === 0) return null;
+        return (
+          <div className="card" style={{ marginBottom: 32 }}>
+            <h2 className="section-title" style={{ margin: '0 0 8px' }}>Score Contribution</h2>
+            <div style={{ fontSize: 13, color: 'var(--color-text-secondary)', marginBottom: 12 }}>
+              This policy contributes to your Coverage Health Score in:
+            </div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
+              {cats.map(cat => (
+                <span key={cat} style={{
+                  padding: '4px 12px', fontSize: 12, fontWeight: 600,
+                  backgroundColor: '#f0f9ff', color: '#0369a1',
+                  borderRadius: 20, border: '1px solid #bae6fd',
+                }}>
+                  {cat}
+                </span>
+              ))}
+            </div>
+            <a
+              href="/score"
+              onClick={(e) => { e.preventDefault(); router.push('/score'); }}
+              style={{ fontSize: 13, color: 'var(--color-primary)', fontWeight: 500, textDecoration: 'none' }}
+            >
+              View Full Score →
+            </a>
+          </div>
+        );
+      })()}
+
       {/* Policy Details (type-specific key-value fields) */}
       <div className="card" style={{ marginBottom: 32 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 12 }}>

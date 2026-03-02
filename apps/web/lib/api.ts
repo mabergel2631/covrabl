@@ -1039,16 +1039,48 @@ export const deltasApi = {
 
 // ── Coverage Score API ─────────────────────────────────────
 
-export type CategoryScore = {
+export type ScoreComponent = {
+  name: string;
   score: number;
-  breakdown: Record<string, number>;
-  insights: string[];
+  max: number;
+  detail: string;
+};
+
+export type ScoreRecommendation = {
+  priority: "high" | "medium" | "low";
+  text: string;
+  detail: string;
+};
+
+export type CategoryResult = {
+  score: number;
+  weight: number;
+  components: ScoreComponent[];
+  recommendations: ScoreRecommendation[];
+};
+
+export type PolicyHealthItem = {
+  policy_id: number;
+  type: string;
+  carrier: string;
+  days_left?: number;
+};
+
+export type PolicyHealth = {
+  expiring_soon: PolicyHealthItem[];
+  missing_documents: PolicyHealthItem[];
+  recently_updated: boolean;
 };
 
 export type CoverageScoresResult = {
-  overall: CategoryScore;
-  categories: Record<string, CategoryScore>;
-  policy_count: number;
+  overall_score: number;
+  confidence: "low" | "moderate" | "high";
+  policies_analyzed: number;
+  expected_policy_types: string[];
+  not_visible: string[];
+  exposure_band: string;
+  categories: Record<string, CategoryResult>;
+  policy_health: PolicyHealth;
 };
 
 export const scoresApi = {
