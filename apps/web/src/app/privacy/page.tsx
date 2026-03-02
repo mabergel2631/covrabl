@@ -26,10 +26,13 @@ export default function PrivacyPage() {
 
   return (
     <div style={{ maxWidth: 760, margin: '0 auto', padding: '48px 24px 80px' }}>
-      <div style={{ marginBottom: 40 }}>
+      <div style={{ marginBottom: 40, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <Link href="/" style={{ fontSize: 20, fontWeight: 700, color: 'var(--color-primary)', textDecoration: 'none' }}>
           {APP_NAME}
         </Link>
+        <button onClick={() => router.back()} style={{ background: 'none', border: 'none', fontSize: 14, color: 'var(--color-text-secondary)', cursor: 'pointer' }}>
+          &larr; Back
+        </button>
       </div>
 
       <h1 style={{ fontSize: 32, fontWeight: 700, margin: '0 0 8px', color: 'var(--color-text)' }}>
@@ -285,6 +288,7 @@ export default function PrivacyPage() {
       </div>
 
       <div style={{ marginTop: 48, paddingTop: 24, borderTop: '1px solid var(--color-border)', display: 'flex', gap: 24, fontSize: 13, color: 'var(--color-text-muted)' }}>
+        <button onClick={() => router.back()} style={{ background: 'none', border: 'none', fontSize: 13, color: 'var(--color-accent)', cursor: 'pointer', padding: 0 }}>&larr; Back</button>
         <Link href="/terms" style={{ color: 'var(--color-accent)', textDecoration: 'none' }}>Terms of Service</Link>
         <Link href="/" style={{ color: 'var(--color-accent)', textDecoration: 'none' }}>Home</Link>
       </div>

@@ -2099,6 +2099,19 @@ export default function PolicyDetailPage() {
         )}
       </div>
 
+      {/* Bottom back link */}
+      <div style={{ marginTop: 32, paddingTop: 20, borderTop: '1px solid var(--color-border)', textAlign: 'center' }}>
+        <button
+          onClick={() => router.push('/policies')}
+          style={{
+            background: 'none', border: 'none', fontSize: 14, color: 'var(--color-text-secondary)',
+            cursor: 'pointer', padding: '8px 16px',
+          }}
+        >
+          &larr; Back to Policies
+        </button>
+      </div>
+
       {/* View Certificate Modal */}
       {viewingPolicyCert && (() => {
         const vc = viewingPolicyCert;

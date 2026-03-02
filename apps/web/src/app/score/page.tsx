@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '../../../lib/auth';
 import { scoresApi, CoverageScoresResult, CategoryResult, ScoreRecommendation } from '../../../lib/api';
+import BackButton from '../components/BackButton';
 
 const CATEGORY_LABELS: Record<string, string> = {
   liability: 'Liability Protection',
@@ -213,6 +214,8 @@ export default function ScorePage() {
 
   return (
     <div style={{ maxWidth: 800, margin: '0 auto', padding: '32px 24px 80px' }}>
+      <BackButton href="/policies" label="Score" parentLabel="Policies" />
+
       {/* Disclaimer banner */}
       <div style={{
         padding: '12px 16px', marginBottom: 24,
@@ -382,6 +385,19 @@ export default function ScorePage() {
       }}>
         For informational purposes only. This score is based on the policies and profile information you have uploaded.
         It does not constitute insurance advice and does not replace consultation with a licensed insurance professional.
+      </div>
+
+      {/* Bottom back link */}
+      <div style={{ marginTop: 24, textAlign: 'center' }}>
+        <button
+          onClick={() => router.push('/policies')}
+          style={{
+            background: 'none', border: 'none', fontSize: 14,
+            color: 'var(--color-text-secondary)', cursor: 'pointer',
+          }}
+        >
+          &larr; Back to Policies
+        </button>
       </div>
     </div>
   );

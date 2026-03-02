@@ -44,8 +44,13 @@ export default function SupportPage() {
         padding: '12px 24px',
         display: 'flex', justifyContent: 'space-between', alignItems: 'center',
       }}>
-        <div onClick={() => router.push('/')} style={{ cursor: 'pointer' }}>
-          <Logo size="md" variant="dark" />
+        <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+          <button onClick={() => router.back()} style={{ background: 'none', border: 'none', fontSize: 14, color: 'var(--color-text-secondary)', cursor: 'pointer' }}>
+            &larr; Back
+          </button>
+          <div onClick={() => router.push('/')} style={{ cursor: 'pointer' }}>
+            <Logo size="md" variant="dark" />
+          </div>
         </div>
         <button
           onClick={() => router.push('/login')}
@@ -143,6 +148,15 @@ export default function SupportPage() {
             We typically respond within one business day.<br />
             {APP_NAME} &mdash; Coverage Clarity
           </p>
+          <button
+            onClick={() => router.back()}
+            style={{
+              background: 'none', border: 'none', fontSize: 14, color: 'var(--color-text-secondary)',
+              cursor: 'pointer', marginTop: 12,
+            }}
+          >
+            &larr; Back
+          </button>
         </div>
       </div>
     </div>
