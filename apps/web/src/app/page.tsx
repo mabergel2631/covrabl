@@ -644,17 +644,16 @@ export default function Home() {
             }}>
               {ctaLabel}
             </button>
+            <button onClick={() => scrollTo('how-it-works')} style={{
+              padding: '14px 32px', fontSize: 16, fontWeight: 500,
+              backgroundColor: 'rgba(255,255,255,0.08)', color: '#fff',
+              border: '1px solid rgba(255,255,255,0.2)', borderRadius: 'var(--radius-md)', cursor: 'pointer',
+              backdropFilter: 'blur(4px)',
+              transition: 'background 0.15s',
+            }}>
+              See how it works
+            </button>
           </div>
-          {!token && (
-            <div style={{ marginBottom: 24, textAlign: 'center' }}>
-              <span onClick={() => router.push('/demo')} style={{
-                fontSize: 14, color: 'rgba(255,255,255,0.8)', cursor: 'pointer',
-                textDecoration: 'underline', textUnderlineOffset: 3,
-              }}>
-                See a live example &rarr;
-              </span>
-            </div>
-          )}
           <div style={{ display: 'flex', gap: 32, justifyContent: 'center', flexWrap: 'wrap', fontSize: 13, opacity: 0.6, letterSpacing: 'var(--letter-spacing-wide)' }}>
             <span>Not an insurance company</span>
             <span>Not a lead generator</span>
