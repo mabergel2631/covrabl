@@ -51,6 +51,12 @@ export default function ProfilePage() {
   const [showContactForm, setShowContactForm] = useState<'emergency' | 'broker' | null>(null);
   const [editingContactId, setEditingContactId] = useState<number | null>(null);
 
+  // Change password flow
+  const [showPasswordForm, setShowPasswordForm] = useState(false);
+  const [pwForm, setPwForm] = useState({ current: '', newPw: '', confirm: '' });
+  const [pwError, setPwError] = useState('');
+  const [changingPw, setChangingPw] = useState(false);
+
   // Delete account flow
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deletePassword, setDeletePassword] = useState('');
@@ -164,6 +170,25 @@ export default function ProfilePage() {
       email: '',
       notes: '',
     });
+  };
+
+  const handleChangePassword = async () => {
+    setPwError('');
+    if (!pwForm.current.trim()) { setPwError('Current password is required'); return; }
+    if (pwForm.newPw.length < 6) { setPwError('New password must be at least 6 characters'); return; }
+    if (pwForm.newPw !== pwForm.confirm) { setPwError('Passwords do not match'); return; }
+
+    setChangingPw(true);
+    try {
+      await authApi.changePassword(pwForm.current, pwForm.newPw);
+      toast('Password updated', 'success');
+      setShowPasswordForm(false);
+      setPwForm({ current: '', newPw: '', confirm: '' });
+    } catch (err: any) {
+      setPwError(err.message || 'Failed to change password');
+    } finally {
+      setChangingPw(false);
+    }
   };
 
   const handleDeleteAccount = async () => {
@@ -436,7 +461,65 @@ export default function ProfilePage() {
         </div>
       </div>
 
-      {/* 5. Danger Zone */}
+      {/* 5. Change Password */}
+      <div className="card" style={{ padding: 0, marginBottom: 20, overflow: 'hidden' }}>
+        <div style={{
+          padding: '16px 20px',
+          borderBottom: '1px solid var(--color-border)',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          flexWrap: 'wrap',
+          gap: 8,
+        }}>
+          <h2 style={{ margin: 0, fontSize: 16, fontWeight: 700 }}>Change Password</h2>
+          {!showPasswordForm && (
+            <button
+              onClick={() => { setShowPasswordForm(true); setPwForm({ current: '', newPw: '', confirm: '' }); setPwError(''); }}
+              className="btn btn-outline"
+              style={{ padding: '6px 14px', fontSize: 13 }}
+            >
+              Change
+            </button>
+          )}
+        </div>
+
+        <div style={{ padding: 20 }}>
+          {!showPasswordForm ? (
+            <p style={{ fontSize: 14, color: 'var(--color-text-secondary)', margin: 0 }}>
+              Update your login password. You&apos;ll need to enter your current password to verify your identity.
+            </p>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              <FormField label="Current Password" value={pwForm.current} onChange={v => { setPwForm(p => ({ ...p, current: v })); setPwError(''); }} placeholder="Enter current password" type="password" />
+              <FormField label="New Password" value={pwForm.newPw} onChange={v => { setPwForm(p => ({ ...p, newPw: v })); setPwError(''); }} placeholder="At least 6 characters" type="password" />
+              <FormField label="Confirm New Password" value={pwForm.confirm} onChange={v => { setPwForm(p => ({ ...p, confirm: v })); setPwError(''); }} placeholder="Re-enter new password" type="password" />
+              {pwError && (
+                <p style={{ fontSize: 13, color: '#dc2626', margin: 0 }}>{pwError}</p>
+              )}
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button
+                  onClick={handleChangePassword}
+                  disabled={changingPw}
+                  className="btn btn-primary"
+                  style={{ padding: '8px 16px', fontSize: 13 }}
+                >
+                  {changingPw ? 'Updating...' : 'Update Password'}
+                </button>
+                <button
+                  onClick={() => { setShowPasswordForm(false); setPwError(''); }}
+                  className="btn btn-outline"
+                  style={{ padding: '8px 16px', fontSize: 13 }}
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* 6. Danger Zone */}
       <div style={{
         padding: 0, marginBottom: 20, overflow: 'hidden',
         border: '1px solid #fca5a5', borderRadius: 'var(--radius-lg)',

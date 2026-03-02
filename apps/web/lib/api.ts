@@ -184,6 +184,13 @@ export const authApi = {
       body: JSON.stringify({ token, password }),
     });
   },
+  changePassword(currentPassword: string, newPassword: string) {
+    return request<{ ok: boolean }>("/auth/change-password", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ current_password: currentPassword, new_password: newPassword }),
+    });
+  },
   deleteAccount(password: string) {
     return request<{ ok: boolean }>("/auth/me", {
       method: "DELETE",

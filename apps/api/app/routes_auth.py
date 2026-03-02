@@ -230,6 +230,35 @@ def delete_user_cascade(db: Session, uid: int) -> None:
     db.execute(delete(User).where(User.id == uid))
 
 
+class ChangePasswordRequest(BaseModel):
+    current_password: str
+    new_password: str
+
+
+@router.put("/change-password")
+def change_password(
+    payload: ChangePasswordRequest,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Change the authenticated user's password."""
+    if not verify_password(payload.current_password, user.hashed_password):
+        raise HTTPException(status_code=403, detail="Current password is incorrect")
+
+    if len(payload.new_password) < 6:
+        raise HTTPException(status_code=400, detail="New password must be at least 6 characters")
+
+    hashed = hash_password(payload.new_password)
+    if not verify_password(payload.new_password, hashed):
+        logger.error("Password hash round-trip failed during change for user_id=%s", user.id)
+        raise HTTPException(status_code=500, detail="Password change error — please try again")
+
+    user.hashed_password = hashed
+    db.commit()
+    logger.info("Password changed for user_id=%s", user.id)
+    return {"ok": True}
+
+
 class DeleteAccountRequest(BaseModel):
     password: str
 
