@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useAuth } from '../../../../../lib/auth';
-import { gapsApi, BusinessEntityDetail, CoverageGap } from '../../../../../lib/api';
+import { gapsApi, policiesApi, BusinessEntityDetail, CoverageGap } from '../../../../../lib/api';
 import { formatPhone, cleanPhone } from '../../../../../lib/format';
 import { useToast } from '../../../components/Toast';
 import BackButton from '../../../components/BackButton';
@@ -34,6 +34,8 @@ export default function BusinessEntityPage() {
   const [data, setData] = useState<BusinessEntityDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [isRenaming, setIsRenaming] = useState(false);
+  const [renameValue, setRenameValue] = useState('');
 
   useEffect(() => {
     if (!token) { router.replace('/login'); return; }
@@ -50,6 +52,19 @@ export default function BusinessEntityPage() {
       setError(err.message);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleRename = async () => {
+    const trimmed = renameValue.trim();
+    if (!trimmed || trimmed === businessName) { setIsRenaming(false); return; }
+    try {
+      await policiesApi.renameBusinessGroup(businessName, trimmed);
+      toast(`Group renamed to "${trimmed}"`, 'success');
+      setIsRenaming(false);
+      router.replace(`/policies/business/${encodeURIComponent(trimmed)}`);
+    } catch (err: any) {
+      toast(err.message || 'Failed to rename group', 'error');
     }
   };
 
@@ -121,10 +136,46 @@ export default function BusinessEntityPage() {
         <section style={{ marginBottom: 28 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             <span style={{ fontSize: 32 }}>🏢</span>
-            <div>
-              <h1 style={{ fontSize: 28, fontWeight: 700, margin: 0, color: 'var(--color-text)', letterSpacing: '-0.02em' }}>
-                {businessName}
-              </h1>
+            <div style={{ flex: 1 }}>
+              {isRenaming ? (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <input
+                    autoFocus
+                    value={renameValue}
+                    onChange={e => setRenameValue(e.target.value)}
+                    onKeyDown={e => { if (e.key === 'Enter') handleRename(); if (e.key === 'Escape') setIsRenaming(false); }}
+                    style={{
+                      fontSize: 22, fontWeight: 700, color: 'var(--color-text)', letterSpacing: '-0.02em',
+                      border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)',
+                      padding: '4px 10px', outline: 'none', width: '100%', maxWidth: 400,
+                    }}
+                  />
+                  <button onClick={handleRename} style={{
+                    padding: '6px 14px', fontSize: 13, fontWeight: 600, backgroundColor: 'var(--color-accent)',
+                    color: '#fff', border: 'none', borderRadius: 'var(--radius-sm)', cursor: 'pointer', whiteSpace: 'nowrap',
+                  }}>Save</button>
+                  <button onClick={() => setIsRenaming(false)} style={{
+                    padding: '6px 14px', fontSize: 13, fontWeight: 600, backgroundColor: '#f3f4f6',
+                    color: '#6b7280', border: 'none', borderRadius: 'var(--radius-sm)', cursor: 'pointer',
+                  }}>Cancel</button>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <h1 style={{ fontSize: 28, fontWeight: 700, margin: 0, color: 'var(--color-text)', letterSpacing: '-0.02em' }}>
+                    {businessName}
+                  </h1>
+                  <button
+                    onClick={() => { setRenameValue(businessName); setIsRenaming(true); }}
+                    title="Rename group"
+                    style={{
+                      background: 'none', border: 'none', cursor: 'pointer', padding: 4,
+                      fontSize: 14, color: 'var(--color-text-muted)', opacity: 0.6,
+                    }}
+                    onMouseEnter={e => { e.currentTarget.style.opacity = '1'; }}
+                    onMouseLeave={e => { e.currentTarget.style.opacity = '0.6'; }}
+                  >&#9998;</button>
+                </div>
+              )}
               <div style={{ fontSize: 14, color: 'var(--color-text-secondary)', marginTop: 4 }}>
                 {policyCount} polic{policyCount === 1 ? 'y' : 'ies'}
                 {totalCoverage > 0 && <> &middot; ${(totalCoverage / 100).toLocaleString()} total coverage</>}

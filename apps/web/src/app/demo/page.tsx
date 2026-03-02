@@ -1,5 +1,6 @@
 'use client';
 
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { APP_NAME } from '../config';
 
@@ -45,6 +46,215 @@ const SAMPLE_CHAT = [
   { role: 'ai', text: 'Yes. Your State Farm auto policy (SF-8834201) includes comprehensive coverage with a $500 deductible. Falling objects, including trees, are covered under comprehensive. You would pay the $500 deductible and State Farm covers the rest up to your policy limit.' },
 ];
 
+const WALKTHROUGH_STEPS = [
+  {
+    step: 1,
+    title: 'Upload your policy PDF',
+    description: 'Drag and drop a policy document or forward it via email. We accept declarations pages, full policies, and insurance cards.',
+    visual: [
+      { icon: '📄', name: 'StateFarm_Auto_2026.pdf', size: '2.1 MB', status: 'Uploading...' },
+    ],
+    accent: '#2563eb',
+  },
+  {
+    step: 2,
+    title: 'AI extracts every detail',
+    description: 'Our AI reads the document and pulls out carrier, policy number, coverage limits, deductibles, renewal dates, and more — in seconds.',
+    visual: [
+      { label: 'Carrier', value: 'State Farm', done: true },
+      { label: 'Policy #', value: 'SF-8834201', done: true },
+      { label: 'Coverage', value: '$500,000 / $1,000,000', done: true },
+      { label: 'Deductible', value: '$500', done: true },
+      { label: 'Premium', value: '$1,840/yr', done: true },
+      { label: 'Renewal', value: 'Mar 14, 2026', done: true },
+    ],
+    accent: '#7c3aed',
+  },
+  {
+    step: 3,
+    title: 'Review and confirm',
+    description: 'Check the extracted data, make any corrections, and confirm. Your policy is now tracked with renewal alerts and coverage analysis.',
+    visual: [
+      { label: 'Coverage items', value: '12 inclusions, 3 exclusions', done: true },
+      { label: 'Contacts', value: '2 agents extracted', done: true },
+      { label: 'Status', value: 'Active — renews in 13 days', done: true },
+    ],
+    accent: '#059669',
+  },
+  {
+    step: 4,
+    title: 'Get instant insights',
+    description: 'See coverage gaps, compare policies, and ask the AI chat anything about your coverage — all based on your actual policy documents.',
+    visual: [
+      { severity: 'high', text: 'No umbrella liability policy detected' },
+      { severity: 'medium', text: 'Dwelling coverage may be below replacement cost' },
+      { severity: 'low', text: 'Consider adding roadside assistance (~$20/yr)' },
+    ],
+    accent: '#d97706',
+  },
+];
+
+function UploadWalkthrough() {
+  const [activeStep, setActiveStep] = useState(0);
+  const [progress, setProgress] = useState(0);
+
+  // Auto-advance through steps
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setActiveStep(prev => (prev + 1) % WALKTHROUGH_STEPS.length);
+      setProgress(0);
+    }, 5000);
+    const progressTimer = setInterval(() => {
+      setProgress(prev => Math.min(prev + 2, 100));
+    }, 100);
+    return () => { clearInterval(timer); clearInterval(progressTimer); };
+  }, [activeStep]);
+
+  const step = WALKTHROUGH_STEPS[activeStep];
+
+  return (
+    <div style={{
+      backgroundColor: '#fff', border: '1px solid #e5e7eb', borderRadius: 16,
+      overflow: 'hidden', marginBottom: 40,
+    }}>
+      {/* Header */}
+      <div style={{
+        padding: '20px 24px', borderBottom: '1px solid #f3f4f6',
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+      }}>
+        <div>
+          <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#9ca3af', marginBottom: 4 }}>
+            How it works
+          </div>
+          <div style={{ fontSize: 18, fontWeight: 700, color: '#111827' }}>
+            From PDF to insights in under a minute
+          </div>
+        </div>
+        <div style={{ display: 'flex', gap: 6 }}>
+          {WALKTHROUGH_STEPS.map((_, i) => (
+            <button
+              key={i}
+              onClick={() => { setActiveStep(i); setProgress(0); }}
+              style={{
+                width: 32, height: 32, borderRadius: '50%', border: 'none', cursor: 'pointer',
+                fontSize: 13, fontWeight: 700,
+                backgroundColor: i === activeStep ? WALKTHROUGH_STEPS[i].accent : '#f3f4f6',
+                color: i === activeStep ? '#fff' : '#9ca3af',
+                transition: 'all 0.2s',
+              }}
+            >{i + 1}</button>
+          ))}
+        </div>
+      </div>
+
+      {/* Content */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', minHeight: 240 }}>
+        {/* Left — description */}
+        <div style={{ padding: '32px 28px', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+          <div style={{
+            fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em',
+            color: step.accent, marginBottom: 8,
+          }}>
+            Step {step.step}
+          </div>
+          <h3 style={{ fontSize: 20, fontWeight: 700, margin: '0 0 10px', color: '#111827' }}>
+            {step.title}
+          </h3>
+          <p style={{ fontSize: 14, color: '#6b7280', margin: 0, lineHeight: 1.7 }}>
+            {step.description}
+          </p>
+        </div>
+
+        {/* Right — visual */}
+        <div style={{
+          padding: '24px 28px', backgroundColor: '#fafbfc', borderLeft: '1px solid #f3f4f6',
+          display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 10,
+        }}>
+          {activeStep === 0 && step.visual.map((file: any, i: number) => (
+            <div key={i} style={{
+              padding: '16px 20px', backgroundColor: '#fff', border: '1px solid #e5e7eb', borderRadius: 10,
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <span style={{ fontSize: 28 }}>{file.icon}</span>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 14, fontWeight: 600, color: '#111827' }}>{file.name}</div>
+                  <div style={{ fontSize: 12, color: '#9ca3af' }}>{file.size}</div>
+                </div>
+                <span style={{ fontSize: 12, fontWeight: 600, color: step.accent }}>{file.status}</span>
+              </div>
+              <div style={{
+                marginTop: 12, height: 4, backgroundColor: '#e5e7eb', borderRadius: 2, overflow: 'hidden',
+              }}>
+                <div style={{
+                  height: '100%', width: `${progress}%`, backgroundColor: step.accent,
+                  borderRadius: 2, transition: 'width 0.1s linear',
+                }} />
+              </div>
+            </div>
+          ))}
+
+          {activeStep === 1 && (step.visual as any[]).map((field: any, i: number) => (
+            <div key={i} style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+              padding: '8px 14px', backgroundColor: '#fff', border: '1px solid #e5e7eb', borderRadius: 8,
+              opacity: progress > i * 15 ? 1 : 0.3, transition: 'opacity 0.3s',
+            }}>
+              <span style={{ fontSize: 12, fontWeight: 600, color: '#9ca3af', textTransform: 'uppercase' }}>{field.label}</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span style={{ fontSize: 13, fontWeight: 600, color: '#111827' }}>{field.value}</span>
+                {progress > i * 15 + 10 && <span style={{ color: '#16a34a', fontSize: 14 }}>&#10003;</span>}
+              </div>
+            </div>
+          ))}
+
+          {activeStep === 2 && (step.visual as any[]).map((field: any, i: number) => (
+            <div key={i} style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+              padding: '10px 14px', backgroundColor: '#fff', border: '1px solid #e5e7eb', borderRadius: 8,
+            }}>
+              <span style={{ fontSize: 13, fontWeight: 500, color: '#111827' }}>{field.label}</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span style={{ fontSize: 13, color: '#6b7280' }}>{field.value}</span>
+                <span style={{ color: '#16a34a', fontSize: 14 }}>&#10003;</span>
+              </div>
+            </div>
+          ))}
+
+          {activeStep === 3 && (step.visual as any[]).map((gap: any, i: number) => {
+            const colors: Record<string, { bg: string; fg: string }> = {
+              high: { bg: '#fef2f2', fg: '#991b1b' },
+              medium: { bg: '#fffbeb', fg: '#92400e' },
+              low: { bg: '#eff6ff', fg: '#1e40af' },
+            };
+            const c = colors[gap.severity];
+            return (
+              <div key={i} style={{
+                padding: '10px 14px', backgroundColor: c.bg, borderRadius: 8,
+                display: 'flex', alignItems: 'center', gap: 10,
+                opacity: progress > i * 20 ? 1 : 0.3, transition: 'opacity 0.4s',
+              }}>
+                <span style={{
+                  fontSize: 9, fontWeight: 700, textTransform: 'uppercase', padding: '2px 6px',
+                  borderRadius: 4, backgroundColor: `${c.fg}15`, color: c.fg,
+                }}>{gap.severity}</span>
+                <span style={{ fontSize: 13, fontWeight: 500, color: c.fg }}>{gap.text}</span>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Progress bar */}
+      <div style={{ height: 3, backgroundColor: '#f3f4f6' }}>
+        <div style={{
+          height: '100%', width: `${progress}%`, backgroundColor: step.accent,
+          transition: 'width 0.1s linear',
+        }} />
+      </div>
+    </div>
+  );
+}
+
 export default function DemoPage() {
   const router = useRouter();
 
@@ -81,6 +291,9 @@ export default function DemoPage() {
             2 policies &middot; Last updated today
           </p>
         </div>
+
+        {/* Interactive Walkthrough */}
+        <UploadWalkthrough />
 
         {/* Policies */}
         <h2 style={{ fontSize: 18, fontWeight: 600, margin: '0 0 16px', color: '#111827' }}>Your Policies</h2>
@@ -186,7 +399,7 @@ export default function DemoPage() {
             See this for your own policies
           </h2>
           <p style={{ fontSize: 15, opacity: 0.85, margin: '0 0 24px' }}>
-            Upload your first policy and get insights in under a minute. Free for up to 3 policies.
+            Upload your first policy and get insights in under a minute.
           </p>
           <button onClick={() => router.push('/login')} style={{
             padding: '14px 36px', fontSize: 16, fontWeight: 600,
