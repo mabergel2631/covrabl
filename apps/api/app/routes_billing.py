@@ -42,6 +42,7 @@ FEATURE_ACCESS = {
     "premiums": 2,
     "premium_history": 2,
     "certificates": 3,
+    "lease_compliance": 3,
     "business_grouping": 3,
     "sharing": 3,
 }
@@ -230,6 +231,7 @@ def list_plans():
                 "features": [
                     "Entity/business folders",
                     "COI tracking & management",
+                    "Lease compliance checker",
                     "Multi-user policy sharing",
                     "Priority support",
                     "Everything in Pro",

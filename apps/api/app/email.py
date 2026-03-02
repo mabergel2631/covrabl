@@ -114,3 +114,80 @@ async def send_share_email(
         )
     except Exception:
         logger.exception("Failed to send share email to %s", to_email)
+
+
+async def send_lease_requirements_email(
+    to_email: str,
+    from_name: str,
+    property_address: str | None,
+    public_url: str,
+) -> None:
+    """Sent to tenant when landlord shares a requirements link."""
+    location = f" for {property_address}" if property_address else ""
+    html = f"""\
+<html>
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 480px; margin: 0 auto; padding: 40px 20px;">
+  <h2 style="color: #1a1a2e; margin-bottom: 16px;">Lease Insurance Requirements</h2>
+  <p style="color: #555; line-height: 1.6;">
+    <strong>{from_name}</strong> shared lease insurance requirements{location} with you on Covrabl.
+  </p>
+  <p style="color: #555; line-height: 1.6;">
+    Review the requirements and upload your Certificate of Insurance to verify compliance.
+  </p>
+  <a href="{public_url}"
+     style="display: inline-block; background: #1e3a5f; color: #fff; padding: 12px 28px; border-radius: 6px; text-decoration: none; font-weight: 600; margin: 24px 0;">
+    View Requirements
+  </a>
+  <p style="color: #888; font-size: 13px; line-height: 1.5;">
+    No account is needed to view requirements or submit your certificate.
+  </p>
+</body>
+</html>"""
+
+    try:
+        await asyncio.to_thread(
+            _send_email, to_email,
+            f"{from_name} shared lease insurance requirements with you",
+            html,
+        )
+    except Exception:
+        logger.exception("Failed to send lease requirements email to %s", to_email)
+
+
+async def send_coi_submission_email(
+    to_email: str,
+    tenant_name: str,
+    property_address: str | None,
+    pass_count: int,
+    fail_count: int,
+    unclear_count: int,
+    review_url: str,
+) -> None:
+    """Sent to landlord when tenant submits COI via public link."""
+    location = f" for {property_address}" if property_address else ""
+    summary = f"{pass_count} pass, {fail_count} fail, {unclear_count} unclear"
+    html = f"""\
+<html>
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 480px; margin: 0 auto; padding: 40px 20px;">
+  <h2 style="color: #1a1a2e; margin-bottom: 16px;">Proof of Insurance Submitted</h2>
+  <p style="color: #555; line-height: 1.6;">
+    <strong>{tenant_name}</strong> submitted proof of insurance{location}.
+  </p>
+  <div style="background: #f8f9fa; border-radius: 8px; padding: 16px; margin: 16px 0;">
+    <p style="margin: 0; font-size: 14px; color: #333; font-weight: 600;">Compliance Summary: {summary}</p>
+  </div>
+  <a href="{review_url}"
+     style="display: inline-block; background: #1e3a5f; color: #fff; padding: 12px 28px; border-radius: 6px; text-decoration: none; font-weight: 600; margin: 24px 0;">
+    Review Results
+  </a>
+</body>
+</html>"""
+
+    try:
+        await asyncio.to_thread(
+            _send_email, to_email,
+            f"{tenant_name} submitted proof of insurance",
+            html,
+        )
+    except Exception:
+        logger.exception("Failed to send COI submission email to %s", to_email)

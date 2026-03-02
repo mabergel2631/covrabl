@@ -1815,6 +1815,7 @@ const FEATURE_ACCESS: Record<string, number> = {
   premiums: 2,
   premium_history: 2,
   certificates: 3,
+  lease_compliance: 3,
   business_grouping: 3,
   sharing: 3,
 };
@@ -1849,6 +1850,180 @@ export type COIExtraction = {
   producer_name: string | null;
   producer_phone: string | null;
   producer_email: string | null;
+};
+
+// ── Lease Compliance API ────────────────────────────
+
+export type LeaseRequirementItem = {
+  category: string;
+  requirement_type: string;
+  required_value: string | null;
+  label: string;
+  notes: string | null;
+};
+
+export type ComplianceResultItem = {
+  requirement_label: string;
+  category: string;
+  requirement_type: string;
+  status: "pass" | "fail" | "unclear";
+  required_value: string | null;
+  actual_value: string | null;
+  note: string;
+};
+
+export type LeaseRequirement = {
+  id: number;
+  user_id: number;
+  label: string;
+  role: "tenant" | "landlord";
+  counterparty_name: string | null;
+  counterparty_email: string | null;
+  property_address: string | null;
+  lease_clause_text: string | null;
+  requirements_json: string;
+  access_code: string;
+  status: string;
+  created_at: string;
+  updated_at: string;
+  latest_check: {
+    id: number;
+    pass_count: number;
+    fail_count: number;
+    unclear_count: number;
+    checked_against: string;
+    created_at: string;
+  } | null;
+};
+
+export type LeaseRequirementCreate = {
+  label: string;
+  role: "tenant" | "landlord";
+  counterparty_name?: string | null;
+  counterparty_email?: string | null;
+  property_address?: string | null;
+  lease_clause_text?: string | null;
+  requirements_json: string;
+};
+
+export type ComplianceCheckResult = {
+  id: number;
+  results?: ComplianceResultItem[];
+  results_json?: string;
+  pass_count: number;
+  fail_count: number;
+  unclear_count: number;
+  checked_against: string;
+  created_at: string;
+};
+
+export type LeaseExtraction = {
+  property_address: string | null;
+  landlord_name: string | null;
+  tenant_name: string | null;
+  requirements: LeaseRequirementItem[];
+  certificate_holder_text: string | null;
+  notice_address: string | null;
+  deadline: string | null;
+  raw_summary: string | null;
+};
+
+export type BrokerEmail = {
+  subject: string;
+  body: string;
+  broker_name: string | null;
+  broker_email: string | null;
+};
+
+export type LeasePublicData = {
+  label: string;
+  role: string;
+  counterparty_name: string | null;
+  property_address: string | null;
+  requirements: LeaseRequirementItem[];
+  created_at: string;
+};
+
+export const leaseComplianceApi = {
+  extract(text: string): Promise<{ ok: boolean; extraction: LeaseExtraction }> {
+    return request<{ ok: boolean; extraction: LeaseExtraction }>("/lease-compliance/extract", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text }),
+    });
+  },
+  async extractPdf(file: File): Promise<{ ok: boolean; extraction: LeaseExtraction }> {
+    const formData = new FormData();
+    formData.append("file", file);
+    const url = `${API_BASE}/lease-compliance/extract-pdf`;
+    const token = getToken();
+    const headers: Record<string, string> = {};
+    if (token) headers["Authorization"] = `Bearer ${token}`;
+    const res = await fetch(url, { method: "POST", headers, body: formData });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || "Extraction failed");
+    return data;
+  },
+  create(payload: LeaseRequirementCreate): Promise<LeaseRequirement> {
+    return request<LeaseRequirement>("/lease-compliance/requirements", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+  },
+  list(role?: string): Promise<LeaseRequirement[]> {
+    const qs = role ? `?role=${role}` : "";
+    return request<LeaseRequirement[]>(`/lease-compliance/requirements${qs}`);
+  },
+  get(id: number): Promise<LeaseRequirement> {
+    return request<LeaseRequirement>(`/lease-compliance/requirements/${id}`);
+  },
+  update(id: number, payload: Partial<LeaseRequirementCreate> & { status?: string }): Promise<LeaseRequirement> {
+    return request<LeaseRequirement>(`/lease-compliance/requirements/${id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+  },
+  remove(id: number): Promise<{ ok: boolean }> {
+    return request<{ ok: boolean }>(`/lease-compliance/requirements/${id}`, { method: "DELETE" });
+  },
+  runCheck(id: number, against: string, certificateId?: number): Promise<ComplianceCheckResult> {
+    return request<ComplianceCheckResult>(`/lease-compliance/requirements/${id}/check`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ against, certificate_id: certificateId }),
+    });
+  },
+  listChecks(id: number): Promise<ComplianceCheckResult[]> {
+    return request<ComplianceCheckResult[]>(`/lease-compliance/requirements/${id}/checks`);
+  },
+  brokerEmail(id: number): Promise<BrokerEmail> {
+    return request<BrokerEmail>(`/lease-compliance/requirements/${id}/broker-email`, {
+      method: "POST",
+    });
+  },
+  sendToTenant(id: number, tenantEmail: string, tenantName?: string): Promise<{ ok: boolean; public_url: string }> {
+    return request<{ ok: boolean; public_url: string }>(`/lease-compliance/requirements/${id}/send-to-tenant`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ tenant_email: tenantEmail, tenant_name: tenantName }),
+    });
+  },
+  getPublic(code: string): Promise<LeasePublicData> {
+    return request<LeasePublicData>(`/lease-compliance/public/${code}`);
+  },
+  async submitCoiPublic(code: string, file: File, tenantName: string, tenantEmail: string): Promise<{ ok: boolean; results: ComplianceResultItem[]; pass_count: number; fail_count: number; unclear_count: number }> {
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("tenant_name", tenantName);
+    formData.append("tenant_email", tenantEmail);
+    const url = `${API_BASE}/lease-compliance/public/${code}/submit-coi`;
+    const res = await fetch(url, { method: "POST", body: formData });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || "Submission failed");
+    return data;
+  },
 };
 
 // ── Chat API ────────────────────────────────────────

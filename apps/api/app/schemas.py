@@ -476,6 +476,66 @@ class UserProfileOut(BaseModel):
         from_attributes = True
 
 
+# ── Lease Compliance ────────────────────────────────
+
+class LeaseRequirementCreate(BaseModel):
+    label: str
+    role: Literal["tenant", "landlord"]
+    counterparty_name: Optional[str] = None
+    counterparty_email: Optional[str] = None
+    property_address: Optional[str] = None
+    lease_clause_text: Optional[str] = None
+    requirements_json: str  # JSON string
+
+
+class LeaseRequirementUpdate(BaseModel):
+    label: Optional[str] = None
+    role: Optional[Literal["tenant", "landlord"]] = None
+    counterparty_name: Optional[str] = None
+    counterparty_email: Optional[str] = None
+    property_address: Optional[str] = None
+    lease_clause_text: Optional[str] = None
+    requirements_json: Optional[str] = None
+    status: Optional[Literal["active", "archived"]] = None
+
+
+class LeaseRequirementOut(BaseModel):
+    id: int
+    user_id: int
+    label: str
+    role: str
+    counterparty_name: Optional[str] = None
+    counterparty_email: Optional[str] = None
+    property_address: Optional[str] = None
+    lease_clause_text: Optional[str] = None
+    requirements_json: str
+    access_code: str
+    status: str
+    created_at: datetime
+    updated_at: datetime
+    latest_check: Optional[dict] = None
+
+    class Config:
+        from_attributes = True
+
+
+class ComplianceCheckOut(BaseModel):
+    id: int
+    user_id: int
+    lease_requirement_id: int
+    certificate_id: Optional[int] = None
+    checked_against: str
+    results_json: str
+    pass_count: int
+    fail_count: int
+    unclear_count: int
+    submitted_at: Optional[datetime] = None
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
 class ProfileContactCreate(BaseModel):
     contact_type: Literal["emergency", "broker"]
     name: str

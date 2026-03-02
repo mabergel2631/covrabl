@@ -220,3 +220,39 @@ class CertificateReminder(Base):
     remind_at: Mapped[Date] = mapped_column(Date)
     dismissed: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[DateTime] = mapped_column(DateTime, server_default=func.now())
+
+
+class LeaseRequirement(Base):
+    """Extracted insurance requirements from a lease clause."""
+    __tablename__ = "lease_requirements"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), index=True)
+    label: Mapped[str] = mapped_column(String(200))
+    role: Mapped[str] = mapped_column(String(10))  # tenant, landlord
+    counterparty_name: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    counterparty_email: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    property_address: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    lease_clause_text: Mapped[str | None] = mapped_column(Text, nullable=True)
+    requirements_json: Mapped[str] = mapped_column(Text)  # JSON array of requirement objects
+    access_code: Mapped[str] = mapped_column(String(20), unique=True, index=True)
+    status: Mapped[str] = mapped_column(String(20), default="active")  # active, archived
+    created_at: Mapped[DateTime] = mapped_column(DateTime, server_default=func.now())
+    updated_at: Mapped[DateTime] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now())
+
+
+class ComplianceCheck(Base):
+    """Result of comparing lease requirements against actual coverage."""
+    __tablename__ = "compliance_checks"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), index=True)
+    lease_requirement_id: Mapped[int] = mapped_column(Integer, ForeignKey("lease_requirements.id", ondelete="CASCADE"), index=True)
+    certificate_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("certificates.id", ondelete="SET NULL"), nullable=True)
+    checked_against: Mapped[str] = mapped_column(String(20))  # policies, certificate, manual
+    results_json: Mapped[str] = mapped_column(Text)  # JSON array of result objects
+    pass_count: Mapped[int] = mapped_column(Integer, default=0)
+    fail_count: Mapped[int] = mapped_column(Integer, default=0)
+    unclear_count: Mapped[int] = mapped_column(Integer, default=0)
+    submitted_at: Mapped[DateTime | None] = mapped_column(DateTime, nullable=True)
+    created_at: Mapped[DateTime] = mapped_column(DateTime, server_default=func.now())

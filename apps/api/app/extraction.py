@@ -224,6 +224,31 @@ class AnthropicExtractor(BaseExtractor):
         )
         return _parse_claim_response(message.content[0].text)
 
+    def extract_lease(self, text: str) -> "LeaseExtractionResult":
+        import anthropic
+        client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
+        message = client.messages.create(
+            model="claude-sonnet-4-20250514",
+            max_tokens=4096,
+            system=LEASE_SYSTEM_PROMPT,
+            messages=[{"role": "user", "content": f"Extract insurance requirements from this lease clause:\n\n{text[:50000]}"}],
+        )
+        return _parse_lease_response(message.content[0].text)
+
+    def extract_lease_images(self, images: list[bytes]) -> "LeaseExtractionResult":
+        import anthropic, base64
+        client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
+        content: list[dict] = [{"type": "text", "text": "Extract insurance requirements from this lease clause (scanned pages):"}]
+        for img in images[:20]:
+            content.append({"type": "image", "source": {"type": "base64", "media_type": "image/png", "data": base64.b64encode(img).decode()}})
+        message = client.messages.create(
+            model="claude-sonnet-4-20250514",
+            max_tokens=4096,
+            system=LEASE_SYSTEM_PROMPT,
+            messages=[{"role": "user", "content": content}],
+        )
+        return _parse_lease_response(message.content[0].text)
+
 
 class OpenAIExtractor(BaseExtractor):
     def extract(self, text: str) -> ExtractionResult:
@@ -314,6 +339,35 @@ class OpenAIExtractor(BaseExtractor):
             ],
         )
         return _parse_claim_response(response.choices[0].message.content or "")
+
+    def extract_lease(self, text: str) -> "LeaseExtractionResult":
+        import openai
+        client = openai.OpenAI(api_key=settings.openai_api_key)
+        response = client.chat.completions.create(
+            model="gpt-4o",
+            max_tokens=4096,
+            messages=[
+                {"role": "system", "content": LEASE_SYSTEM_PROMPT},
+                {"role": "user", "content": f"Extract insurance requirements from this lease clause:\n\n{text[:50000]}"},
+            ],
+        )
+        return _parse_lease_response(response.choices[0].message.content or "")
+
+    def extract_lease_images(self, images: list[bytes]) -> "LeaseExtractionResult":
+        import openai, base64
+        client = openai.OpenAI(api_key=settings.openai_api_key)
+        content: list[dict] = [{"type": "text", "text": "Extract insurance requirements from this lease clause (scanned pages):"}]
+        for img in images[:20]:
+            content.append({"type": "image_url", "image_url": {"url": f"data:image/png;base64,{base64.b64encode(img).decode()}"}})
+        response = client.chat.completions.create(
+            model="gpt-4o",
+            max_tokens=4096,
+            messages=[
+                {"role": "system", "content": LEASE_SYSTEM_PROMPT},
+                {"role": "user", "content": content},
+            ],
+        )
+        return _parse_lease_response(response.choices[0].message.content or "")
 
 
 def get_extractor() -> BaseExtractor:
@@ -550,6 +604,97 @@ class ClaimExtractionResult:
     description: Optional[str] = None
     notes: Optional[str] = None
     raw_response: str = ""
+
+
+# ── Lease Clause Extraction ─────────────────────────
+
+LEASE_SYSTEM_PROMPT = """You are an expert lease insurance clause parser. Your job is to extract every insurance requirement from a commercial or residential lease insurance clause.
+
+Return ONLY valid JSON with this exact schema (use null for missing fields):
+{
+  "property_address": "string or null - the property address mentioned",
+  "landlord_name": "string or null - the landlord / property owner name",
+  "tenant_name": "string or null - the tenant name",
+  "requirements": [
+    {
+      "category": "string - one of: general_liability, commercial_auto, umbrella, workers_comp, property, professional_liability, cyber, other",
+      "requirement_type": "string - one of: coverage_limit_each_occurrence, coverage_limit_aggregate, coverage_limit_combined_single, additional_insured, waiver_of_subrogation, primary_noncontributory, notice_of_cancellation, insurer_rating, certificate_holder, other",
+      "required_value": "string or null - for limits use integer string e.g. '1000000' for $1M. For booleans use 'true'. For text requirements use the text.",
+      "label": "string - human-readable label e.g. 'General Liability - Each Occurrence: $1,000,000'",
+      "notes": "string or null - any additional context from the lease"
+    }
+  ],
+  "certificate_holder_text": "string or null - the exact certificate holder name and address formatting required",
+  "notice_address": "string or null - address for cancellation notices",
+  "deadline": "string or null - deadline for providing insurance if mentioned",
+  "raw_summary": "string - a plain-English 2-3 sentence summary of all requirements"
+}
+
+CRITICAL INSTRUCTIONS:
+1. REQUIREMENTS: Extract EVERY insurance requirement mentioned. Be thorough — include coverage types, limits, endorsements, additional insured, waiver of subrogation, primary & non-contributory, notice of cancellation, insurer ratings (AM Best), certificate holder formatting.
+2. DOLLAR AMOUNTS: Normalize to integers. "$1,000,000" → "1000000". "$2M" → "2000000". "$500K" → "500000".
+3. CATEGORIES: Map each requirement to the most specific category. If a requirement applies to multiple coverage types, create separate entries for each.
+4. ADDITIONAL INSURED / WAIVER: Create separate requirement entries for each coverage type that requires these endorsements.
+5. Be aggressive — it is better to extract too many requirements than to miss one.
+6. If the text mentions "per occurrence", "each occurrence", or "per claim" use coverage_limit_each_occurrence. If it mentions "aggregate" or "general aggregate" use coverage_limit_aggregate. If it mentions "combined single limit" or "CSL" use coverage_limit_combined_single.
+
+Return ONLY the JSON object, no markdown fences or explanation."""
+
+
+@dataclass
+class LeaseExtractionResult:
+    property_address: Optional[str] = None
+    landlord_name: Optional[str] = None
+    tenant_name: Optional[str] = None
+    requirements: list[dict] = field(default_factory=list)
+    certificate_holder_text: Optional[str] = None
+    notice_address: Optional[str] = None
+    deadline: Optional[str] = None
+    raw_summary: Optional[str] = None
+    raw_response: str = ""
+
+
+def _parse_lease_response(raw: str) -> LeaseExtractionResult:
+    raw = raw.strip()
+    if raw.startswith("```"):
+        raw = raw.split("\n", 1)[1] if "\n" in raw else raw[3:]
+        if raw.endswith("```"):
+            raw = raw[:-3]
+        raw = raw.strip()
+
+    data = json.loads(raw)
+
+    requirements = data.get("requirements") or []
+    # Validate each requirement has required fields
+    valid_categories = {"general_liability", "commercial_auto", "umbrella", "workers_comp", "property", "professional_liability", "cyber", "other"}
+    valid_types = {"coverage_limit_each_occurrence", "coverage_limit_aggregate", "coverage_limit_combined_single", "additional_insured", "waiver_of_subrogation", "primary_noncontributory", "notice_of_cancellation", "insurer_rating", "certificate_holder", "other"}
+    cleaned = []
+    for req in requirements:
+        cat = req.get("category", "other")
+        if cat not in valid_categories:
+            cat = "other"
+        rtype = req.get("requirement_type", "other")
+        if rtype not in valid_types:
+            rtype = "other"
+        cleaned.append({
+            "category": cat,
+            "requirement_type": rtype,
+            "required_value": req.get("required_value"),
+            "label": req.get("label", ""),
+            "notes": req.get("notes"),
+        })
+
+    return LeaseExtractionResult(
+        property_address=data.get("property_address"),
+        landlord_name=data.get("landlord_name"),
+        tenant_name=data.get("tenant_name"),
+        requirements=cleaned,
+        certificate_holder_text=data.get("certificate_holder_text"),
+        notice_address=data.get("notice_address"),
+        deadline=data.get("deadline"),
+        raw_summary=data.get("raw_summary"),
+        raw_response=raw,
+    )
 
 
 def _parse_claim_response(raw: str) -> ClaimExtractionResult:
