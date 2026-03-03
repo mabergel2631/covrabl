@@ -782,13 +782,13 @@ export default function Home() {
             letterSpacing: 'var(--letter-spacing-tight)',
             fontFamily: 'var(--font-heading)',
           }}>
-            Understand what your insurance actually covers
+            Insurance gets complex fast. Covrabl makes it visible.
           </h1>
           <p style={{ fontSize: 18, opacity: 0.95, margin: '0 0 8px', lineHeight: 1.7, maxWidth: 720, marginLeft: 'auto', marginRight: 'auto', fontWeight: 500 }}>
-            Upload your policies and get a personalized Coverage Health Score — showing where you&apos;re protected, where you may be exposed, and what questions to ask your agent.
+            Upload your policies, verify what your leases require, and catch coverage gaps before they become problems.
           </p>
           <p style={{ fontSize: 15, opacity: 0.7, margin: '0 0 8px', lineHeight: 1.7, maxWidth: 600, marginLeft: 'auto', marginRight: 'auto', letterSpacing: 'var(--letter-spacing-wide)' }}>
-            Coverage insights are based only on the policies you upload.
+            See what you have. Verify what&apos;s required. Stay ahead of changes.
           </p>
           <p style={{ fontSize: 15, opacity: 0.7, margin: '0 0 36px', lineHeight: 1.7, maxWidth: 600, marginLeft: 'auto', marginRight: 'auto', letterSpacing: 'var(--letter-spacing-wide)' }}>
             Free forever. No credit card required.
@@ -817,6 +817,9 @@ export default function Home() {
             <span>Not an insurance company</span>
             <span>Not a lead generator</span>
             <span>Your data stays yours</span>
+          </div>
+          <div style={{ marginTop: 20, fontSize: 14, opacity: 0.5, letterSpacing: 'var(--letter-spacing-wide)' }}>
+            Built for people managing layered personal and business coverage.
           </div>
         </div>
       </section>
