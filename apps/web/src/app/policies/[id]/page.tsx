@@ -1828,8 +1828,10 @@ export default function PolicyDetailPage() {
             });
             toast('Requirements saved');
 
+            // Immediately add to local list so results view has access
+            setLeaseReqs(prev => [created, ...prev]);
             setLeaseActiveReqId(created.id);
-            setLeaseCheckedAgainst(`${policy!.carrier} ${policy!.policy_type.replace(/_/g, ' ')} policy`);
+            setLeaseCheckedAgainst(`${policy!.carrier ? policy!.carrier + ' ' : ''}${policy!.policy_type.replace(/_/g, ' ')} policy`);
             setLeaseChecking(true);
             try {
               const check = await leaseComplianceApi.runCheck(created.id, 'policy', { policyId });
@@ -1858,7 +1860,7 @@ export default function PolicyDetailPage() {
             setLeaseResults(check.results || []);
             setLeaseCheckCounts({ pass: check.pass_count, fail: check.fail_count, unclear: check.unclear_count });
             setLeaseActiveReqId(reqId);
-            setLeaseCheckedAgainst(`${policy!.carrier} ${policy!.policy_type.replace(/_/g, ' ')} policy`);
+            setLeaseCheckedAgainst(`${policy!.carrier ? policy!.carrier + ' ' : ''}${policy!.policy_type.replace(/_/g, ' ')} policy`);
             toast('Compliance check updated');
             leaseComplianceApi.list(undefined, policyId).then(setLeaseReqs).catch(() => {});
           } catch (err: any) {
@@ -1882,7 +1884,7 @@ export default function PolicyDetailPage() {
                 if (latest.checked_against === 'certificate') {
                   setLeaseCheckedAgainst('certificate');
                 } else if (latest.checked_against === 'policy') {
-                  setLeaseCheckedAgainst(`${policy!.carrier} ${policy!.policy_type.replace(/_/g, ' ')} policy`);
+                  setLeaseCheckedAgainst(`${policy!.carrier ? policy!.carrier + ' ' : ''}${policy!.policy_type.replace(/_/g, ' ')} policy`);
                 } else {
                   setLeaseCheckedAgainst('all policies');
                 }
@@ -2237,12 +2239,30 @@ export default function PolicyDetailPage() {
                     <p style={{ color: 'var(--color-text-secondary)', textAlign: 'center', padding: 20 }}>Generating email...</p>
                   ) : leaseBrokerEmail ? (
                     <>
-                      {leaseBrokerEmail.broker_name && (
+                      {leaseBrokerEmail.broker_name ? (
                         <div style={{ marginBottom: 12 }}>
-                          <label style={labelStyle}>Broker</label>
+                          <label style={labelStyle}>Broker (from policy contacts)</label>
                           <p style={{ fontSize: 14, margin: 0 }}>{leaseBrokerEmail.broker_name} {leaseBrokerEmail.broker_email && `(${leaseBrokerEmail.broker_email})`}</p>
                         </div>
+                      ) : (
+                        <div style={{ marginBottom: 12, padding: 12, backgroundColor: '#fef3c7', borderRadius: 'var(--radius-sm)', fontSize: 13, color: '#92400e' }}>
+                          No broker found on this policy. You can add a broker contact above in the Contacts section, or enter an email below.
+                        </div>
                       )}
+
+                      {/* Manual broker email entry when no broker on file */}
+                      {!leaseBrokerEmail.broker_email && (
+                        <div style={{ marginBottom: 12 }}>
+                          <label style={labelStyle}>Broker Email</label>
+                          <input
+                            style={inputStyle}
+                            type="email"
+                            placeholder="broker@example.com"
+                            id="lease-broker-email-input"
+                          />
+                        </div>
+                      )}
+
                       <div style={{ marginBottom: 12 }}>
                         <label style={labelStyle}>Subject</label>
                         <input style={inputStyle} readOnly value={leaseBrokerEmail.subject} />
@@ -2253,9 +2273,18 @@ export default function PolicyDetailPage() {
                       </div>
                       <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
                         <button onClick={() => { navigator.clipboard.writeText(leaseBrokerEmail!.body); toast('Copied to clipboard'); }} style={{ padding: '8px 20px', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)', backgroundColor: '#fff', cursor: 'pointer', fontSize: 14 }}>Copy</button>
-                        {leaseBrokerEmail.broker_email && (
-                          <a href={`mailto:${leaseBrokerEmail.broker_email}?subject=${encodeURIComponent(leaseBrokerEmail.subject)}&body=${encodeURIComponent(leaseBrokerEmail.body)}`} style={{ display: 'inline-block', padding: '8px 20px', backgroundColor: 'var(--color-primary)', color: '#fff', borderRadius: 'var(--radius-sm)', fontWeight: 600, textDecoration: 'none', fontSize: 14 }}>Open in Email</a>
-                        )}
+                        <a
+                          href="#"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            const emailTo = leaseBrokerEmail!.broker_email || (document.getElementById('lease-broker-email-input') as HTMLInputElement | null)?.value || '';
+                            if (!emailTo) { toast('Enter a broker email address', 'error'); return; }
+                            window.location.href = `mailto:${emailTo}?subject=${encodeURIComponent(leaseBrokerEmail!.subject)}&body=${encodeURIComponent(leaseBrokerEmail!.body)}`;
+                          }}
+                          style={{ display: 'inline-block', padding: '8px 20px', backgroundColor: 'var(--color-primary)', color: '#fff', borderRadius: 'var(--radius-sm)', fontWeight: 600, textDecoration: 'none', fontSize: 14, cursor: 'pointer' }}
+                        >
+                          Open in Email
+                        </a>
                       </div>
                     </>
                   ) : null}

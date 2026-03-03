@@ -14,7 +14,7 @@ from typing import Optional
 from .auth import get_current_user
 from .config import settings
 from .db import get_db
-from .models import User, Policy
+from .models import User, Policy, Contact
 from .models_features import LeaseRequirement, ComplianceCheck, Certificate
 from .schemas import (
     LeaseRequirementCreate,
@@ -137,6 +137,14 @@ def create_requirement(
         json.loads(payload.requirements_json)
     except json.JSONDecodeError:
         raise HTTPException(status_code=400, detail="requirements_json must be valid JSON")
+
+    # Validate policy_id ownership
+    if payload.policy_id:
+        pol = db.execute(
+            select(Policy).where(Policy.id == payload.policy_id, Policy.user_id == user.id)
+        ).scalar_one_or_none()
+        if not pol:
+            raise HTTPException(status_code=404, detail="Policy not found")
 
     req = LeaseRequirement(
         user_id=user.id,
@@ -397,32 +405,52 @@ def generate_broker_email_route(
             ComplianceCheck.lease_requirement_id == req_id,
             ComplianceCheck.user_id == user.id,
         ).order_by(ComplianceCheck.created_at.desc())
-    ).scalar_one_or_none()
+    ).scalars().first()
 
     results = json.loads(latest_check.results_json) if latest_check else []
 
-    # Try to get broker info from profile
-    from .models_profile import ProfileContact
-    broker = db.execute(
-        select(ProfileContact).where(
-            ProfileContact.user_id == user.id,
-            ProfileContact.contact_type == "broker",
-        )
-    ).scalar_one_or_none()
+    # Try to get broker info — first from policy contacts, then profile
+    broker_name = None
+    broker_email = None
+
+    # Check policy contacts if this requirement is linked to a policy
+    if req.policy_id:
+        policy_broker = db.execute(
+            select(Contact).where(
+                Contact.policy_id == req.policy_id,
+                Contact.role == "broker",
+            )
+        ).scalars().first()
+        if policy_broker:
+            broker_name = policy_broker.name
+            broker_email = policy_broker.email
+
+    # Fall back to profile broker contact
+    if not broker_name:
+        from .models_profile import ProfileContact
+        profile_broker = db.execute(
+            select(ProfileContact).where(
+                ProfileContact.user_id == user.id,
+                ProfileContact.contact_type == "broker",
+            )
+        ).scalars().first()
+        if profile_broker:
+            broker_name = profile_broker.name
+            broker_email = profile_broker.email
 
     email_data = generate_broker_email(
         requirements=requirements,
         results=results,
         property_address=req.property_address,
         landlord_name=req.counterparty_name if req.role == "tenant" else None,
-        broker_name=broker.name if broker else None,
+        broker_name=broker_name,
     )
 
     return {
         "subject": email_data["subject"],
         "body": email_data["body"],
-        "broker_name": broker.name if broker else None,
-        "broker_email": broker.email if broker else None,
+        "broker_name": broker_name,
+        "broker_email": broker_email,
     }
 
 
@@ -654,8 +682,9 @@ def get_printable_requirement(
     latest_check = db.execute(
         select(ComplianceCheck).where(
             ComplianceCheck.lease_requirement_id == req.id,
+            ComplianceCheck.user_id == user.id,
         ).order_by(ComplianceCheck.created_at.desc())
-    ).scalar_one_or_none()
+    ).scalars().first()
 
     results = json.loads(latest_check.results_json) if latest_check else []
 
@@ -680,8 +709,9 @@ def _requirement_to_dict(req: LeaseRequirement, db: Session) -> dict:
     latest_check = db.execute(
         select(ComplianceCheck).where(
             ComplianceCheck.lease_requirement_id == req.id,
+            ComplianceCheck.user_id == req.user_id,
         ).order_by(ComplianceCheck.created_at.desc())
-    ).scalar_one_or_none()
+    ).scalars().first()
 
     result = {
         "id": req.id,
