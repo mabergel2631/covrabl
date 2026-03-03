@@ -1,9 +1,9 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useAuth } from '../../../../lib/auth';
-import { API_BASE, policiesApi, contactsApi, documentsApi, coverageApi, policyDetailsApi, claimsApi, sharingApi, exportApi, premiumHistoryApi, exposuresApi, gapsApi, certificatesApi, leaseComplianceApi, Policy, Contact, DocMeta, ContactCreate, ExtractionData, CoverageItem, CoverageItemCreate, PolicyDetail, PolicyDetailCreate, PolicyUpdate, Claim, ClaimCreate, PolicyShareType, ShareCreate, PremiumHistoryEntry, Exposure, CoverageGap, Certificate, LeaseRequirement, LeaseRequirementItem, ComplianceResultItem, LeaseExtraction, BrokerEmail, checkFeatureAccess, parseUpgradeError } from '../../../../lib/api';
+import { API_BASE, policiesApi, contactsApi, documentsApi, coverageApi, policyDetailsApi, claimsApi, sharingApi, exportApi, premiumHistoryApi, exposuresApi, gapsApi, certificatesApi, leaseComplianceApi, chatApi, Policy, Contact, DocMeta, ContactCreate, ExtractionData, CoverageItem, CoverageItemCreate, PolicyDetail, PolicyDetailCreate, PolicyUpdate, Claim, ClaimCreate, PolicyShareType, ShareCreate, PremiumHistoryEntry, Exposure, CoverageGap, Certificate, LeaseRequirement, LeaseRequirementItem, ComplianceResultItem, LeaseExtraction, BrokerEmail, checkFeatureAccess, parseUpgradeError } from '../../../../lib/api';
 import { formatPhone, cleanPhone } from '../../../../lib/format';
 import { useToast } from '../../components/Toast';
 import { Skeleton } from '../../components/Skeleton';
@@ -143,6 +143,56 @@ export default function PolicyDetailPage() {
   const [leaseTenantNotes, setLeaseTenantNotes] = useState('');
   const [leaseSending, setLeaseSending] = useState(false);
   const leasePdfRef = useRef<HTMLInputElement>(null);
+
+  // Ask AI drawer
+  const [aiDrawerOpen, setAiDrawerOpen] = useState(false);
+  const [aiMessages, setAiMessages] = useState<{ role: 'user' | 'assistant'; content: string }[]>([]);
+  const [aiInput, setAiInput] = useState('');
+  const [aiStreaming, setAiStreaming] = useState(false);
+  const [aiConversationId, setAiConversationId] = useState<number | null>(null);
+  const aiMessagesEndRef = useRef<HTMLDivElement>(null);
+  const aiAbortRef = useRef<AbortController | null>(null);
+
+  const handleAiSend = useCallback((message?: string) => {
+    const text = (message || aiInput).trim();
+    if (!text || aiStreaming) return;
+    setAiInput('');
+    setAiMessages(prev => [...prev, { role: 'user', content: text }]);
+    setAiStreaming(true);
+    let assistantText = '';
+    setAiMessages(prev => [...prev, { role: 'assistant', content: '' }]);
+
+    const controller = chatApi.sendMessageStream(
+      text,
+      aiConversationId,
+      (chunk) => {
+        assistantText += chunk;
+        setAiMessages(prev => {
+          const updated = [...prev];
+          updated[updated.length - 1] = { role: 'assistant', content: assistantText };
+          return updated;
+        });
+      },
+      (id) => setAiConversationId(id),
+      () => setAiStreaming(false),
+      (err) => {
+        setAiMessages(prev => {
+          const updated = [...prev];
+          updated[updated.length - 1] = { role: 'assistant', content: `Error: ${err}` };
+          return updated;
+        });
+        setAiStreaming(false);
+      },
+      policyId,
+    );
+    aiAbortRef.current = controller;
+  }, [aiInput, aiStreaming, aiConversationId, policyId]);
+
+  useEffect(() => {
+    if (aiMessagesEndRef.current) {
+      aiMessagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [aiMessages]);
 
   // Claims quick-start
   const [copiedPolicyNumber, setCopiedPolicyNumber] = useState(false);
@@ -659,7 +709,7 @@ export default function PolicyDetailPage() {
               </div>
               <div className="header-actions" style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
                 <span className={`badge badge-${policy.scope}`}>{policy.scope}</span>
-                <button onClick={() => router.push(`/chat?policy=${policyId}&carrier=${encodeURIComponent(policy.carrier)}`)} className="btn btn-outline">Ask About This Policy</button>
+                <button onClick={() => setAiDrawerOpen(true)} className="btn btn-outline" style={{ display: 'flex', alignItems: 'center', gap: 6 }}><span style={{ fontSize: 14 }}>&#10024;</span> Ask AI</button>
                 <button onClick={() => setShowIdCard(!showIdCard)} className="btn btn-outline">{showIdCard ? 'Hide Card' : 'ID Card'}</button>
                 <button onClick={() => exportApi.singlePolicy(policyId)} className="btn btn-outline">Export CSV</button>
                 {canEdit && <button onClick={startEdit} className="btn btn-primary">Edit Policy</button>}
@@ -2774,6 +2824,119 @@ export default function PolicyDetailPage() {
           &larr; Back to Policies
         </button>
       </div>
+
+      {/* Ask AI Drawer */}
+      {aiDrawerOpen && (
+        <>
+          <div
+            onClick={() => { setAiDrawerOpen(false); aiAbortRef.current?.abort(); }}
+            style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.3)', zIndex: 899 }}
+          />
+          <div className="ai-drawer" style={{
+            position: 'fixed', right: 0, top: 0, height: '100vh', width: 400,
+            backgroundColor: '#fff', zIndex: 900, display: 'flex', flexDirection: 'column',
+            borderLeft: '1px solid var(--color-border)',
+            boxShadow: '-4px 0 24px rgba(0,0,0,0.1)',
+          }}>
+            {/* Header */}
+            <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--color-border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div>
+                <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: 'var(--color-text)' }}>Ask about this policy</h3>
+                <p style={{ margin: '4px 0 0', fontSize: 12, color: 'var(--color-text-muted)' }}>Answers based on your uploaded policy documents</p>
+              </div>
+              <button
+                onClick={() => { setAiDrawerOpen(false); aiAbortRef.current?.abort(); }}
+                style={{ background: 'none', border: 'none', fontSize: 20, cursor: 'pointer', color: 'var(--color-text-muted)', padding: '4px 8px', lineHeight: 1 }}
+                aria-label="Close AI drawer"
+              >&times;</button>
+            </div>
+
+            {/* Messages area */}
+            <div style={{ flex: 1, overflowY: 'auto', padding: '16px 20px' }}>
+              {aiMessages.length === 0 && (
+                <div style={{ marginBottom: 16 }}>
+                  <p style={{ fontSize: 13, color: 'var(--color-text-muted)', marginBottom: 12 }}>Suggested questions:</p>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    {[
+                      'What are my coverage limits?',
+                      'What exclusions should I know about?',
+                      'Is my deductible reasonable?',
+                      'What gaps does this policy have?',
+                    ].map(q => (
+                      <button
+                        key={q}
+                        onClick={() => handleAiSend(q)}
+                        style={{
+                          padding: '10px 14px', textAlign: 'left', fontSize: 13,
+                          border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)',
+                          backgroundColor: 'var(--color-bg)', cursor: 'pointer', color: 'var(--color-text)',
+                          transition: 'border-color 0.15s',
+                        }}
+                        onMouseEnter={e => (e.currentTarget.style.borderColor = 'var(--color-primary)')}
+                        onMouseLeave={e => (e.currentTarget.style.borderColor = 'var(--color-border)')}
+                      >
+                        {q}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {aiMessages.map((msg, i) => (
+                <div key={i} style={{ marginBottom: 12, display: 'flex', justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start' }}>
+                  <div style={{
+                    maxWidth: '85%', padding: '10px 14px', borderRadius: 12, fontSize: 13, lineHeight: 1.5, whiteSpace: 'pre-wrap',
+                    ...(msg.role === 'user'
+                      ? { backgroundColor: 'var(--color-primary)', color: '#fff', borderBottomRightRadius: 4 }
+                      : { backgroundColor: 'var(--color-bg)', color: 'var(--color-text)', border: '1px solid var(--color-border)', borderBottomLeftRadius: 4 }),
+                  }}>
+                    {msg.content || (aiStreaming && i === aiMessages.length - 1 ? (
+                      <span style={{ color: 'var(--color-text-muted)' }}>Thinking...</span>
+                    ) : null)}
+                  </div>
+                </div>
+              ))}
+              <div ref={aiMessagesEndRef} />
+            </div>
+
+            {/* Input area */}
+            <div style={{ padding: '12px 20px', borderTop: '1px solid var(--color-border)', display: 'flex', gap: 8 }}>
+              <textarea
+                value={aiInput}
+                onChange={e => setAiInput(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleAiSend(); } }}
+                placeholder="Ask a question about this policy..."
+                rows={1}
+                style={{
+                  flex: 1, padding: '10px 12px', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)',
+                  fontSize: 13, resize: 'none', fontFamily: 'var(--font-sans)', color: 'var(--color-text)',
+                  minHeight: 40, maxHeight: 100,
+                }}
+              />
+              <button
+                onClick={() => handleAiSend()}
+                disabled={!aiInput.trim() || aiStreaming}
+                style={{
+                  padding: '10px 16px', backgroundColor: 'var(--color-primary)', color: '#fff',
+                  border: 'none', borderRadius: 'var(--radius-md)', fontSize: 13, fontWeight: 600,
+                  cursor: aiInput.trim() && !aiStreaming ? 'pointer' : 'not-allowed',
+                  opacity: aiInput.trim() && !aiStreaming ? 1 : 0.5,
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                Send
+              </button>
+            </div>
+          </div>
+
+          {/* Responsive: full-width on mobile */}
+          <style>{`
+            @media (max-width: 600px) {
+              .ai-drawer { width: 100% !important; }
+            }
+          `}</style>
+        </>
+      )}
 
       {/* View Certificate Modal */}
       {viewingPolicyCert && (() => {

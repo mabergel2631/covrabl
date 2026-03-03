@@ -2065,6 +2065,7 @@ export const chatApi = {
     onConversationId: (id: number) => void,
     onDone: () => void,
     onError: (err: string) => void,
+    policyId?: number | null,
   ): AbortController {
     const controller = new AbortController();
     const token = getToken();
@@ -2076,7 +2077,7 @@ export const chatApi = {
         "Content-Type": "application/json",
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
       },
-      body: JSON.stringify({ message, conversation_id: conversationId }),
+      body: JSON.stringify({ message, conversation_id: conversationId, ...(policyId ? { policy_id: policyId } : {}) }),
       signal: controller.signal,
     })
       .then(async (res) => {

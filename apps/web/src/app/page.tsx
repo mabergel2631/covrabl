@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '../../lib/auth';
+import { scoresApi, deltasApi, renewalsApi, policiesApi, CoverageScoresResult, DeltaListResponse, RenewalSummaryResult, Policy } from '../../lib/api';
 import { APP_NAME, APP_TAGLINE, APP_CONTACT_EMAIL, ANNOUNCEMENT_BAR } from './config';
 import Logo from './components/Logo';
 
@@ -464,6 +465,161 @@ function ProductDemo() {
   );
 }
 
+/* ── Authenticated Dashboard ────────────────────────── */
+function Dashboard() {
+  const router = useRouter();
+  const [scores, setScores] = useState<CoverageScoresResult | null>(null);
+  const [alerts, setAlerts] = useState<DeltaListResponse | null>(null);
+  const [renewals, setRenewals] = useState<RenewalSummaryResult | null>(null);
+  const [policies, setPolicies] = useState<Policy[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    Promise.all([
+      scoresApi.get().catch(() => null),
+      deltasApi.list({ acknowledged: false, limit: 3 }).catch(() => null),
+      renewalsApi.summary().catch(() => null),
+      policiesApi.list().catch(() => []),
+    ]).then(([s, a, r, p]) => {
+      setScores(s);
+      setAlerts(a);
+      setRenewals(r);
+      setPolicies(p as Policy[]);
+      setLoading(false);
+    });
+  }, []);
+
+  const scoreValue = scores?.overall_score ?? 0;
+  const scoreColor = scoreValue >= 75 ? '#22c55e' : scoreValue >= 50 ? '#f59e0b' : '#ef4444';
+  const circumference = 2 * Math.PI * 40;
+  const strokeDash = (scoreValue / 100) * circumference;
+  const unackCount = alerts?.unacknowledged_count ?? 0;
+  const renewalPolicies = renewals?.policies?.slice(0, 3) ?? [];
+
+  return (
+    <div style={{ padding: '32px 24px', maxWidth: 960, margin: '0 auto' }}>
+      <h1 style={{ fontSize: 24, fontWeight: 700, color: 'var(--color-text)', marginBottom: 4 }}>Dashboard</h1>
+      <p style={{ fontSize: 14, color: 'var(--color-text-muted)', marginBottom: 28 }}>
+        {policies.length} {policies.length === 1 ? 'policy' : 'policies'} on file
+      </p>
+
+      {loading ? (
+        <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap' }}>
+          {[1,2,3].map(i => (
+            <div key={i} style={{ flex: '1 1 280px', height: 180, borderRadius: 'var(--radius-md)', backgroundColor: 'var(--color-bg)', border: '1px solid var(--color-border)' }} />
+          ))}
+        </div>
+      ) : (
+        <>
+          {/* Top row: Score + Alerts + Renewals */}
+          <div className="dashboard-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 20, marginBottom: 28 }}>
+
+            {/* Coverage Score Widget */}
+            <div className="card" style={{ padding: 24, cursor: 'pointer' }} onClick={() => router.push('/score')}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 20 }}>
+                <div style={{ position: 'relative', width: 90, height: 90, flexShrink: 0 }}>
+                  <svg viewBox="0 0 100 100" width={90} height={90}>
+                    <circle cx={50} cy={50} r={40} fill="none" stroke="var(--color-border)" strokeWidth={8} />
+                    <circle cx={50} cy={50} r={40} fill="none" stroke={scoreColor} strokeWidth={8}
+                      strokeLinecap="round" strokeDasharray={`${strokeDash} ${circumference}`}
+                      transform="rotate(-90 50 50)" style={{ transition: 'stroke-dasharray 0.8s ease' }} />
+                  </svg>
+                  <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24, fontWeight: 700, color: 'var(--color-text)' }}>
+                    {scoreValue}
+                  </div>
+                </div>
+                <div>
+                  <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--color-text)', marginBottom: 4 }}>Coverage Score</div>
+                  <div style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>
+                    {scores ? `${scores.policies_analyzed} policies analyzed` : 'No data yet'}
+                  </div>
+                  {scores?.confidence && (
+                    <div style={{ fontSize: 11, color: scoreColor, fontWeight: 600, marginTop: 4, textTransform: 'capitalize' }}>
+                      {scores.confidence} confidence
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Alerts Summary */}
+            <div className="card" style={{ padding: 24, cursor: 'pointer' }} onClick={() => router.push('/audit')}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
+                <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--color-text)' }}>Alerts</div>
+                {unackCount > 0 && (
+                  <span style={{ padding: '2px 10px', borderRadius: 12, fontSize: 12, fontWeight: 700, backgroundColor: 'var(--color-danger-bg)', color: 'var(--color-danger)' }}>
+                    {unackCount} new
+                  </span>
+                )}
+              </div>
+              {alerts?.items && alerts.items.length > 0 ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {alerts.items.slice(0, 3).map(d => (
+                    <div key={d.id} style={{ fontSize: 13, color: 'var(--color-text-secondary)', display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <span style={{
+                        width: 6, height: 6, borderRadius: '50%', flexShrink: 0,
+                        backgroundColor: d.severity === 'high' ? 'var(--color-danger)' : d.severity === 'medium' ? 'var(--color-warning)' : 'var(--color-text-muted)',
+                      }} />
+                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {d.policy_carrier || 'Policy'}: {d.field_key} changed
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div style={{ fontSize: 13, color: 'var(--color-text-muted)' }}>No unacknowledged alerts</div>
+              )}
+              <div style={{ marginTop: 12, fontSize: 12, color: 'var(--color-primary)', fontWeight: 600 }}>View all &rarr;</div>
+            </div>
+
+            {/* Upcoming Renewals */}
+            <div className="card" style={{ padding: 24, cursor: 'pointer' }} onClick={() => router.push('/renewals')}>
+              <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--color-text)', marginBottom: 12 }}>Upcoming Renewals</div>
+              {renewalPolicies.length > 0 ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  {renewalPolicies.map(rp => {
+                    const daysLeft = rp.days_until_renewal;
+                    const urgent = daysLeft <= 14;
+                    return (
+                      <div key={rp.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 13 }}>
+                        <span style={{ color: 'var(--color-text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, marginRight: 8 }}>
+                          {rp.nickname || `${rp.carrier} ${rp.policy_type}`}
+                        </span>
+                        <span style={{ fontWeight: 600, fontSize: 12, color: urgent ? 'var(--color-danger)' : 'var(--color-text-muted)', whiteSpace: 'nowrap' }}>
+                          {daysLeft <= 0 ? 'Overdue' : `${daysLeft}d left`}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div style={{ fontSize: 13, color: 'var(--color-text-muted)' }}>No upcoming renewals</div>
+              )}
+              <div style={{ marginTop: 12, fontSize: 12, color: 'var(--color-primary)', fontWeight: 600 }}>View all &rarr;</div>
+            </div>
+          </div>
+
+          {/* Quick Actions */}
+          <div className="card" style={{ padding: 24, marginBottom: 28 }}>
+            <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--color-text)', marginBottom: 16 }}>Quick Actions</div>
+            <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+              <button onClick={() => router.push('/policies?action=upload')} className="btn btn-primary" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                Upload Policy
+              </button>
+              <button onClick={() => router.push('/chat')} className="btn btn-outline" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span style={{ fontSize: 14 }}>&#10024;</span> Ask AI
+              </button>
+              <button onClick={() => router.push('/policies/compare')} className="btn btn-outline">
+                Compare Policies
+              </button>
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 export default function Home() {
   const { token } = useAuth();
   const router = useRouter();
@@ -489,6 +645,9 @@ export default function Home() {
 
   /* Timeline fill tracker */
   const { containerRef: timelineContainer, lineRef: timelineLine, activeDots } = useTimelineFill();
+
+  // Authenticated users see the dashboard
+  if (token) return <Dashboard />;
 
   return (
     <div style={{ minHeight: '100vh', background: '#fff' }}>

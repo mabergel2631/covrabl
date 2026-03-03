@@ -7,19 +7,37 @@ import { fetchActiveAnnouncements, checkFeatureAccess } from '../../../lib/api';
 import { APP_NAME, APP_SIDEBAR_TAGLINE } from '../config';
 import Logo from './Logo';
 
-const NAV_ITEMS: { href: string; label: string; icon: string; urgent?: boolean; feature?: string }[] = [
-  { href: '/', label: 'Home', icon: '🏠' },
-  { href: '/policies', label: 'Policies', icon: '📋' },
-  { href: '/score', label: 'Score', icon: '📊' },
-  { href: '/certificates', label: 'Certificates', icon: '📜', feature: 'certificates' },
-  { href: '/emergency', label: 'Emergency', icon: '🚨', urgent: true },
-  { href: '/audit', label: 'Alerts', icon: '🔔' },
-  { href: '/renewals', label: 'Renewals', icon: '🔄', feature: 'deltas' },
-  { href: '/chat', label: 'Policy Insights', icon: '💬' },
-  { href: '/policies/compare', label: 'Compare', icon: '⚖️' },
-  { href: '/profile', label: 'Profile', icon: '👤' },
-  { href: '/billing', label: 'Billing', icon: '💳' },
-  { href: '/privacy', label: 'Privacy', icon: '🔒' },
+type NavItem = { href: string; label: string; icon: string; urgent?: boolean; feature?: string };
+type NavSection = { label: string; items: NavItem[] };
+
+const NAV_SECTIONS: NavSection[] = [
+  {
+    label: 'MAIN',
+    items: [
+      { href: '/', label: 'Dashboard', icon: '🏠' },
+      { href: '/policies', label: 'Policies', icon: '📋' },
+      { href: '/certificates', label: 'Compliance', icon: '📜', feature: 'certificates' },
+      { href: '/emergency', label: 'Emergency', icon: '🚨', urgent: true },
+    ],
+  },
+  {
+    label: 'INTELLIGENCE',
+    items: [
+      { href: '/score', label: 'Score', icon: '📊' },
+      { href: '/chat', label: 'Insights', icon: '💬' },
+      { href: '/audit', label: 'Alerts', icon: '🔔' },
+      { href: '/renewals', label: 'Renewals', icon: '🔄', feature: 'deltas' },
+      { href: '/policies/compare', label: 'Compare', icon: '⚖️' },
+    ],
+  },
+  {
+    label: 'ACCOUNT',
+    items: [
+      { href: '/profile', label: 'Profile', icon: '👤' },
+      { href: '/billing', label: 'Billing', icon: '💳' },
+      { href: '/privacy', label: 'Privacy', icon: '🔒' },
+    ],
+  },
 ];
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
@@ -91,45 +109,55 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           <div style={{ fontSize: 11, opacity: 0.6, marginTop: 4 }}>{APP_SIDEBAR_TAGLINE}</div>
         </button>
 
-        <nav style={{ flex: 1, padding: '12px 8px' }}>
-          {[
-            ...NAV_ITEMS,
-            ...(role === 'agent' ? [{ href: '/agent', label: 'Advisor Dashboard', icon: '👥' }] : []),
-            ...(role === 'admin' ? [{ href: '/admin', label: 'Admin', icon: '⚙️' }] : []),
-          ].map(item => {
-            const isHome = item.href === '/';
-            const active = pathname === item.href || (!isHome && item.href !== '/policies' && pathname.startsWith(item.href));
-            const isPolActive = item.href === '/policies' && (pathname === '/policies' || (pathname.startsWith('/policies/') && !pathname.startsWith('/policies/compare')));
-            const isActive = active || isPolActive;
-            const isUrgent = 'urgent' in item && item.urgent;
-            const isLocked = item.feature ? !checkFeatureAccess(plan || 'free', item.feature).allowed : false;
-            return (
-              <button
-                key={item.href}
-                onClick={() => { router.push(item.href); setSidebarOpen(false); }}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 10,
-                  width: '100%',
-                  padding: '10px 12px',
-                  border: isUrgent && !isActive ? '1px solid rgba(239,68,68,0.4)' : 'none',
-                  borderRadius: 'var(--radius-md)',
-                  backgroundColor: isActive ? 'rgba(255,255,255,0.12)' : isUrgent ? 'rgba(239,68,68,0.1)' : 'transparent',
-                  color: isLocked ? 'rgba(255,255,255,0.45)' : isUrgent ? '#fca5a5' : '#fff',
-                  fontSize: 14,
-                  fontWeight: isActive ? 600 : isUrgent ? 600 : 400,
-                  cursor: 'pointer',
-                  textAlign: 'left',
-                  marginBottom: 2,
-                }}
-              >
-                <span style={{ fontSize: 16 }}>{item.icon}</span>
-                {item.label}
-                {isLocked && <span style={{ marginLeft: 'auto', fontSize: 11, opacity: 0.6 }}>&#128274;</span>}
-              </button>
-            );
-          })}
+        <nav style={{ flex: 1, padding: '12px 8px', overflowY: 'auto' }}>
+          {(() => {
+            // Build sections with role-based items appended to MAIN
+            const sections = NAV_SECTIONS.map(s => ({ ...s, items: [...s.items] }));
+            if (role === 'agent') sections[0].items.push({ href: '/agent', label: 'Advisor Dashboard', icon: '👥' });
+            if (role === 'admin') sections[0].items.push({ href: '/admin', label: 'Admin', icon: '⚙️' });
+
+            return sections.map((section, si) => (
+              <div key={section.label} style={{ marginBottom: si < sections.length - 1 ? 8 : 0, ...(section.label === 'ACCOUNT' ? { borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: 8, marginTop: 4 } : {}) }}>
+                <div style={{ padding: '6px 12px 4px', fontSize: 10, fontWeight: 700, color: 'rgba(255,255,255,0.4)', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+                  {section.label}
+                </div>
+                {section.items.map(item => {
+                  const isHome = item.href === '/';
+                  const active = pathname === item.href || (!isHome && item.href !== '/policies' && pathname.startsWith(item.href));
+                  const isPolActive = item.href === '/policies' && (pathname === '/policies' || (pathname.startsWith('/policies/') && !pathname.startsWith('/policies/compare')));
+                  const isActive = active || isPolActive;
+                  const isUrgent = item.urgent;
+                  const isLocked = item.feature ? !checkFeatureAccess(plan || 'free', item.feature).allowed : false;
+                  return (
+                    <button
+                      key={item.href}
+                      onClick={() => { router.push(item.href); setSidebarOpen(false); }}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 10,
+                        width: '100%',
+                        padding: '10px 12px',
+                        border: isUrgent && !isActive ? '1px solid rgba(239,68,68,0.4)' : 'none',
+                        borderRadius: 'var(--radius-md)',
+                        backgroundColor: isActive ? 'rgba(255,255,255,0.12)' : isUrgent ? 'rgba(239,68,68,0.1)' : 'transparent',
+                        color: isLocked ? 'rgba(255,255,255,0.45)' : isUrgent ? '#fca5a5' : '#fff',
+                        fontSize: 14,
+                        fontWeight: isActive ? 600 : isUrgent ? 600 : 400,
+                        cursor: 'pointer',
+                        textAlign: 'left',
+                        marginBottom: 2,
+                      }}
+                    >
+                      <span style={{ fontSize: 16 }}>{item.icon}</span>
+                      {item.label}
+                      {isLocked && <span style={{ marginLeft: 'auto', fontSize: 11, opacity: 0.6 }}>&#128274;</span>}
+                    </button>
+                  );
+                })}
+              </div>
+            ));
+          })()}
         </nav>
 
         <div style={{ padding: '12px 8px', borderTop: '1px solid rgba(255,255,255,0.1)' }}>
