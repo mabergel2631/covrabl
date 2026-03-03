@@ -70,12 +70,12 @@ function useTimelineFill() {
 
 /* ── Product Demo Simulation ──────────────────────────── */
 const DEMO_SCENES = [
-  { id: 'upload', duration: 4500, label: 'Upload any insurance policy' },
-  { id: 'extract', duration: 6000, label: 'AI reads your policy instantly' },
-  { id: 'chat', duration: 7500, label: 'Ask your policy anything' },
-  { id: 'score', duration: 6000, label: 'Your Coverage Health Score' },
+  { id: 'upload', duration: 4500, label: 'Upload any policy — personal or business' },
+  { id: 'extract', duration: 6000, label: 'AI extracts limits, terms, and exclusions' },
+  { id: 'chat', duration: 7500, label: 'Ask questions about your coverage' },
+  { id: 'compliance', duration: 6000, label: 'Verify compliance requirements' },
   { id: 'emergency', duration: 5000, label: 'Emergency access when it matters' },
-  { id: 'summary', duration: 5000, label: 'Finally understand your insurance' },
+  { id: 'summary', duration: 5000, label: 'See everything. Verify. Stay ahead.' },
 ];
 const TOTAL_DURATION = DEMO_SCENES.reduce((s, sc) => s + sc.duration, 0);
 
@@ -118,13 +118,13 @@ function ProductDemo() {
   const fadeOpacity = sceneProgress < 0.08 ? sceneProgress / 0.08 : sceneProgress > 0.92 ? (1 - sceneProgress) / 0.08 : 1;
 
   const extractFields = [
-    { label: 'Carrier', value: 'State Farm' },
-    { label: 'Policy #', value: 'SF-8834201' },
-    { label: 'Type', value: 'Auto' },
-    { label: 'Coverage', value: '$500K / $1M' },
-    { label: 'Deductible', value: '$500' },
-    { label: 'Premium', value: '$1,840/yr' },
-    { label: 'Renewal', value: 'Mar 14, 2026' },
+    { label: 'Carrier', value: 'Hartford' },
+    { label: 'Policy #', value: 'HF-GL-440291' },
+    { label: 'Type', value: 'General Liability' },
+    { label: 'Per Occurrence', value: '$1,000,000' },
+    { label: 'Aggregate', value: '$2,000,000' },
+    { label: 'Premium', value: '$3,200/yr' },
+    { label: 'Renewal', value: 'Jun 1, 2026' },
   ];
 
   return (
@@ -132,7 +132,7 @@ function ProductDemo() {
       <div style={{ maxWidth: 720, margin: '0 auto' }}>
         <div style={{ textAlign: 'center', marginBottom: 24 }}>
           <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-text-muted)', letterSpacing: '0.04em' }}>
-            Watch your insurance become understandable in seconds
+            See how layered coverage becomes visible in seconds
           </span>
         </div>
 
@@ -163,31 +163,44 @@ function ProductDemo() {
           <div style={{ padding: '20px 28px', minHeight: 300, maxHeight: 360, backgroundColor: '#f8f9fa', position: 'relative', overflow: 'hidden' }}>
             <div style={{ opacity: fadeOpacity, transition: 'opacity 0.15s ease' }}>
 
-              {/* Scene 1: Upload */}
+              {/* Scene 1: Upload — shows multiple policy types */}
               {activeIdx === 0 && (
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: 252 }}>
                   <div style={{
-                    width: '75%', maxWidth: 360, padding: '32px 28px',
+                    width: '80%', maxWidth: 400, padding: '24px 28px',
                     border: `2px dashed ${sceneProgress > 0.3 ? '#2563eb' : '#d1d5db'}`,
                     borderRadius: 12, textAlign: 'center', backgroundColor: '#fff',
                     transition: 'border-color 0.5s',
                   }}>
-                    <div style={{ fontSize: 36, marginBottom: 10 }}>{sceneProgress > 0.5 ? '\u{1F4C4}' : '\u{2B06}\u{FE0F}'}</div>
+                    <div style={{ fontSize: 36, marginBottom: 10 }}>{sceneProgress > 0.4 ? '\u{1F4C4}' : '\u{2B06}\u{FE0F}'}</div>
                     <div style={{ fontSize: 14, fontWeight: 600, color: '#111827', marginBottom: 4 }}>
-                      {sceneProgress > 0.5 ? 'StateFarm_Auto_2026.pdf' : 'Drop your policy here'}
+                      {sceneProgress > 0.4 ? 'Hartford_GL_2026.pdf' : 'Drop any policy here'}
                     </div>
                     <div style={{ fontSize: 12, color: '#9ca3af' }}>
-                      {sceneProgress > 0.5 ? '2.1 MB' : 'PDF, declarations page, or insurance card'}
+                      {sceneProgress > 0.4 ? '1.8 MB' : 'Personal, commercial, or professional'}
                     </div>
-                    {sceneProgress > 0.3 && sceneProgress <= 0.7 && (
+                    {sceneProgress > 0.3 && sceneProgress <= 0.6 && (
                       <div style={{ marginTop: 14, height: 4, backgroundColor: '#e5e7eb', borderRadius: 2, overflow: 'hidden' }}>
-                        <div style={{ height: '100%', width: `${Math.min((sceneProgress - 0.3) * 250, 100)}%`, backgroundColor: '#2563eb', borderRadius: 2, transition: 'width 0.1s' }} />
+                        <div style={{ height: '100%', width: `${Math.min((sceneProgress - 0.3) * 333, 100)}%`, backgroundColor: '#2563eb', borderRadius: 2, transition: 'width 0.1s' }} />
                       </div>
                     )}
-                    {sceneProgress > 0.7 && (
-                      <div style={{ marginTop: 10, fontSize: 13, fontWeight: 600, color: '#16a34a' }}>
-                        {'\u2713'} Policy uploaded &mdash; AI is analyzing your coverage...
-                      </div>
+                    {sceneProgress > 0.6 && (
+                      <>
+                        <div style={{ marginTop: 10, fontSize: 13, fontWeight: 600, color: '#16a34a' }}>
+                          {'\u2713'} Uploaded &mdash; analyzing coverage...
+                        </div>
+                        <div style={{ display: 'flex', gap: 6, justifyContent: 'center', marginTop: 10, flexWrap: 'wrap' }}>
+                          {['GL', 'Auto', 'Umbrella', 'Property'].map((t, i) => (
+                            <span key={t} style={{
+                              padding: '3px 10px', borderRadius: 10, fontSize: 10, fontWeight: 600,
+                              backgroundColor: i === 0 ? '#dbeafe' : '#f3f4f6',
+                              color: i === 0 ? '#1d4ed8' : '#6b7280',
+                              opacity: sceneProgress > 0.65 + i * 0.07 ? 1 : 0.3,
+                              transition: 'opacity 0.3s',
+                            }}>{t}</span>
+                          ))}
+                        </div>
+                      </>
                     )}
                   </div>
                 </div>
@@ -197,7 +210,7 @@ function ProductDemo() {
               {activeIdx === 1 && (
                 <div style={{ maxWidth: 400, margin: '0 auto' }}>
                   <div style={{ fontSize: 13, fontWeight: 600, color: '#111827', marginBottom: 3 }}>AI is reading your policy...</div>
-                  <div style={{ fontSize: 11, color: '#9ca3af', marginBottom: 12 }}>StateFarm_Auto_2026.pdf</div>
+                  <div style={{ fontSize: 11, color: '#9ca3af', marginBottom: 12 }}>Hartford_GL_2026.pdf</div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
                     {extractFields.map((f, i) => {
                       const fieldProgress = sceneProgress * (extractFields.length + 0.5);
@@ -222,14 +235,14 @@ function ProductDemo() {
                 </div>
               )}
 
-              {/* Scene 3: Ask Your Policy — the killer feature */}
+              {/* Scene 3: Ask AI — layered coverage questions */}
               {activeIdx === 2 && (
                 <div style={{ maxWidth: 440, margin: '0 auto' }}>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                     {sceneProgress > 0.04 && (
                       <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
                         <div style={{ padding: '7px 12px', backgroundColor: '#2563eb', color: '#fff', borderRadius: '12px 12px 4px 12px', fontSize: 12, maxWidth: '80%' }}>
-                          Am I covered if I hit someone else&apos;s car?
+                          Am I covered if a contractor gets hurt on my property?
                         </div>
                       </div>
                     )}
@@ -237,7 +250,7 @@ function ProductDemo() {
                       <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
                         <div style={{ padding: '7px 12px', backgroundColor: '#fff', border: '1px solid #e5e7eb', color: '#111827', borderRadius: '12px 12px 12px 4px', fontSize: 12, maxWidth: '88%', lineHeight: 1.5 }}>
                           {sceneProgress > 0.35
-                            ? (<>Yes. Your State Farm policy (<strong>SF-8834201</strong>) includes <strong>$500K per accident</strong> liability. This covers damage to other vehicles and property in an at-fault accident.</>)
+                            ? (<>Your Hartford GL policy (<strong>HF-GL-440291</strong>) provides <strong>$1M per occurrence</strong> for bodily injury on your premises. However, you should require contractors to carry their own workers&apos; comp.</>)
                             : (<span style={{ color: '#9ca3af' }}>Reading your policies...</span>)}
                         </div>
                       </div>
@@ -245,7 +258,7 @@ function ProductDemo() {
                     {sceneProgress > 0.55 && (
                       <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
                         <div style={{ padding: '7px 12px', backgroundColor: '#2563eb', color: '#fff', borderRadius: '12px 12px 4px 12px', fontSize: 12, maxWidth: '80%' }}>
-                          What about a rental car on vacation?
+                          Does my umbrella extend over this GL policy?
                         </div>
                       </div>
                     )}
@@ -253,8 +266,8 @@ function ProductDemo() {
                       <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
                         <div style={{ padding: '7px 12px', backgroundColor: '#fff', border: '1px solid #e5e7eb', color: '#111827', borderRadius: '12px 12px 12px 4px', fontSize: 12, maxWidth: '88%', lineHeight: 1.5 }}>
                           {sceneProgress > 0.82
-                            ? (<>Your policy covers rentals in the US. For international trips, you&apos;d need the rental company&apos;s coverage. <strong>Skip the counter upsell.</strong></>)
-                            : (<span style={{ color: '#9ca3af' }}>Checking your policy details...</span>)}
+                            ? (<>Yes. Your Chubb umbrella (<strong>$2M</strong>) lists your Hartford GL as an underlying policy. It would activate after the <strong>$1M GL limit</strong> is exhausted.</>)
+                            : (<span style={{ color: '#9ca3af' }}>Checking across your policies...</span>)}
                         </div>
                       </div>
                     )}
@@ -262,67 +275,41 @@ function ProductDemo() {
                 </div>
               )}
 
-              {/* Scene 4: Coverage Health Score */}
+              {/* Scene 4: Compliance verification */}
               {activeIdx === 3 && (
-                <div style={{ maxWidth: 440, margin: '0 auto' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 20, marginBottom: 14 }}>
-                    {/* Animated circular gauge */}
-                    <div style={{ position: 'relative', width: 72, height: 72, flexShrink: 0 }}>
-                      <svg viewBox="0 0 72 72" width={72} height={72}>
-                        <circle cx={36} cy={36} r={28} fill="none" stroke="#e5e7eb" strokeWidth={6} />
-                        <circle
-                          cx={36} cy={36} r={28} fill="none"
-                          stroke={sceneProgress > 0.2 ? '#f59e0b' : '#e5e7eb'}
-                          strokeWidth={6} strokeLinecap="round"
-                          strokeDasharray={`${Math.min(sceneProgress * 2, 1) * 0.68 * 176} 176`}
-                          transform="rotate(-90 36 36)"
-                          style={{ transition: 'stroke-dasharray 0.5s ease, stroke 0.3s' }}
-                        />
-                      </svg>
-                      <div style={{
-                        position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        fontSize: 20, fontWeight: 700, color: '#111827',
-                        opacity: sceneProgress > 0.15 ? 1 : 0, transition: 'opacity 0.3s',
-                      }}>
-                        {sceneProgress > 0.15 ? '68' : ''}
-                      </div>
-                    </div>
-                    <div>
-                      <div style={{ fontSize: 14, fontWeight: 700, color: '#111827' }}>Coverage Health Score</div>
-                      <div style={{ fontSize: 11, color: '#9ca3af' }}>Based on 3 policies · moderate confidence</div>
-                    </div>
-                  </div>
-                  {/* Category progress bars */}
+                <div style={{ maxWidth: 420, margin: '0 auto' }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: '#111827', marginBottom: 3 }}>Compliance Check</div>
+                  <div style={{ fontSize: 11, color: '#9ca3af', marginBottom: 14 }}>Verifying coverage against requirements</div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                     {[
-                      { cat: 'Liability', score: 82, color: '#22c55e', delay: 0.15 },
-                      { cat: 'Property', score: 71, color: '#f59e0b', delay: 0.3 },
-                      { cat: 'Income', score: 45, color: '#ef4444', delay: 0.45 },
-                      { cat: 'Catastrophic', score: 60, color: '#f59e0b', delay: 0.6 },
-                    ].map(c => (
-                      <div key={c.cat} style={{ opacity: sceneProgress > c.delay ? 1 : 0, transition: 'opacity 0.4s' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, marginBottom: 3 }}>
-                          <span style={{ color: '#6b7280', fontWeight: 500 }}>{c.cat}</span>
-                          <span style={{ fontWeight: 700, color: c.color }}>{c.score}</span>
-                        </div>
-                        <div style={{ height: 6, backgroundColor: '#e5e7eb', borderRadius: 3, overflow: 'hidden' }}>
-                          <div style={{
-                            height: '100%', borderRadius: 3, backgroundColor: c.color,
-                            width: sceneProgress > c.delay + 0.1 ? `${c.score}%` : '0%',
-                            transition: 'width 0.8s ease',
-                          }} />
-                        </div>
+                      { req: 'General Liability \u2265 $1,000,000', status: 'PASS', color: '#22c55e', bg: '#f0fdf4', delay: 0.1 },
+                      { req: 'Additional Insured endorsement', status: 'PASS', color: '#22c55e', bg: '#f0fdf4', delay: 0.25 },
+                      { req: 'Workers\u2019 Comp coverage', status: 'FAIL', color: '#ef4444', bg: '#fef2f2', delay: 0.4 },
+                      { req: 'Waiver of Subrogation', status: 'UNCLEAR', color: '#f59e0b', bg: '#fffbeb', delay: 0.55 },
+                      { req: 'Property Damage \u2265 $500,000', status: 'PASS', color: '#22c55e', bg: '#f0fdf4', delay: 0.7 },
+                    ].map(item => (
+                      <div key={item.req} style={{
+                        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                        padding: '8px 12px', backgroundColor: sceneProgress > item.delay ? item.bg : '#fff',
+                        border: '1px solid #e5e7eb', borderRadius: 6,
+                        opacity: sceneProgress > item.delay ? 1 : 0.3, transition: 'all 0.4s',
+                      }}>
+                        <span style={{ fontSize: 12, color: '#374151', fontWeight: 500 }}>{item.req}</span>
+                        <span style={{
+                          fontSize: 10, fontWeight: 700, color: item.color, padding: '2px 8px',
+                          borderRadius: 4, backgroundColor: sceneProgress > item.delay ? `${item.color}15` : 'transparent',
+                        }}>
+                          {sceneProgress > item.delay ? item.status : '\u2014'}
+                        </span>
                       </div>
                     ))}
                   </div>
-                  {/* Recommendation hint */}
-                  {sceneProgress > 0.7 && (
+                  {sceneProgress > 0.8 && (
                     <div style={{
-                      marginTop: 10, padding: '8px 12px', backgroundColor: '#fffbeb', borderRadius: 6,
-                      borderLeft: '3px solid #f59e0b', fontSize: 11, color: '#92400e', lineHeight: 1.4,
-                      opacity: sceneProgress > 0.7 ? 1 : 0, transition: 'opacity 0.4s',
+                      marginTop: 10, padding: '8px 12px', backgroundColor: '#fef2f2', borderRadius: 6,
+                      borderLeft: '3px solid #ef4444', fontSize: 11, color: '#991b1b', lineHeight: 1.4,
                     }}>
-                      Consider asking your agent about umbrella coverage to strengthen catastrophic protection.
+                      1 requirement failed. Workers&apos; Comp not found in uploaded policies.
                     </div>
                   )}
                 </div>
@@ -385,17 +372,17 @@ function ProductDemo() {
                 </div>
               )}
 
-              {/* Scene 6: Summary — strong conclusion with CTA */}
+              {/* Scene 6: Summary — three pillars */}
               {activeIdx === 5 && (
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: 252, textAlign: 'center' }}>
                   <div style={{ fontSize: 20, fontWeight: 700, color: '#111827', marginBottom: 20 }}>
-                    Finally understand your insurance
+                    Layered coverage, finally visible
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 24, alignItems: 'flex-start' }}>
                     {[
-                      { text: 'See your personalized Coverage Health Score', delay: 0.05 },
-                      { text: 'Understand where you\u2019re protected and exposed', delay: 0.2 },
-                      { text: 'Get questions to ask your insurance agent', delay: 0.35 },
+                      { text: 'See what you actually have \u2014 across every policy', delay: 0.05 },
+                      { text: 'Verify what\u2019s required \u2014 compliance in seconds', delay: 0.2 },
+                      { text: 'Stay ahead of changes \u2014 renewals, gaps, alerts', delay: 0.35 },
                       { text: 'Access everything in an emergency', delay: 0.5 },
                     ].map((item, i) => (
                       <div key={i} style={{
@@ -785,7 +772,7 @@ export default function Home() {
             Insurance gets complex fast. Covrabl makes it visible.
           </h1>
           <p style={{ fontSize: 18, opacity: 0.95, margin: '0 0 8px', lineHeight: 1.7, maxWidth: 720, marginLeft: 'auto', marginRight: 'auto', fontWeight: 500 }}>
-            Upload your policies, verify what your leases require, and catch coverage gaps before they become problems.
+            Upload your policies, verify compliance requirements, and catch coverage gaps before they become problems.
           </p>
           <p style={{ fontSize: 15, opacity: 0.7, margin: '0 0 8px', lineHeight: 1.7, maxWidth: 600, marginLeft: 'auto', marginRight: 'auto', letterSpacing: 'var(--letter-spacing-wide)' }}>
             See what you have. Verify what&apos;s required. Stay ahead of changes.
