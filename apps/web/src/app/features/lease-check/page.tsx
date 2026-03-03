@@ -500,6 +500,50 @@ export default function LeaseCheckFeaturePage() {
           ))}
         </div>
 
+        {/* Sample Output */}
+        <div style={{ marginBottom: 48 }}>
+          <div style={{ textAlign: 'center', marginBottom: 24 }}>
+            <h2 style={{ fontSize: 24, fontWeight: 700, color: '#111827', margin: '0 0 8px' }}>
+              What you get
+            </h2>
+            <p style={{ fontSize: 15, color: '#6b7280', margin: 0 }}>
+              A clear compliance report for every requirement in your lease.
+            </p>
+          </div>
+          <div style={{ backgroundColor: '#fff', border: '1px solid #e5e7eb', borderRadius: 12, overflow: 'hidden' }}>
+            <div style={{ padding: '16px 20px', borderBottom: '1px solid #f3f4f6', fontSize: 13, fontWeight: 600, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+              Sample Compliance Output
+            </div>
+            {[
+              { label: 'General Liability \u2265 $1,000,000', status: 'pass' as const, evidence: 'COI shows $1,000,000 per occurrence and $2,000,000 aggregate.' },
+              { label: 'Landlord named as Additional Insured', status: 'unclear' as const, evidence: 'COI references written contract; endorsement page not provided. Ask your broker to confirm.' },
+              { label: 'AM Best Rating A- or better', status: 'fail' as const, evidence: 'Carrier rating not confirmed in uploaded documents.' },
+            ].map((item, i) => {
+              const si = STATUS_CONFIG[item.status];
+              return (
+                <div key={i} style={{ padding: '14px 20px', borderBottom: i < 2 ? '1px solid #f3f4f6' : 'none', display: 'flex', gap: 12, alignItems: 'flex-start' }}>
+                  <span style={{
+                    display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                    width: 22, height: 22, borderRadius: '50%', flexShrink: 0, marginTop: 1,
+                    backgroundColor: si.bg, color: si.color, fontSize: 12, fontWeight: 700,
+                  }}>{si.icon}</span>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 2 }}>
+                      <span style={{ fontSize: 14, fontWeight: 600, color: '#111827' }}>{item.label}</span>
+                      <span style={{ fontSize: 11, fontWeight: 600, color: si.color, textTransform: 'uppercase' }}>{item.status}</span>
+                    </div>
+                    <p style={{ fontSize: 13, color: '#6b7280', margin: 0, lineHeight: 1.5 }}>{item.evidence}</p>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          <p style={{ fontSize: 13, color: '#6b7280', marginTop: 12, lineHeight: 1.6, textAlign: 'center' }}>
+            <strong style={{ color: '#92400e' }}>Unclear</strong> means the uploaded documents don&apos;t provide
+            definitive evidence for a requirement. The report explains exactly what to ask your broker to clarify.
+          </p>
+        </div>
+
         {/* CTA */}
         <div style={{
           textAlign: 'center', padding: '48px 32px',
@@ -518,12 +562,19 @@ export default function LeaseCheckFeaturePage() {
             border: 'none', borderRadius: 8, cursor: 'pointer',
             boxShadow: '0 4px 14px rgba(63, 167, 163, 0.3)',
           }}>
-            Get Started Free
+            Run Lease Compliance Check
           </button>
           <div style={{ marginTop: 12, fontSize: 13, opacity: 0.6 }}>
             No credit card required
           </div>
         </div>
+
+        {/* Disclaimer */}
+        <p style={{ fontSize: 12, color: '#9ca3af', lineHeight: 1.7, textAlign: 'center', maxWidth: 640, margin: '0 auto 32px', padding: '0 16px' }}>
+          Covrabl analyzes uploaded documents and summarizes insurance requirements. Results are informational
+          and should be confirmed with your insurance broker or legal counsel before relying on them for
+          contractual compliance.
+        </p>
 
         {/* Footer */}
         <div style={{ textAlign: 'center', padding: '0 0 32px', fontSize: 12, color: '#9ca3af' }}>
