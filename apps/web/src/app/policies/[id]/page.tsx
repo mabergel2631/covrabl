@@ -1954,7 +1954,7 @@ export default function PolicyDetailPage() {
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 12 }}>
               <div>
                 <h2 className="section-title" style={{ margin: 0 }}>Lease Check</h2>
-                <a href="/features/lease-check" target="_blank" rel="noopener noreferrer" style={{ fontSize: 12, color: 'var(--color-accent)', textDecoration: 'none' }}>See how it works</a>
+                <a href="/features/lease-check" target="_blank" rel="noopener noreferrer" style={{ fontSize: 12, color: 'var(--color-accent)', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 4, marginTop: 2 }}>See how it works <span style={{ fontSize: 14 }}>&rsaquo;</span></a>
               </div>
               {leaseView === 'list' && canEdit && (
                 <button onClick={() => setLeaseView('create')} className="btn btn-primary">+ New Check</button>
