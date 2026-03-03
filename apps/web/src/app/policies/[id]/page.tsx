@@ -1951,7 +1951,10 @@ export default function PolicyDetailPage() {
         return (
           <div className="card" style={{ marginBottom: 32 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 12 }}>
-              <h2 className="section-title" style={{ margin: 0 }}>Lease Check</h2>
+              <div>
+                <h2 className="section-title" style={{ margin: 0 }}>Lease Check</h2>
+                <a href="/features/lease-check" target="_blank" rel="noopener noreferrer" style={{ fontSize: 12, color: 'var(--color-accent)', textDecoration: 'none' }}>See how it works</a>
+              </div>
               {leaseView === 'list' && canEdit && (
                 <button onClick={() => setLeaseView('create')} className="btn btn-primary">+ New Check</button>
               )}
