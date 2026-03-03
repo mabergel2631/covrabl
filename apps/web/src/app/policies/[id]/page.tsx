@@ -137,6 +137,7 @@ export default function PolicyDetailPage() {
   const [leaseShareReq, setLeaseShareReq] = useState<LeaseRequirement | null>(null);
   const [leaseCopiedLink, setLeaseCopiedLink] = useState(false);
   const [leaseDeleteConfirm, setLeaseDeleteConfirm] = useState<number | null>(null);
+  const [leaseCheckedAgainst, setLeaseCheckedAgainst] = useState<string>(''); // description of what was checked
   const [leaseTenantEmail, setLeaseTenantEmail] = useState('');
   const [leaseTenantName, setLeaseTenantName] = useState('');
   const [leaseSending, setLeaseSending] = useState(false);
@@ -1828,6 +1829,7 @@ export default function PolicyDetailPage() {
             toast('Requirements saved');
 
             setLeaseActiveReqId(created.id);
+            setLeaseCheckedAgainst(`${policy!.carrier} ${policy!.policy_type.replace(/_/g, ' ')} policy`);
             setLeaseChecking(true);
             try {
               const check = await leaseComplianceApi.runCheck(created.id, 'policy', { policyId });
@@ -1856,6 +1858,7 @@ export default function PolicyDetailPage() {
             setLeaseResults(check.results || []);
             setLeaseCheckCounts({ pass: check.pass_count, fail: check.fail_count, unclear: check.unclear_count });
             setLeaseActiveReqId(reqId);
+            setLeaseCheckedAgainst(`${policy!.carrier} ${policy!.policy_type.replace(/_/g, ' ')} policy`);
             toast('Compliance check updated');
             leaseComplianceApi.list(undefined, policyId).then(setLeaseReqs).catch(() => {});
           } catch (err: any) {
@@ -1875,14 +1878,24 @@ export default function PolicyDetailPage() {
                 const parsed = typeof latest.results_json === 'string' ? JSON.parse(latest.results_json) : (latest as any).results || [];
                 setLeaseResults(parsed);
                 setLeaseCheckCounts({ pass: latest.pass_count, fail: latest.fail_count, unclear: latest.unclear_count });
+                // Show what was checked against
+                if (latest.checked_against === 'certificate') {
+                  setLeaseCheckedAgainst('certificate');
+                } else if (latest.checked_against === 'policy') {
+                  setLeaseCheckedAgainst(`${policy!.carrier} ${policy!.policy_type.replace(/_/g, ' ')} policy`);
+                } else {
+                  setLeaseCheckedAgainst('all policies');
+                }
               }
             } catch {
               setLeaseResults([]);
               setLeaseCheckCounts({ pass: 0, fail: 0, unclear: 0 });
+              setLeaseCheckedAgainst('');
             }
           } else {
             setLeaseResults([]);
             setLeaseCheckCounts({ pass: 0, fail: 0, unclear: 0 });
+            setLeaseCheckedAgainst('');
           }
           setLeaseView('results');
         }
@@ -2120,7 +2133,12 @@ export default function PolicyDetailPage() {
                 <>
                   <div style={{ marginBottom: 16 }}>
                     <h3 style={{ fontSize: 15, fontWeight: 700, margin: '0 0 4px' }}>{activeReq?.label || 'Results'}</h3>
-                    {activeReq?.property_address && <p style={{ fontSize: 12, color: 'var(--color-text-secondary)', margin: 0 }}>{activeReq.property_address}</p>}
+                    {activeReq?.property_address && <p style={{ fontSize: 12, color: 'var(--color-text-secondary)', margin: '0 0 4px' }}>{activeReq.property_address}</p>}
+                    {leaseCheckedAgainst && (
+                      <p style={{ fontSize: 12, color: 'var(--color-text-muted)', margin: 0, fontStyle: 'italic' }}>
+                        Checked against: {leaseCheckedAgainst}
+                      </p>
+                    )}
                   </div>
 
                   {/* Summary counts */}
@@ -2169,18 +2187,19 @@ export default function PolicyDetailPage() {
                     <button onClick={() => leaseActiveReqId && handleLeaseRecheck(leaseActiveReqId)} disabled={leaseChecking} style={{ padding: '6px 14px', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)', backgroundColor: '#fff', cursor: 'pointer', fontWeight: 600, fontSize: 12 }}>
                       {leaseResults.length > 0 ? 'Re-check Policy' : 'Check Policy'}
                     </button>
-                    {/* Check against certificate */}
-                    {policyCertificates.length > 0 && (
+                    {/* Check against certificate(s) */}
+                    {policyCertificates.map(cert => (
                       <button
+                        key={cert.id}
                         onClick={async () => {
                           if (!leaseActiveReqId) return;
-                          const certId = policyCertificates[0].id;
                           setLeaseChecking(true);
                           try {
-                            const check = await leaseComplianceApi.runCheck(leaseActiveReqId, 'certificate', { certificateId: certId });
+                            const check = await leaseComplianceApi.runCheck(leaseActiveReqId, 'certificate', { certificateId: cert.id });
                             setLeaseResults(check.results || []);
                             setLeaseCheckCounts({ pass: check.pass_count, fail: check.fail_count, unclear: check.unclear_count });
-                            toast('Checked against certificate');
+                            setLeaseCheckedAgainst(`${cert.counterparty_name || 'Certificate'} (${cert.direction === 'issued' ? 'shared' : 'received'}${cert.coverage_types ? ' — ' + cert.coverage_types : ''})`);
+                            toast(`Checked against ${cert.counterparty_name || 'certificate'}`);
                           } catch (err: any) {
                             toast(err.message || 'Certificate check failed', 'error');
                           } finally {
@@ -2189,10 +2208,11 @@ export default function PolicyDetailPage() {
                         }}
                         disabled={leaseChecking}
                         style={{ padding: '6px 14px', backgroundColor: '#7c3aed', color: '#fff', border: 'none', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontWeight: 600, fontSize: 12 }}
+                        title={`Check against ${cert.counterparty_name}'s certificate${cert.coverage_types ? ' (' + cert.coverage_types + ')' : ''}`}
                       >
-                        Check Certificate
+                        Check vs {cert.counterparty_name || `Certificate #${cert.id}`}
                       </button>
-                    )}
+                    ))}
                     {leaseResults.length > 0 && (
                       <button onClick={() => leaseActiveReqId && handleLeaseBrokerEmail(leaseActiveReqId)} style={{ padding: '6px 14px', backgroundColor: '#2563eb', color: '#fff', border: 'none', borderRadius: 'var(--radius-sm)', fontWeight: 600, cursor: 'pointer', fontSize: 12 }}>Send to Broker</button>
                     )}
