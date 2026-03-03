@@ -157,6 +157,9 @@ function CertificatesContent() {
       } else {
         await certificatesApi.create(form);
         toast('Certificate added');
+        if (!form.policy_id) {
+          setTimeout(() => toast('Tip: Link this certificate to a policy so it appears in your policy details.', 'info'), 500);
+        }
       }
       resetForm();
       load();
@@ -404,12 +407,17 @@ function CertificatesContent() {
                             {policies.map(p => <option key={p.id} value={p.id}>{p.nickname || p.carrier} - {p.policy_type}</option>)}
                           </select>
                         ) : (
-                          <span
+                          <div
                             onClick={(e) => { e.stopPropagation(); setLinkingCertId(cert.id); }}
-                            style={{ fontSize: 12, color: 'var(--color-warning-dark)', cursor: 'pointer', textDecoration: 'underline' }}
+                            style={{
+                              display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px',
+                              backgroundColor: '#fef3c7', border: '1px solid #fcd34d', borderRadius: 'var(--radius-sm)',
+                              cursor: 'pointer', fontSize: 12, color: '#92400e', fontWeight: 600,
+                            }}
                           >
-                            Link to policy
-                          </span>
+                            <span style={{ fontSize: 14 }}>&#9432;</span>
+                            Not linked to a policy &mdash; <span style={{ textDecoration: 'underline' }}>Link now</span>
+                          </div>
                         )}
                       </div>
                     )}
@@ -495,28 +503,9 @@ function CertificatesContent() {
               </div>
             </div>
 
-            {/* Counterparty */}
-            <div className="form-grid-2" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
-              <div>
-                <label style={labelStyle}>Counterparty Name *</label>
-                <input style={inputStyle} value={form.counterparty_name} onChange={e => setForm(f => ({ ...f, counterparty_name: e.target.value }))} placeholder="e.g. ABC Property Management" />
-              </div>
-              <div>
-                <label style={labelStyle}>Counterparty Type</label>
-                <select style={inputStyle} value={form.counterparty_type} onChange={e => setForm(f => ({ ...f, counterparty_type: e.target.value }))}>
-                  {COUNTERPARTY_TYPES.map(ct => <option key={ct.value} value={ct.value}>{ct.label}</option>)}
-                </select>
-              </div>
-            </div>
-
-            <div style={{ marginBottom: 12 }}>
-              <label style={labelStyle}>Counterparty Email</label>
-              <input style={inputStyle} type="email" value={form.counterparty_email || ''} onChange={e => setForm(f => ({ ...f, counterparty_email: e.target.value || null }))} placeholder="Optional - for reminders" />
-            </div>
-
             {/* Linked policy — prominent with warning when unlinked */}
             <div style={{
-              marginBottom: 12, padding: 12, borderRadius: 'var(--radius-sm)',
+              marginBottom: 16, padding: 12, borderRadius: 'var(--radius-sm)',
               backgroundColor: form.policy_id ? '#f0fdf4' : '#fef3c7',
               border: `1px solid ${form.policy_id ? '#bbf7d0' : '#fcd34d'}`,
             }}>
@@ -536,6 +525,25 @@ function CertificatesContent() {
                   Linking ensures the COI badge appears on the policy and certificate shows in policy details.
                 </div>
               )}
+            </div>
+
+            {/* Counterparty */}
+            <div className="form-grid-2" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
+              <div>
+                <label style={labelStyle}>Counterparty Name *</label>
+                <input style={inputStyle} value={form.counterparty_name} onChange={e => setForm(f => ({ ...f, counterparty_name: e.target.value }))} placeholder="e.g. ABC Property Management" />
+              </div>
+              <div>
+                <label style={labelStyle}>Counterparty Type</label>
+                <select style={inputStyle} value={form.counterparty_type} onChange={e => setForm(f => ({ ...f, counterparty_type: e.target.value }))}>
+                  {COUNTERPARTY_TYPES.map(ct => <option key={ct.value} value={ct.value}>{ct.label}</option>)}
+                </select>
+              </div>
+            </div>
+
+            <div style={{ marginBottom: 12 }}>
+              <label style={labelStyle}>Counterparty Email</label>
+              <input style={inputStyle} type="email" value={form.counterparty_email || ''} onChange={e => setForm(f => ({ ...f, counterparty_email: e.target.value || null }))} placeholder="Optional - for reminders" />
             </div>
 
             {/* Carrier + policy number (for received) */}
