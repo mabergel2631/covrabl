@@ -584,8 +584,8 @@ h1, h2, h3, h4, h5, h6 {
   }
   .renewal-summary-overlay ~ *,
   .renewal-summary-overlay + * { display: none !important; }
-  /* Hide everything behind the overlay */
-  body > *:not(:has(.renewal-summary-overlay)) { display: none !important; }
+  /* Hide everything behind the overlay — only when a renewal summary is open */
+  body:has(.renewal-summary-overlay) > *:not(:has(.renewal-summary-overlay)) { display: none !important; }
   /* Override default print header when printing renewal summary */
   body:has(.renewal-summary-overlay)::before { display: none !important; }
   /* Clean typography for summary content */

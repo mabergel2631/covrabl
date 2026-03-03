@@ -439,6 +439,7 @@ export default function PolicyDetailPage() {
   if (!token) return null;
   if (!policy) return (
     <div style={{ padding: 24, maxWidth: 900, margin: '0 auto' }}>
+      <BackButton href="/policies" label="Policy" parentLabel="Policies" />
       {error ? <div className="alert alert-error">{error}</div> : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           <Skeleton width={200} height={28} />
