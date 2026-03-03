@@ -2008,21 +2008,22 @@ export const leaseComplianceApi = {
       method: "POST",
     });
   },
-  sendToTenant(id: number, tenantEmail: string, tenantName?: string): Promise<{ ok: boolean; public_url: string }> {
+  sendToTenant(id: number, tenantEmail: string, tenantName?: string, notes?: string): Promise<{ ok: boolean; public_url: string }> {
     return request<{ ok: boolean; public_url: string }>(`/lease-compliance/requirements/${id}/send-to-tenant`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ tenant_email: tenantEmail, tenant_name: tenantName }),
+      body: JSON.stringify({ tenant_email: tenantEmail, tenant_name: tenantName, notes }),
     });
   },
   getPublic(code: string): Promise<LeasePublicData> {
     return request<LeasePublicData>(`/lease-compliance/public/${code}`);
   },
-  async submitCoiPublic(code: string, file: File, tenantName: string, tenantEmail: string): Promise<{ ok: boolean; results: ComplianceResultItem[]; pass_count: number; fail_count: number; unclear_count: number }> {
+  async submitCoiPublic(code: string, file: File, tenantName: string, tenantEmail: string, tenantNotes?: string): Promise<{ ok: boolean; results: ComplianceResultItem[]; pass_count: number; fail_count: number; unclear_count: number }> {
     const formData = new FormData();
     formData.append("file", file);
     formData.append("tenant_name", tenantName);
     formData.append("tenant_email", tenantEmail);
+    if (tenantNotes) formData.append("tenant_notes", tenantNotes);
     const url = `${API_BASE}/lease-compliance/public/${code}/submit-coi`;
     const res = await fetch(url, { method: "POST", body: formData });
     const data = await res.json();

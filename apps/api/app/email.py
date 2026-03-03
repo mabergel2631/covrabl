@@ -121,9 +121,19 @@ async def send_lease_requirements_email(
     from_name: str,
     property_address: str | None,
     public_url: str,
+    notes: str | None = None,
 ) -> None:
     """Sent to tenant when landlord shares a requirements link."""
     location = f" for {property_address}" if property_address else ""
+    notes_html = ""
+    if notes and notes.strip():
+        import html as html_mod
+        safe_notes = html_mod.escape(notes.strip()).replace("\n", "<br>")
+        notes_html = f"""
+  <div style="background: #f8f9fa; border-left: 3px solid #1e3a5f; padding: 12px 16px; margin: 16px 0; border-radius: 4px;">
+    <p style="margin: 0 0 4px; font-size: 12px; font-weight: 600; color: #6b7280;">Note from {html_mod.escape(from_name)}:</p>
+    <p style="margin: 0; color: #374151; font-size: 14px; line-height: 1.6;">{safe_notes}</p>
+  </div>"""
     html = f"""\
 <html>
 <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 480px; margin: 0 auto; padding: 40px 20px;">
@@ -133,7 +143,7 @@ async def send_lease_requirements_email(
   </p>
   <p style="color: #555; line-height: 1.6;">
     Review the requirements and upload your Certificate of Insurance to verify compliance.
-  </p>
+  </p>{notes_html}
   <a href="{public_url}"
      style="display: inline-block; background: #1e3a5f; color: #fff; padding: 12px 28px; border-radius: 6px; text-decoration: none; font-weight: 600; margin: 24px 0;">
     View Requirements
@@ -162,10 +172,21 @@ async def send_coi_submission_email(
     fail_count: int,
     unclear_count: int,
     review_url: str,
+    notes: str | None = None,
 ) -> None:
     """Sent to landlord when tenant submits COI via public link."""
     location = f" for {property_address}" if property_address else ""
     summary = f"{pass_count} pass, {fail_count} fail, {unclear_count} unclear"
+    notes_html = ""
+    if notes and notes.strip():
+        import html as html_mod
+        safe_notes = html_mod.escape(notes.strip()).replace("\n", "<br>")
+        safe_tenant = html_mod.escape(tenant_name)
+        notes_html = f"""
+  <div style="background: #f8f9fa; border-left: 3px solid #1e3a5f; padding: 12px 16px; margin: 16px 0; border-radius: 4px;">
+    <p style="margin: 0 0 4px; font-size: 12px; font-weight: 600; color: #6b7280;">Note from {safe_tenant}:</p>
+    <p style="margin: 0; color: #374151; font-size: 14px; line-height: 1.6;">{safe_notes}</p>
+  </div>"""
     html = f"""\
 <html>
 <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 480px; margin: 0 auto; padding: 40px 20px;">
@@ -175,7 +196,7 @@ async def send_coi_submission_email(
   </p>
   <div style="background: #f8f9fa; border-radius: 8px; padding: 16px; margin: 16px 0;">
     <p style="margin: 0; font-size: 14px; color: #333; font-weight: 600;">Compliance Summary: {summary}</p>
-  </div>
+  </div>{notes_html}
   <a href="{review_url}"
      style="display: inline-block; background: #1e3a5f; color: #fff; padding: 12px 28px; border-radius: 6px; text-decoration: none; font-weight: 600; margin: 24px 0;">
     Review Results

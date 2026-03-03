@@ -140,6 +140,7 @@ export default function PolicyDetailPage() {
   const [leaseCheckedAgainst, setLeaseCheckedAgainst] = useState<string>(''); // description of what was checked
   const [leaseTenantEmail, setLeaseTenantEmail] = useState('');
   const [leaseTenantName, setLeaseTenantName] = useState('');
+  const [leaseTenantNotes, setLeaseTenantNotes] = useState('');
   const [leaseSending, setLeaseSending] = useState(false);
   const leasePdfRef = useRef<HTMLInputElement>(null);
 
@@ -2332,12 +2333,21 @@ export default function PolicyDetailPage() {
                           <input style={inputStyle} type="email" value={leaseTenantEmail} onChange={e => setLeaseTenantEmail(e.target.value)} placeholder="tenant@example.com" />
                         </div>
                       </div>
+                      <div style={{ marginBottom: 12 }}>
+                        <label style={labelStyle}>Notes (included in email)</label>
+                        <textarea
+                          style={{ ...inputStyle, minHeight: 60, resize: 'vertical' }}
+                          value={leaseTenantNotes}
+                          onChange={e => setLeaseTenantNotes(e.target.value)}
+                          placeholder="e.g., Please have this updated before March 15th"
+                        />
+                      </div>
                       <button
                         onClick={async () => {
                           if (!leaseTenantEmail.trim()) { toast('Email is required', 'error'); return; }
                           setLeaseSending(true);
                           try {
-                            await leaseComplianceApi.sendToTenant(leaseShareReq!.id, leaseTenantEmail, leaseTenantName || undefined);
+                            await leaseComplianceApi.sendToTenant(leaseShareReq!.id, leaseTenantEmail, leaseTenantName || undefined, leaseTenantNotes || undefined);
                             toast('Requirements sent to tenant');
                             setLeaseShareModal(false);
                             leaseComplianceApi.list(undefined, policyId).then(setLeaseReqs).catch(() => {});

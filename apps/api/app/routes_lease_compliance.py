@@ -459,6 +459,7 @@ def generate_broker_email_route(
 class SendToTenantRequest(BaseModel):
     tenant_email: str
     tenant_name: Optional[str] = None
+    notes: Optional[str] = None
 
 
 @router.post("/requirements/{req_id}/send-to-tenant")
@@ -501,6 +502,7 @@ async def send_to_tenant(
         from_name=from_name,
         property_address=req.property_address,
         public_url=public_url,
+        notes=payload.notes,
     )
 
     from .email import log_email_send
@@ -542,6 +544,7 @@ async def submit_coi_public(
     file: UploadFile = File(...),
     tenant_name: str = Form(""),
     tenant_email: str = Form(""),
+    tenant_notes: str = Form(""),
     db: Session = Depends(get_db),
 ):
     req = db.execute(
@@ -643,6 +646,7 @@ async def submit_coi_public(
             fail_count=fail_count,
             unclear_count=unclear_count,
             review_url=review_url,
+            notes=tenant_notes or None,
         )
         from .email import log_email_send
         log_email_send(db, owner.email, "coi_submission", f"COI submitted by {submitter_name}", "sent")

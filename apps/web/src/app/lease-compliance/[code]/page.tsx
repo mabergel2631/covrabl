@@ -49,6 +49,7 @@ export default function LeaseCompliancePublicPage() {
   // COI submission
   const [tenantName, setTenantName] = useState('');
   const [tenantEmail, setTenantEmail] = useState('');
+  const [tenantNotes, setTenantNotes] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [results, setResults] = useState<ComplianceResultItem[] | null>(null);
   const [counts, setCounts] = useState({ pass: 0, fail: 0, unclear: 0 });
@@ -75,7 +76,7 @@ export default function LeaseCompliancePublicPage() {
     if (!file.name.toLowerCase().endsWith('.pdf')) { return; }
     setSubmitting(true);
     try {
-      const result = await leaseComplianceApi.submitCoiPublic(code, file, tenantName, tenantEmail);
+      const result = await leaseComplianceApi.submitCoiPublic(code, file, tenantName, tenantEmail, tenantNotes || undefined);
       setResults(result.results);
       setCounts({ pass: result.pass_count, fail: result.fail_count, unclear: result.unclear_count });
     } catch (err: any) {
@@ -233,6 +234,16 @@ export default function LeaseCompliancePublicPage() {
                 <label style={labelStyle}>Your Email</label>
                 <input style={inputStyle} type="email" value={tenantEmail} onChange={e => setTenantEmail(e.target.value)} placeholder="Optional" />
               </div>
+            </div>
+
+            <div style={{ marginBottom: 16 }}>
+              <label style={labelStyle}>Notes (optional)</label>
+              <textarea
+                style={{ ...inputStyle, minHeight: 56, resize: 'vertical' }}
+                value={tenantNotes}
+                onChange={e => setTenantNotes(e.target.value)}
+                placeholder="e.g., Updated policy attached — waiver of subrogation endorsement is on page 3"
+              />
             </div>
 
             <div style={{ marginBottom: 16 }}>
