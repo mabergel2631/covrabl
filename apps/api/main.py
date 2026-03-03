@@ -144,6 +144,12 @@ def on_startup():
                 conn.execute(text("ALTER TABLE policy_shares ADD COLUMN role_label VARCHAR(30)"))
             if "expires_at" not in share_cols:
                 conn.execute(text("ALTER TABLE policy_shares ADD COLUMN expires_at DATE"))
+    if "lease_requirements" in insp.get_table_names():
+        lr_cols = [c["name"] for c in insp.get_columns("lease_requirements")]
+        with engine.begin() as conn:
+            if "policy_id" not in lr_cols:
+                conn.execute(text("ALTER TABLE lease_requirements ADD COLUMN policy_id INTEGER REFERENCES policies(id) ON DELETE SET NULL"))
+                conn.execute(text("CREATE INDEX ix_lease_requirements_policy_id ON lease_requirements (policy_id)"))
     # One-time migration: normalize all emails to lowercase
     with engine.begin() as conn:
         conn.execute(text("UPDATE users SET email = lower(email) WHERE email != lower(email)"))

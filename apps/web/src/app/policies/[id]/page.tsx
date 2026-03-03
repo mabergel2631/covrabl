@@ -137,6 +137,9 @@ export default function PolicyDetailPage() {
   const [leaseShareReq, setLeaseShareReq] = useState<LeaseRequirement | null>(null);
   const [leaseCopiedLink, setLeaseCopiedLink] = useState(false);
   const [leaseDeleteConfirm, setLeaseDeleteConfirm] = useState<number | null>(null);
+  const [leaseTenantEmail, setLeaseTenantEmail] = useState('');
+  const [leaseTenantName, setLeaseTenantName] = useState('');
+  const [leaseSending, setLeaseSending] = useState(false);
   const leasePdfRef = useRef<HTMLInputElement>(null);
 
   // Claims quick-start
@@ -1902,6 +1905,8 @@ export default function PolicyDetailPage() {
           setLeaseShareReq(req);
           setLeaseShareModal(true);
           setLeaseCopiedLink(false);
+          setLeaseTenantEmail(req.counterparty_email || '');
+          setLeaseTenantName(req.counterparty_name || '');
         }
 
         async function handleLeaseDelete(id: number) {
@@ -2160,39 +2165,42 @@ export default function PolicyDetailPage() {
                   )}
 
                   {/* Action buttons */}
-                  {leaseResults.length > 0 && (
-                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                      <button onClick={() => leaseActiveReqId && handleLeaseRecheck(leaseActiveReqId)} disabled={leaseChecking} style={{ padding: '6px 14px', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)', backgroundColor: '#fff', cursor: 'pointer', fontWeight: 600, fontSize: 12 }}>Re-check</button>
+                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: leaseResults.length > 0 ? 0 : 8 }}>
+                    <button onClick={() => leaseActiveReqId && handleLeaseRecheck(leaseActiveReqId)} disabled={leaseChecking} style={{ padding: '6px 14px', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)', backgroundColor: '#fff', cursor: 'pointer', fontWeight: 600, fontSize: 12 }}>
+                      {leaseResults.length > 0 ? 'Re-check Policy' : 'Check Policy'}
+                    </button>
+                    {/* Check against certificate */}
+                    {policyCertificates.length > 0 && (
+                      <button
+                        onClick={async () => {
+                          if (!leaseActiveReqId) return;
+                          const certId = policyCertificates[0].id;
+                          setLeaseChecking(true);
+                          try {
+                            const check = await leaseComplianceApi.runCheck(leaseActiveReqId, 'certificate', { certificateId: certId });
+                            setLeaseResults(check.results || []);
+                            setLeaseCheckCounts({ pass: check.pass_count, fail: check.fail_count, unclear: check.unclear_count });
+                            toast('Checked against certificate');
+                          } catch (err: any) {
+                            toast(err.message || 'Certificate check failed', 'error');
+                          } finally {
+                            setLeaseChecking(false);
+                          }
+                        }}
+                        disabled={leaseChecking}
+                        style={{ padding: '6px 14px', backgroundColor: '#7c3aed', color: '#fff', border: 'none', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontWeight: 600, fontSize: 12 }}
+                      >
+                        Check Certificate
+                      </button>
+                    )}
+                    {leaseResults.length > 0 && (
                       <button onClick={() => leaseActiveReqId && handleLeaseBrokerEmail(leaseActiveReqId)} style={{ padding: '6px 14px', backgroundColor: '#2563eb', color: '#fff', border: 'none', borderRadius: 'var(--radius-sm)', fontWeight: 600, cursor: 'pointer', fontSize: 12 }}>Send to Broker</button>
-                      {activeReq && <button onClick={() => handleLeaseShare(activeReq)} style={{ padding: '6px 14px', backgroundColor: 'var(--color-primary)', color: '#fff', border: 'none', borderRadius: 'var(--radius-sm)', fontWeight: 600, cursor: 'pointer', fontSize: 12 }}>Share Link</button>}
-                      {activeReq && (
-                        <button onClick={() => { const url = getLeaseShareUrl(activeReq.access_code); window.open(url + '?print=1', '_blank'); }} style={{ padding: '6px 14px', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)', backgroundColor: '#fff', cursor: 'pointer', fontWeight: 600, fontSize: 12 }}>Print</button>
-                      )}
-                      {/* Check against certificate buttons */}
-                      {policyCertificates.length > 0 && (
-                        <button
-                          onClick={async () => {
-                            if (!leaseActiveReqId) return;
-                            const certId = policyCertificates[0].id;
-                            setLeaseChecking(true);
-                            try {
-                              const check = await leaseComplianceApi.runCheck(leaseActiveReqId, 'certificate', { certificateId: certId });
-                              setLeaseResults(check.results || []);
-                              setLeaseCheckCounts({ pass: check.pass_count, fail: check.fail_count, unclear: check.unclear_count });
-                              toast('Checked against certificate');
-                            } catch (err: any) {
-                              toast(err.message || 'Certificate check failed', 'error');
-                            } finally {
-                              setLeaseChecking(false);
-                            }
-                          }}
-                          style={{ padding: '6px 14px', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)', backgroundColor: '#fff', cursor: 'pointer', fontWeight: 600, fontSize: 12 }}
-                        >
-                          Check Certificate
-                        </button>
-                      )}
-                    </div>
-                  )}
+                    )}
+                    {activeReq && <button onClick={() => handleLeaseShare(activeReq)} style={{ padding: '6px 14px', backgroundColor: 'var(--color-primary)', color: '#fff', border: 'none', borderRadius: 'var(--radius-sm)', fontWeight: 600, cursor: 'pointer', fontSize: 12 }}>Share / Send to Tenant</button>}
+                    {activeReq && (
+                      <button onClick={() => { const url = getLeaseShareUrl(activeReq.access_code); window.open(url + '?print=1', '_blank'); }} style={{ padding: '6px 14px', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)', backgroundColor: '#fff', cursor: 'pointer', fontWeight: 600, fontSize: 12 }}>Print</button>
+                    )}
+                  </div>
                 </>
               );
             })()}
@@ -2235,7 +2243,7 @@ export default function PolicyDetailPage() {
               </div>
             )}
 
-            {/* Share Modal */}
+            {/* Share / Send to Tenant Modal */}
             {leaseShareModal && leaseShareReq && (
               <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
                 <div style={{ backgroundColor: '#fff', borderRadius: 'var(--radius-lg)', padding: 28, maxWidth: 480, width: '100%' }}>
@@ -2243,6 +2251,8 @@ export default function PolicyDetailPage() {
                     <h2 style={{ fontSize: 18, fontWeight: 700, margin: 0 }}>Share Requirements</h2>
                     <button onClick={() => setLeaseShareModal(false)} style={{ background: 'none', border: 'none', fontSize: 20, cursor: 'pointer', color: 'var(--color-text-muted)' }}>&times;</button>
                   </div>
+
+                  {/* Copy link */}
                   <div style={{ marginBottom: 16 }}>
                     <label style={labelStyle}>Public Link</label>
                     <div style={{ display: 'flex', gap: 8 }}>
@@ -2252,6 +2262,45 @@ export default function PolicyDetailPage() {
                       </button>
                     </div>
                   </div>
+
+                  {/* Send to tenant by email (landlord flow) */}
+                  {leaseShareReq.role === 'landlord' && (
+                    <>
+                      <div style={{ borderTop: '1px solid var(--color-border)', paddingTop: 16, marginBottom: 12 }}>
+                        <label style={labelStyle}>Email to Tenant</label>
+                      </div>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
+                        <div>
+                          <label style={labelStyle}>Tenant Name</label>
+                          <input style={inputStyle} value={leaseTenantName} onChange={e => setLeaseTenantName(e.target.value)} placeholder="Optional" />
+                        </div>
+                        <div>
+                          <label style={labelStyle}>Tenant Email *</label>
+                          <input style={inputStyle} type="email" value={leaseTenantEmail} onChange={e => setLeaseTenantEmail(e.target.value)} placeholder="tenant@example.com" />
+                        </div>
+                      </div>
+                      <button
+                        onClick={async () => {
+                          if (!leaseTenantEmail.trim()) { toast('Email is required', 'error'); return; }
+                          setLeaseSending(true);
+                          try {
+                            await leaseComplianceApi.sendToTenant(leaseShareReq!.id, leaseTenantEmail, leaseTenantName || undefined);
+                            toast('Requirements sent to tenant');
+                            setLeaseShareModal(false);
+                            leaseComplianceApi.list(undefined, policyId).then(setLeaseReqs).catch(() => {});
+                          } catch (err: any) {
+                            toast(err.message || 'Failed to send', 'error');
+                          } finally {
+                            setLeaseSending(false);
+                          }
+                        }}
+                        disabled={leaseSending || !leaseTenantEmail.trim()}
+                        style={{ padding: '10px 20px', backgroundColor: 'var(--color-primary)', color: '#fff', border: 'none', borderRadius: 'var(--radius-md)', fontWeight: 600, cursor: leaseSending ? 'wait' : 'pointer', fontSize: 14, opacity: leaseSending ? 0.7 : 1 }}
+                      >
+                        {leaseSending ? 'Sending...' : 'Send to Tenant'}
+                      </button>
+                    </>
+                  )}
                 </div>
               </div>
             )}
