@@ -1875,6 +1875,7 @@ export type ComplianceResultItem = {
 export type LeaseRequirement = {
   id: number;
   user_id: number;
+  policy_id: number | null;
   label: string;
   role: "tenant" | "landlord";
   counterparty_name: string | null;
@@ -1899,6 +1900,7 @@ export type LeaseRequirement = {
 export type LeaseRequirementCreate = {
   label: string;
   role: "tenant" | "landlord";
+  policy_id?: number | null;
   counterparty_name?: string | null;
   counterparty_email?: string | null;
   property_address?: string | null;
@@ -1971,8 +1973,11 @@ export const leaseComplianceApi = {
       body: JSON.stringify(payload),
     });
   },
-  list(role?: string): Promise<LeaseRequirement[]> {
-    const qs = role ? `?role=${role}` : "";
+  list(role?: string, policyId?: number): Promise<LeaseRequirement[]> {
+    const params: string[] = [];
+    if (role) params.push(`role=${role}`);
+    if (policyId != null) params.push(`policy_id=${policyId}`);
+    const qs = params.length ? `?${params.join("&")}` : "";
     return request<LeaseRequirement[]>(`/lease-compliance/requirements${qs}`);
   },
   get(id: number): Promise<LeaseRequirement> {
@@ -1988,11 +1993,11 @@ export const leaseComplianceApi = {
   remove(id: number): Promise<{ ok: boolean }> {
     return request<{ ok: boolean }>(`/lease-compliance/requirements/${id}`, { method: "DELETE" });
   },
-  runCheck(id: number, against: string, certificateId?: number): Promise<ComplianceCheckResult> {
+  runCheck(id: number, against: string, options?: { certificateId?: number; policyId?: number }): Promise<ComplianceCheckResult> {
     return request<ComplianceCheckResult>(`/lease-compliance/requirements/${id}/check`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ against, certificate_id: certificateId }),
+      body: JSON.stringify({ against, certificate_id: options?.certificateId, policy_id: options?.policyId }),
     });
   },
   listChecks(id: number): Promise<ComplianceCheckResult[]> {

@@ -12,7 +12,6 @@ const NAV_ITEMS: { href: string; label: string; icon: string; urgent?: boolean; 
   { href: '/policies', label: 'Policies', icon: '📋' },
   { href: '/score', label: 'Score', icon: '📊' },
   { href: '/certificates', label: 'Certificates', icon: '📜', feature: 'certificates' },
-  { href: '/lease-compliance', label: 'Lease Check', icon: '📝', feature: 'lease_compliance' },
   { href: '/emergency', label: 'Emergency', icon: '🚨', urgent: true },
   { href: '/audit', label: 'Alerts', icon: '🔔' },
   { href: '/renewals', label: 'Renewals', icon: '🔄', feature: 'deltas' },

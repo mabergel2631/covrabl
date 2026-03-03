@@ -481,6 +481,7 @@ class UserProfileOut(BaseModel):
 class LeaseRequirementCreate(BaseModel):
     label: str
     role: Literal["tenant", "landlord"]
+    policy_id: Optional[int] = None
     counterparty_name: Optional[str] = None
     counterparty_email: Optional[str] = None
     property_address: Optional[str] = None
@@ -502,6 +503,7 @@ class LeaseRequirementUpdate(BaseModel):
 class LeaseRequirementOut(BaseModel):
     id: int
     user_id: int
+    policy_id: Optional[int] = None
     label: str
     role: str
     counterparty_name: Optional[str] = None

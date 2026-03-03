@@ -228,6 +228,10 @@ class LeaseRequirement(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
     user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), index=True)
+    policy_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("policies.id", ondelete="SET NULL"),
+        nullable=True, index=True,
+    )
     label: Mapped[str] = mapped_column(String(200))
     role: Mapped[str] = mapped_column(String(10))  # tenant, landlord
     counterparty_name: Mapped[str | None] = mapped_column(String(200), nullable=True)

@@ -140,6 +140,7 @@ def create_requirement(
 
     req = LeaseRequirement(
         user_id=user.id,
+        policy_id=payload.policy_id,
         label=payload.label,
         role=payload.role,
         counterparty_name=payload.counterparty_name,
@@ -159,6 +160,7 @@ def create_requirement(
 @router.get("/requirements")
 def list_requirements(
     role: Optional[str] = None,
+    policy_id: Optional[int] = None,
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -169,6 +171,8 @@ def list_requirements(
     )
     if role and role in ("tenant", "landlord"):
         query = query.where(LeaseRequirement.role == role)
+    if policy_id is not None:
+        query = query.where(LeaseRequirement.policy_id == policy_id)
     query = query.order_by(LeaseRequirement.created_at.desc())
     reqs = db.execute(query).scalars().all()
     return [_requirement_to_dict(r, db) for r in reqs]
@@ -247,8 +251,9 @@ def delete_requirement(
 # ── Compliance Checks ───────────────────────────────
 
 class CheckRequest(BaseModel):
-    against: str  # "policies" or "certificate"
+    against: str  # "policies", "policy", or "certificate"
     certificate_id: Optional[int] = None
+    policy_id: Optional[int] = None
 
 
 @router.post("/requirements/{req_id}/check")
@@ -283,6 +288,20 @@ def run_compliance_check(
             raise HTTPException(status_code=404, detail="Certificate not found")
         evidence = build_evidence_from_certificate(cert)
         checked_against = "certificate"
+    elif payload.against == "policy":
+        pid = payload.policy_id
+        if not pid:
+            raise HTTPException(status_code=400, detail="policy_id required for single-policy check")
+        pol = db.execute(
+            select(Policy).where(
+                Policy.id == pid,
+                Policy.user_id == user.id,
+            )
+        ).scalar_one_or_none()
+        if not pol:
+            raise HTTPException(status_code=404, detail="Policy not found")
+        evidence = build_evidence_from_policies([pol])
+        checked_against = "policy"
     else:
         policies = db.execute(
             select(Policy).where(
@@ -610,6 +629,50 @@ async def submit_coi_public(
     }
 
 
+# ── Printable ───────────────────────────────────────
+
+@router.get("/requirements/{req_id}/printable")
+def get_printable_requirement(
+    req_id: int,
+    access_code: Optional[str] = None,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Return requirement data formatted for printing/PDF generation."""
+    req = db.execute(
+        select(LeaseRequirement).where(
+            LeaseRequirement.id == req_id,
+            LeaseRequirement.user_id == user.id,
+        )
+    ).scalar_one_or_none()
+    if not req:
+        raise HTTPException(status_code=404, detail="Lease requirement not found")
+
+    requirements = json.loads(req.requirements_json)
+
+    # Get latest check results
+    latest_check = db.execute(
+        select(ComplianceCheck).where(
+            ComplianceCheck.lease_requirement_id == req.id,
+        ).order_by(ComplianceCheck.created_at.desc())
+    ).scalar_one_or_none()
+
+    results = json.loads(latest_check.results_json) if latest_check else []
+
+    return {
+        "label": req.label,
+        "property_address": req.property_address,
+        "counterparty_name": req.counterparty_name,
+        "role": req.role,
+        "requirements": requirements,
+        "results": results,
+        "pass_count": latest_check.pass_count if latest_check else 0,
+        "fail_count": latest_check.fail_count if latest_check else 0,
+        "unclear_count": latest_check.unclear_count if latest_check else 0,
+        "created_at": req.created_at.isoformat() if req.created_at else None,
+    }
+
+
 # ── Helpers ─────────────────────────────────────────
 
 def _requirement_to_dict(req: LeaseRequirement, db: Session) -> dict:
@@ -623,6 +686,7 @@ def _requirement_to_dict(req: LeaseRequirement, db: Session) -> dict:
     result = {
         "id": req.id,
         "user_id": req.user_id,
+        "policy_id": req.policy_id,
         "label": req.label,
         "role": req.role,
         "counterparty_name": req.counterparty_name,

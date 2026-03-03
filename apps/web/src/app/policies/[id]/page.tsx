@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useAuth } from '../../../../lib/auth';
-import { API_BASE, policiesApi, contactsApi, documentsApi, coverageApi, policyDetailsApi, claimsApi, sharingApi, exportApi, premiumHistoryApi, exposuresApi, gapsApi, certificatesApi, Policy, Contact, DocMeta, ContactCreate, ExtractionData, CoverageItem, CoverageItemCreate, PolicyDetail, PolicyDetailCreate, PolicyUpdate, Claim, ClaimCreate, PolicyShareType, ShareCreate, PremiumHistoryEntry, Exposure, CoverageGap, Certificate, checkFeatureAccess, parseUpgradeError } from '../../../../lib/api';
+import { API_BASE, policiesApi, contactsApi, documentsApi, coverageApi, policyDetailsApi, claimsApi, sharingApi, exportApi, premiumHistoryApi, exposuresApi, gapsApi, certificatesApi, leaseComplianceApi, Policy, Contact, DocMeta, ContactCreate, ExtractionData, CoverageItem, CoverageItemCreate, PolicyDetail, PolicyDetailCreate, PolicyUpdate, Claim, ClaimCreate, PolicyShareType, ShareCreate, PremiumHistoryEntry, Exposure, CoverageGap, Certificate, LeaseRequirement, LeaseRequirementItem, ComplianceResultItem, LeaseExtraction, BrokerEmail, checkFeatureAccess, parseUpgradeError } from '../../../../lib/api';
 import { formatPhone, cleanPhone } from '../../../../lib/format';
 import { useToast } from '../../components/Toast';
 import { Skeleton } from '../../components/Skeleton';
@@ -112,6 +112,33 @@ export default function PolicyDetailPage() {
   const [policyCertificates, setPolicyCertificates] = useState<Certificate[]>([]);
   const [viewingPolicyCert, setViewingPolicyCert] = useState<Certificate | null>(null);
 
+  // Lease Check
+  const [leaseReqs, setLeaseReqs] = useState<LeaseRequirement[]>([]);
+  const [leaseView, setLeaseView] = useState<'list' | 'create' | 'results'>('list');
+  const [leaseCreateStep, setLeaseCreateStep] = useState(1);
+  const [leaseClauseText, setLeaseClauseText] = useState('');
+  const [leaseExtracting, setLeaseExtracting] = useState(false);
+  const [leaseExtraction, setLeaseExtraction] = useState<LeaseExtraction | null>(null);
+  const [leaseEditableReqs, setLeaseEditableReqs] = useState<LeaseRequirementItem[]>([]);
+  const [leaseFormLabel, setLeaseFormLabel] = useState('');
+  const [leaseFormRole, setLeaseFormRole] = useState<'tenant' | 'landlord'>('tenant');
+  const [leaseFormPropertyAddress, setLeaseFormPropertyAddress] = useState('');
+  const [leaseFormCounterpartyName, setLeaseFormCounterpartyName] = useState('');
+  const [leaseFormCounterpartyEmail, setLeaseFormCounterpartyEmail] = useState('');
+  const [leaseSaving, setLeaseSaving] = useState(false);
+  const [leaseActiveReqId, setLeaseActiveReqId] = useState<number | null>(null);
+  const [leaseResults, setLeaseResults] = useState<ComplianceResultItem[]>([]);
+  const [leaseCheckCounts, setLeaseCheckCounts] = useState({ pass: 0, fail: 0, unclear: 0 });
+  const [leaseChecking, setLeaseChecking] = useState(false);
+  const [leaseBrokerModal, setLeaseBrokerModal] = useState(false);
+  const [leaseBrokerEmail, setLeaseBrokerEmail] = useState<BrokerEmail | null>(null);
+  const [leaseLoadingBroker, setLeaseLoadingBroker] = useState(false);
+  const [leaseShareModal, setLeaseShareModal] = useState(false);
+  const [leaseShareReq, setLeaseShareReq] = useState<LeaseRequirement | null>(null);
+  const [leaseCopiedLink, setLeaseCopiedLink] = useState(false);
+  const [leaseDeleteConfirm, setLeaseDeleteConfirm] = useState<number | null>(null);
+  const leasePdfRef = useRef<HTMLInputElement>(null);
+
   // Claims quick-start
   const [copiedPolicyNumber, setCopiedPolicyNumber] = useState(false);
 
@@ -156,7 +183,7 @@ export default function PolicyDetailPage() {
 
   const loadAll = async () => {
     try {
-      const [p, c, d, cv, det, cl, sh, ph, exp, gapsResult, certs] = await Promise.all([
+      const [p, c, d, cv, det, cl, sh, ph, exp, gapsResult, certs, leaseReqsResult] = await Promise.all([
         policiesApi.get(policyId),
         contactsApi.list(policyId),
         documentsApi.list(policyId),
@@ -168,6 +195,7 @@ export default function PolicyDetailPage() {
         exposuresApi.list().catch(() => [] as Exposure[]),
         gapsApi.forPolicy(policyId).catch(() => ({ gaps: [] as CoverageGap[], policy_id: policyId })),
         certificatesApi.list(undefined, policyId).catch(() => [] as Certificate[]),
+        leaseComplianceApi.list(undefined, policyId).catch(() => [] as LeaseRequirement[]),
       ]);
       setPolicy(p);
       setContacts(c);
@@ -181,6 +209,7 @@ export default function PolicyDetailPage() {
       setExposures(exp);
       setPolicyGaps(gapsResult.gaps || []);
       setPolicyCertificates(certs);
+      setLeaseReqs(leaseReqsResult);
     } catch (err: any) {
       if (err.status === 401) { logout(); router.replace('/login'); return; }
       setError(err.message);
@@ -1707,6 +1736,528 @@ export default function PolicyDetailPage() {
           </div>
         )}
       </div>
+
+      {/* Lease Check — only for business/commercial policy types */}
+      {policy && (() => {
+        const LEASE_CHECK_TYPES = ['general_liability', 'professional_liability', 'commercial_property', 'commercial_auto', 'cyber', 'bop', 'workers_comp', 'directors_officers', 'epli', 'inland_marine', 'liability', 'umbrella'];
+        const showLeaseCheck = policy.scope === 'business' || LEASE_CHECK_TYPES.includes(policy.policy_type);
+        if (!showLeaseCheck) return null;
+
+        const CATEGORY_LABELS: Record<string, string> = {
+          general_liability: 'General Liability', commercial_auto: 'Commercial Auto', umbrella: 'Umbrella / Excess',
+          workers_comp: "Workers' Comp", property: 'Property', professional_liability: 'Professional Liability',
+          cyber: 'Cyber', other: 'Other',
+        };
+        const CATEGORY_COLORS: Record<string, { bg: string; fg: string }> = {
+          general_liability: { bg: '#dbeafe', fg: '#1e40af' }, commercial_auto: { bg: '#fce7f3', fg: '#9d174d' },
+          umbrella: { bg: '#ede9fe', fg: '#5b21b6' }, workers_comp: { bg: '#fef3c7', fg: '#92400e' },
+          property: { bg: '#dcfce7', fg: '#166534' }, professional_liability: { bg: '#e0e7ff', fg: '#3730a3' },
+          cyber: { bg: '#f0fdfa', fg: '#115e59' }, other: { bg: '#f3f4f6', fg: '#374151' },
+        };
+        const STATUS_ICONS: Record<string, { icon: string; color: string; bg: string }> = {
+          pass: { icon: '\u2713', color: '#166534', bg: '#dcfce7' },
+          fail: { icon: '\u2717', color: '#991b1b', bg: '#fee2e2' },
+          unclear: { icon: '?', color: '#92400e', bg: '#fef3c7' },
+        };
+
+        function getLeaseShareUrl(code: string) {
+          if (typeof window === 'undefined') return '';
+          return `${window.location.origin}/lease-compliance/${code}`;
+        }
+
+        async function handleLeaseExtractText() {
+          if (!leaseClauseText.trim()) { toast('Please paste a lease clause', 'error'); return; }
+          setLeaseExtracting(true);
+          try {
+            const { extraction: ext } = await leaseComplianceApi.extract(leaseClauseText);
+            setLeaseExtraction(ext);
+            setLeaseEditableReqs(ext.requirements || []);
+            if (ext.property_address) setLeaseFormPropertyAddress(ext.property_address);
+            if (ext.landlord_name && leaseFormRole === 'tenant') setLeaseFormCounterpartyName(ext.landlord_name);
+            if (ext.tenant_name && leaseFormRole === 'landlord') setLeaseFormCounterpartyName(ext.tenant_name);
+            if (!leaseFormLabel && ext.property_address) setLeaseFormLabel(`${ext.property_address} Lease`);
+            setLeaseCreateStep(2);
+            toast('Requirements extracted successfully');
+          } catch (err: any) {
+            toast(err.message || 'Extraction failed', 'error');
+          } finally {
+            setLeaseExtracting(false);
+          }
+        }
+
+        async function handleLeaseExtractPdf() {
+          const file = leasePdfRef.current?.files?.[0];
+          if (!file) { toast('Please select a PDF file', 'error'); return; }
+          setLeaseExtracting(true);
+          try {
+            const { extraction: ext } = await leaseComplianceApi.extractPdf(file);
+            setLeaseExtraction(ext);
+            setLeaseEditableReqs(ext.requirements || []);
+            if (ext.property_address) setLeaseFormPropertyAddress(ext.property_address);
+            if (ext.landlord_name && leaseFormRole === 'tenant') setLeaseFormCounterpartyName(ext.landlord_name);
+            if (ext.tenant_name && leaseFormRole === 'landlord') setLeaseFormCounterpartyName(ext.tenant_name);
+            if (!leaseFormLabel && ext.property_address) setLeaseFormLabel(`${ext.property_address} Lease`);
+            setLeaseCreateStep(2);
+            toast('Requirements extracted from PDF');
+            if (leasePdfRef.current) leasePdfRef.current.value = '';
+          } catch (err: any) {
+            toast(err.message || 'PDF extraction failed', 'error');
+          } finally {
+            setLeaseExtracting(false);
+          }
+        }
+
+        async function handleLeaseSaveAndCheck() {
+          if (!leaseFormLabel.trim()) { toast('Please enter a label', 'error'); return; }
+          if (leaseEditableReqs.length === 0) { toast('Add at least one requirement', 'error'); return; }
+          setLeaseSaving(true);
+          try {
+            const created = await leaseComplianceApi.create({
+              label: leaseFormLabel,
+              role: leaseFormRole,
+              policy_id: policyId,
+              counterparty_name: leaseFormCounterpartyName || null,
+              counterparty_email: leaseFormCounterpartyEmail || null,
+              property_address: leaseFormPropertyAddress || null,
+              lease_clause_text: leaseClauseText || null,
+              requirements_json: JSON.stringify(leaseEditableReqs),
+            });
+            toast('Requirements saved');
+
+            setLeaseActiveReqId(created.id);
+            setLeaseChecking(true);
+            try {
+              const check = await leaseComplianceApi.runCheck(created.id, 'policy', { policyId });
+              setLeaseResults(check.results || []);
+              setLeaseCheckCounts({ pass: check.pass_count, fail: check.fail_count, unclear: check.unclear_count });
+            } catch {
+              toast('Compliance check failed — you can re-check later', 'error');
+            } finally {
+              setLeaseChecking(false);
+            }
+
+            setLeaseView('results');
+            // Reload lease reqs
+            leaseComplianceApi.list(undefined, policyId).then(setLeaseReqs).catch(() => {});
+          } catch (err: any) {
+            toast(err.message || 'Failed to save', 'error');
+          } finally {
+            setLeaseSaving(false);
+          }
+        }
+
+        async function handleLeaseRecheck(reqId: number) {
+          setLeaseChecking(true);
+          try {
+            const check = await leaseComplianceApi.runCheck(reqId, 'policy', { policyId });
+            setLeaseResults(check.results || []);
+            setLeaseCheckCounts({ pass: check.pass_count, fail: check.fail_count, unclear: check.unclear_count });
+            setLeaseActiveReqId(reqId);
+            toast('Compliance check updated');
+            leaseComplianceApi.list(undefined, policyId).then(setLeaseReqs).catch(() => {});
+          } catch (err: any) {
+            toast(err.message || 'Check failed', 'error');
+          } finally {
+            setLeaseChecking(false);
+          }
+        }
+
+        async function handleLeaseViewResults(req: LeaseRequirement) {
+          setLeaseActiveReqId(req.id);
+          if (req.latest_check) {
+            try {
+              const checks = await leaseComplianceApi.listChecks(req.id);
+              if (checks.length > 0) {
+                const latest = checks[0];
+                const parsed = typeof latest.results_json === 'string' ? JSON.parse(latest.results_json) : (latest as any).results || [];
+                setLeaseResults(parsed);
+                setLeaseCheckCounts({ pass: latest.pass_count, fail: latest.fail_count, unclear: latest.unclear_count });
+              }
+            } catch {
+              setLeaseResults([]);
+              setLeaseCheckCounts({ pass: 0, fail: 0, unclear: 0 });
+            }
+          } else {
+            setLeaseResults([]);
+            setLeaseCheckCounts({ pass: 0, fail: 0, unclear: 0 });
+          }
+          setLeaseView('results');
+        }
+
+        async function handleLeaseBrokerEmail(reqId: number) {
+          setLeaseLoadingBroker(true);
+          setLeaseBrokerModal(true);
+          try {
+            const data = await leaseComplianceApi.brokerEmail(reqId);
+            setLeaseBrokerEmail(data);
+          } catch {
+            toast('Failed to generate email', 'error');
+            setLeaseBrokerModal(false);
+          } finally {
+            setLeaseLoadingBroker(false);
+          }
+        }
+
+        function handleLeaseShare(req: LeaseRequirement) {
+          setLeaseShareReq(req);
+          setLeaseShareModal(true);
+          setLeaseCopiedLink(false);
+        }
+
+        async function handleLeaseDelete(id: number) {
+          try {
+            await leaseComplianceApi.remove(id);
+            toast('Lease check deleted');
+            setLeaseDeleteConfirm(null);
+            leaseComplianceApi.list(undefined, policyId).then(setLeaseReqs).catch(() => {});
+          } catch {
+            toast('Failed to delete', 'error');
+          }
+        }
+
+        function resetLeaseCreate() {
+          setLeaseView('list');
+          setLeaseCreateStep(1);
+          setLeaseClauseText('');
+          setLeaseExtraction(null);
+          setLeaseEditableReqs([]);
+          setLeaseFormLabel('');
+          setLeaseFormPropertyAddress('');
+          setLeaseFormCounterpartyName('');
+          setLeaseFormCounterpartyEmail('');
+        }
+
+        return (
+          <div className="card" style={{ marginBottom: 32 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 12 }}>
+              <h2 className="section-title" style={{ margin: 0 }}>Lease Check</h2>
+              {leaseView === 'list' && canEdit && (
+                <button onClick={() => setLeaseView('create')} className="btn btn-primary">+ New Check</button>
+              )}
+              {leaseView !== 'list' && (
+                <button onClick={resetLeaseCreate} style={{ background: 'none', border: 'none', color: 'var(--color-primary)', cursor: 'pointer', fontSize: 13, fontWeight: 600, padding: 0 }}>
+                  &larr; Back to list
+                </button>
+              )}
+            </div>
+
+            {/* ── List View ── */}
+            {leaseView === 'list' && (
+              <>
+                {leaseReqs.length === 0 ? (
+                  <div style={{ textAlign: 'center', padding: '24px 16px', color: 'var(--color-text-secondary)' }}>
+                    <p style={{ fontSize: 14, margin: '0 0 12px' }}>No lease requirements checked yet.</p>
+                    {canEdit && (
+                      <button onClick={() => setLeaseView('create')} className="btn btn-primary">
+                        Check Against Lease Requirements
+                      </button>
+                    )}
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                    {leaseReqs.map(req => {
+                      const reqs: LeaseRequirementItem[] = (() => { try { return JSON.parse(req.requirements_json); } catch { return []; } })();
+                      return (
+                        <div key={req.id} style={{ border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', padding: 14, backgroundColor: '#fff' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 8 }}>
+                            <div style={{ flex: 1 }}>
+                              <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 4 }}>{req.label}</div>
+                              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', fontSize: 12, color: 'var(--color-text-secondary)' }}>
+                                {req.property_address && <span>{req.property_address}</span>}
+                                {req.counterparty_name && <span>&middot; {req.counterparty_name}</span>}
+                                <span>&middot; {reqs.length} req{reqs.length !== 1 ? 's' : ''}</span>
+                              </div>
+                              {req.latest_check && (
+                                <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
+                                  {req.latest_check.pass_count > 0 && <span style={{ padding: '1px 8px', borderRadius: 10, fontSize: 11, fontWeight: 600, backgroundColor: '#dcfce7', color: '#166534' }}>{req.latest_check.pass_count} pass</span>}
+                                  {req.latest_check.fail_count > 0 && <span style={{ padding: '1px 8px', borderRadius: 10, fontSize: 11, fontWeight: 600, backgroundColor: '#fee2e2', color: '#991b1b' }}>{req.latest_check.fail_count} fail</span>}
+                                  {req.latest_check.unclear_count > 0 && <span style={{ padding: '1px 8px', borderRadius: 10, fontSize: 11, fontWeight: 600, backgroundColor: '#fef3c7', color: '#92400e' }}>{req.latest_check.unclear_count} unclear</span>}
+                                </div>
+                              )}
+                            </div>
+                            <div style={{ display: 'flex', gap: 4 }}>
+                              <button onClick={() => handleLeaseViewResults(req)} style={{ padding: '4px 10px', fontSize: 12, border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)', backgroundColor: '#fff', cursor: 'pointer' }}>Check</button>
+                              <button onClick={() => handleLeaseShare(req)} style={{ padding: '4px 10px', fontSize: 12, border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)', backgroundColor: '#fff', cursor: 'pointer' }}>Share</button>
+                              <button onClick={() => { const url = getLeaseShareUrl(req.access_code) + '?print=1'; window.open(url, '_blank'); }} style={{ padding: '4px 10px', fontSize: 12, border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)', backgroundColor: '#fff', cursor: 'pointer' }}>Print</button>
+                              {canEdit && <button onClick={() => setLeaseDeleteConfirm(req.id)} style={{ padding: '4px 10px', fontSize: 12, border: '1px solid var(--color-danger-border)', borderRadius: 'var(--radius-sm)', backgroundColor: '#fff', color: 'var(--color-danger)', cursor: 'pointer' }}>Delete</button>}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {/* Delete confirmation */}
+                {leaseDeleteConfirm != null && (
+                  <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+                    <div style={{ backgroundColor: '#fff', borderRadius: 'var(--radius-lg)', padding: 28, maxWidth: 400, width: '100%', textAlign: 'center' }}>
+                      <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 8 }}>Delete Lease Check</h3>
+                      <p style={{ fontSize: 13, color: 'var(--color-text-secondary)', marginBottom: 20 }}>This cannot be undone.</p>
+                      <div style={{ display: 'flex', gap: 10, justifyContent: 'center' }}>
+                        <button onClick={() => setLeaseDeleteConfirm(null)} style={{ padding: '8px 20px', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)', backgroundColor: '#fff', cursor: 'pointer', fontSize: 14 }}>Cancel</button>
+                        <button onClick={() => handleLeaseDelete(leaseDeleteConfirm)} style={{ padding: '8px 20px', backgroundColor: 'var(--color-danger)', color: '#fff', border: 'none', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontSize: 14, fontWeight: 600 }}>Delete</button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
+
+            {/* ── Create View ── */}
+            {leaseView === 'create' && (
+              <>
+                {/* Role toggle */}
+                <div style={{ display: 'flex', gap: 0, marginBottom: 16, borderRadius: 'var(--radius-sm)', overflow: 'hidden', border: '1px solid var(--color-border)', maxWidth: 260 }}>
+                  {(['tenant', 'landlord'] as const).map(r => (
+                    <button key={r} onClick={() => setLeaseFormRole(r)} style={{ flex: 1, padding: '6px 12px', border: 'none', fontSize: 12, fontWeight: 600, cursor: 'pointer', backgroundColor: leaseFormRole === r ? 'var(--color-primary)' : '#fff', color: leaseFormRole === r ? '#fff' : 'var(--color-text)' }}>
+                      {r === 'tenant' ? 'As Tenant' : 'As Landlord'}
+                    </button>
+                  ))}
+                </div>
+
+                {leaseCreateStep === 1 && (
+                  <>
+                    <div style={{ marginBottom: 12 }}>
+                      <label style={labelStyle}>Paste Lease Insurance Clause</label>
+                      <textarea
+                        style={{ ...inputStyle, minHeight: 140, lineHeight: 1.6 }}
+                        value={leaseClauseText}
+                        onChange={e => setLeaseClauseText(e.target.value)}
+                        placeholder="Paste the insurance requirements section from your lease here..."
+                      />
+                    </div>
+                    <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+                      <button onClick={handleLeaseExtractText} disabled={leaseExtracting || !leaseClauseText.trim()} style={{ padding: '8px 20px', backgroundColor: 'var(--color-primary)', color: '#fff', border: 'none', borderRadius: 'var(--radius-sm)', fontWeight: 600, fontSize: 13, cursor: leaseExtracting ? 'wait' : 'pointer', opacity: leaseExtracting ? 0.7 : 1 }}>
+                        {leaseExtracting ? 'Extracting...' : 'Extract Requirements'}
+                      </button>
+                      <span style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>or</span>
+                      <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                        <input ref={leasePdfRef} type="file" accept=".pdf" style={{ fontSize: 12 }} />
+                        <button onClick={handleLeaseExtractPdf} disabled={leaseExtracting} style={{ padding: '8px 14px', backgroundColor: '#2563eb', color: '#fff', border: 'none', borderRadius: 'var(--radius-sm)', fontWeight: 600, fontSize: 12, cursor: leaseExtracting ? 'wait' : 'pointer', opacity: leaseExtracting ? 0.7 : 1, whiteSpace: 'nowrap' }}>
+                          Upload PDF
+                        </button>
+                      </div>
+                    </div>
+                    {leaseExtracting && <p style={{ fontSize: 12, color: '#2563eb', marginTop: 8, fontStyle: 'italic' }}>Analyzing lease clause...</p>}
+                  </>
+                )}
+
+                {leaseCreateStep === 2 && (
+                  <>
+                    {leaseExtraction?.raw_summary && (
+                      <div style={{ padding: 12, backgroundColor: '#f0f9ff', border: '1px solid #bfdbfe', borderRadius: 'var(--radius-sm)', marginBottom: 14, fontSize: 12, lineHeight: 1.6, color: '#1e40af' }}>
+                        {leaseExtraction.raw_summary}
+                      </div>
+                    )}
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 12 }}>
+                      <div>
+                        <label style={labelStyle}>Label *</label>
+                        <input style={inputStyle} value={leaseFormLabel} onChange={e => setLeaseFormLabel(e.target.value)} placeholder="e.g. 123 Main St Lease" />
+                      </div>
+                      <div>
+                        <label style={labelStyle}>Property Address</label>
+                        <input style={inputStyle} value={leaseFormPropertyAddress} onChange={e => setLeaseFormPropertyAddress(e.target.value)} placeholder="Optional" />
+                      </div>
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 14 }}>
+                      <div>
+                        <label style={labelStyle}>{leaseFormRole === 'tenant' ? 'Landlord Name' : 'Tenant Name'}</label>
+                        <input style={inputStyle} value={leaseFormCounterpartyName} onChange={e => setLeaseFormCounterpartyName(e.target.value)} placeholder="Optional" />
+                      </div>
+                      <div>
+                        <label style={labelStyle}>{leaseFormRole === 'tenant' ? 'Landlord Email' : 'Tenant Email'}</label>
+                        <input style={inputStyle} type="email" value={leaseFormCounterpartyEmail} onChange={e => setLeaseFormCounterpartyEmail(e.target.value)} placeholder="Optional" />
+                      </div>
+                    </div>
+
+                    <div style={{ marginBottom: 14 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                        <label style={{ ...labelStyle, marginBottom: 0 }}>Requirements ({leaseEditableReqs.length})</label>
+                        <button onClick={() => setLeaseEditableReqs(prev => [...prev, { category: 'other', requirement_type: 'other', required_value: null, label: '', notes: null }])} style={{ fontSize: 11, color: 'var(--color-primary)', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 600 }}>+ Add</button>
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                        {leaseEditableReqs.map((req, idx) => {
+                          const cc = CATEGORY_COLORS[req.category] || CATEGORY_COLORS.other;
+                          return (
+                            <div key={idx} style={{ border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)', padding: 10, backgroundColor: '#fff' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                <span style={{ padding: '1px 6px', borderRadius: 10, fontSize: 10, fontWeight: 600, backgroundColor: cc.bg, color: cc.fg }}>{CATEGORY_LABELS[req.category] || req.category}</span>
+                                <input
+                                  style={{ ...inputStyle, flex: 1, padding: '4px 8px', fontSize: 12 }}
+                                  value={req.label}
+                                  onChange={e => { const u = [...leaseEditableReqs]; u[idx] = { ...u[idx], label: e.target.value }; setLeaseEditableReqs(u); }}
+                                  placeholder="Requirement label"
+                                />
+                                <button onClick={() => setLeaseEditableReqs(prev => prev.filter((_, i) => i !== idx))} style={{ background: 'none', border: 'none', color: 'var(--color-danger)', cursor: 'pointer', fontSize: 14, padding: '0 4px' }}>&times;</button>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <button onClick={() => setLeaseCreateStep(1)} style={{ padding: '8px 16px', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)', backgroundColor: '#fff', cursor: 'pointer', fontSize: 13 }}>Back</button>
+                      <button onClick={handleLeaseSaveAndCheck} disabled={leaseSaving} style={{ padding: '8px 20px', backgroundColor: 'var(--color-primary)', color: '#fff', border: 'none', borderRadius: 'var(--radius-sm)', fontWeight: 600, fontSize: 13, cursor: leaseSaving ? 'wait' : 'pointer', opacity: leaseSaving ? 0.7 : 1 }}>
+                        {leaseSaving ? 'Saving...' : 'Save & Check'}
+                      </button>
+                    </div>
+                  </>
+                )}
+              </>
+            )}
+
+            {/* ── Results View ── */}
+            {leaseView === 'results' && leaseActiveReqId && (() => {
+              const activeReq = leaseReqs.find(r => r.id === leaseActiveReqId);
+              return (
+                <>
+                  <div style={{ marginBottom: 16 }}>
+                    <h3 style={{ fontSize: 15, fontWeight: 700, margin: '0 0 4px' }}>{activeReq?.label || 'Results'}</h3>
+                    {activeReq?.property_address && <p style={{ fontSize: 12, color: 'var(--color-text-secondary)', margin: 0 }}>{activeReq.property_address}</p>}
+                  </div>
+
+                  {/* Summary counts */}
+                  <div style={{ display: 'flex', gap: 10, marginBottom: 16, flexWrap: 'wrap' }}>
+                    {[
+                      { label: 'Pass', count: leaseCheckCounts.pass, color: '#166534', bg: '#dcfce7' },
+                      { label: 'Fail', count: leaseCheckCounts.fail, color: '#991b1b', bg: '#fee2e2' },
+                      { label: 'Unclear', count: leaseCheckCounts.unclear, color: '#92400e', bg: '#fef3c7' },
+                    ].map(s => (
+                      <div key={s.label} style={{ padding: '8px 16px', borderRadius: 'var(--radius-sm)', backgroundColor: s.bg, minWidth: 70, textAlign: 'center' }}>
+                        <div style={{ fontSize: 20, fontWeight: 700, color: s.color }}>{s.count}</div>
+                        <div style={{ fontSize: 11, fontWeight: 600, color: s.color }}>{s.label}</div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Results checklist */}
+                  {leaseChecking ? (
+                    <div style={{ padding: 24, textAlign: 'center', color: 'var(--color-text-secondary)', fontSize: 13 }}>Running compliance check...</div>
+                  ) : leaseResults.length > 0 ? (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 16 }}>
+                      {leaseResults.map((r, i) => {
+                        const si = STATUS_ICONS[r.status] || STATUS_ICONS.unclear;
+                        const cc = CATEGORY_COLORS[r.category] || CATEGORY_COLORS.other;
+                        return (
+                          <div key={i} style={{ border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)', padding: 12, backgroundColor: '#fff' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                              <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 20, height: 20, borderRadius: '50%', backgroundColor: si.bg, color: si.color, fontSize: 11, fontWeight: 700 }}>{si.icon}</span>
+                              <span style={{ padding: '1px 6px', borderRadius: 10, fontSize: 10, fontWeight: 600, backgroundColor: cc.bg, color: cc.fg }}>{CATEGORY_LABELS[r.category] || r.category}</span>
+                              <span style={{ fontSize: 13, fontWeight: 600, flex: 1 }}>{r.requirement_label}</span>
+                            </div>
+                            {r.note && <p style={{ fontSize: 12, color: 'var(--color-text-secondary)', margin: '2px 0 0 28px', lineHeight: 1.5 }}>{r.note}</p>}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div style={{ padding: 24, textAlign: 'center', color: 'var(--color-text-secondary)' }}>
+                      <p style={{ fontSize: 13, margin: '0 0 10px' }}>No results yet.</p>
+                      <button onClick={() => leaseActiveReqId && handleLeaseRecheck(leaseActiveReqId)} className="btn btn-primary">Run Check</button>
+                    </div>
+                  )}
+
+                  {/* Action buttons */}
+                  {leaseResults.length > 0 && (
+                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                      <button onClick={() => leaseActiveReqId && handleLeaseRecheck(leaseActiveReqId)} disabled={leaseChecking} style={{ padding: '6px 14px', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)', backgroundColor: '#fff', cursor: 'pointer', fontWeight: 600, fontSize: 12 }}>Re-check</button>
+                      <button onClick={() => leaseActiveReqId && handleLeaseBrokerEmail(leaseActiveReqId)} style={{ padding: '6px 14px', backgroundColor: '#2563eb', color: '#fff', border: 'none', borderRadius: 'var(--radius-sm)', fontWeight: 600, cursor: 'pointer', fontSize: 12 }}>Send to Broker</button>
+                      {activeReq && <button onClick={() => handleLeaseShare(activeReq)} style={{ padding: '6px 14px', backgroundColor: 'var(--color-primary)', color: '#fff', border: 'none', borderRadius: 'var(--radius-sm)', fontWeight: 600, cursor: 'pointer', fontSize: 12 }}>Share Link</button>}
+                      {activeReq && (
+                        <button onClick={() => { const url = getLeaseShareUrl(activeReq.access_code); window.open(url + '?print=1', '_blank'); }} style={{ padding: '6px 14px', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)', backgroundColor: '#fff', cursor: 'pointer', fontWeight: 600, fontSize: 12 }}>Print</button>
+                      )}
+                      {/* Check against certificate buttons */}
+                      {policyCertificates.length > 0 && (
+                        <button
+                          onClick={async () => {
+                            if (!leaseActiveReqId) return;
+                            const certId = policyCertificates[0].id;
+                            setLeaseChecking(true);
+                            try {
+                              const check = await leaseComplianceApi.runCheck(leaseActiveReqId, 'certificate', { certificateId: certId });
+                              setLeaseResults(check.results || []);
+                              setLeaseCheckCounts({ pass: check.pass_count, fail: check.fail_count, unclear: check.unclear_count });
+                              toast('Checked against certificate');
+                            } catch (err: any) {
+                              toast(err.message || 'Certificate check failed', 'error');
+                            } finally {
+                              setLeaseChecking(false);
+                            }
+                          }}
+                          style={{ padding: '6px 14px', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)', backgroundColor: '#fff', cursor: 'pointer', fontWeight: 600, fontSize: 12 }}
+                        >
+                          Check Certificate
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </>
+              );
+            })()}
+
+            {/* Broker Email Modal */}
+            {leaseBrokerModal && (
+              <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+                <div style={{ backgroundColor: '#fff', borderRadius: 'var(--radius-lg)', padding: 28, maxWidth: 600, width: '100%', maxHeight: '90vh', overflowY: 'auto' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+                    <h2 style={{ fontSize: 18, fontWeight: 700, margin: 0 }}>Send to Broker</h2>
+                    <button onClick={() => setLeaseBrokerModal(false)} style={{ background: 'none', border: 'none', fontSize: 20, cursor: 'pointer', color: 'var(--color-text-muted)' }}>&times;</button>
+                  </div>
+                  {leaseLoadingBroker ? (
+                    <p style={{ color: 'var(--color-text-secondary)', textAlign: 'center', padding: 20 }}>Generating email...</p>
+                  ) : leaseBrokerEmail ? (
+                    <>
+                      {leaseBrokerEmail.broker_name && (
+                        <div style={{ marginBottom: 12 }}>
+                          <label style={labelStyle}>Broker</label>
+                          <p style={{ fontSize: 14, margin: 0 }}>{leaseBrokerEmail.broker_name} {leaseBrokerEmail.broker_email && `(${leaseBrokerEmail.broker_email})`}</p>
+                        </div>
+                      )}
+                      <div style={{ marginBottom: 12 }}>
+                        <label style={labelStyle}>Subject</label>
+                        <input style={inputStyle} readOnly value={leaseBrokerEmail.subject} />
+                      </div>
+                      <div style={{ marginBottom: 20 }}>
+                        <label style={labelStyle}>Email Body</label>
+                        <textarea style={{ ...inputStyle, minHeight: 180, fontFamily: 'monospace', fontSize: 12, lineHeight: 1.6 }} readOnly value={leaseBrokerEmail.body} />
+                      </div>
+                      <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+                        <button onClick={() => { navigator.clipboard.writeText(leaseBrokerEmail!.body); toast('Copied to clipboard'); }} style={{ padding: '8px 20px', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)', backgroundColor: '#fff', cursor: 'pointer', fontSize: 14 }}>Copy</button>
+                        {leaseBrokerEmail.broker_email && (
+                          <a href={`mailto:${leaseBrokerEmail.broker_email}?subject=${encodeURIComponent(leaseBrokerEmail.subject)}&body=${encodeURIComponent(leaseBrokerEmail.body)}`} style={{ display: 'inline-block', padding: '8px 20px', backgroundColor: 'var(--color-primary)', color: '#fff', borderRadius: 'var(--radius-sm)', fontWeight: 600, textDecoration: 'none', fontSize: 14 }}>Open in Email</a>
+                        )}
+                      </div>
+                    </>
+                  ) : null}
+                </div>
+              </div>
+            )}
+
+            {/* Share Modal */}
+            {leaseShareModal && leaseShareReq && (
+              <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+                <div style={{ backgroundColor: '#fff', borderRadius: 'var(--radius-lg)', padding: 28, maxWidth: 480, width: '100%' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+                    <h2 style={{ fontSize: 18, fontWeight: 700, margin: 0 }}>Share Requirements</h2>
+                    <button onClick={() => setLeaseShareModal(false)} style={{ background: 'none', border: 'none', fontSize: 20, cursor: 'pointer', color: 'var(--color-text-muted)' }}>&times;</button>
+                  </div>
+                  <div style={{ marginBottom: 16 }}>
+                    <label style={labelStyle}>Public Link</label>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <input style={{ ...inputStyle, flex: 1 }} readOnly value={getLeaseShareUrl(leaseShareReq.access_code)} />
+                      <button onClick={() => { navigator.clipboard.writeText(getLeaseShareUrl(leaseShareReq!.access_code)); setLeaseCopiedLink(true); toast('Link copied'); }} style={{ padding: '8px 14px', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)', backgroundColor: leaseCopiedLink ? '#dcfce7' : '#fff', cursor: 'pointer', fontSize: 12, fontWeight: 600, whiteSpace: 'nowrap' }}>
+                        {leaseCopiedLink ? 'Copied!' : 'Copy'}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        );
+      })()}
 
       {/* Contacts */}
       <div className="card" style={{ marginBottom: 32 }}>

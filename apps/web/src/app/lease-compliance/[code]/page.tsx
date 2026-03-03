@@ -114,11 +114,33 @@ export default function LeaseCompliancePublicPage() {
 
   return (
     <div style={{ minHeight: '100vh', backgroundColor: '#f9fafb' }}>
+      {/* Print CSS */}
+      <style>{`
+        @media print {
+          .no-print { display: none !important; }
+          body { background: #fff !important; }
+          div { break-inside: avoid; }
+        }
+      `}</style>
+
       {/* Header */}
       <div style={{ backgroundColor: '#1e3a5f', padding: '20px 24px', color: '#fff' }}>
-        <div style={{ maxWidth: 720, margin: '0 auto' }}>
-          <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 4 }}>Covrabl</div>
-          <div style={{ fontSize: 13, opacity: 0.8 }}>Lease Insurance Requirements</div>
+        <div style={{ maxWidth: 720, margin: '0 auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div>
+            <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 4 }}>Covrabl</div>
+            <div style={{ fontSize: 13, opacity: 0.8 }}>Lease Insurance Requirements</div>
+          </div>
+          <button
+            className="no-print"
+            onClick={() => window.print()}
+            style={{
+              padding: '8px 18px', backgroundColor: 'rgba(255,255,255,0.15)', color: '#fff',
+              border: '1px solid rgba(255,255,255,0.3)', borderRadius: 6, fontWeight: 600,
+              fontSize: 13, cursor: 'pointer',
+            }}
+          >
+            Print / Save PDF
+          </button>
         </div>
       </div>
 
@@ -194,7 +216,7 @@ export default function LeaseCompliancePublicPage() {
 
         {/* Submit COI section (only if no results yet) */}
         {!results && data.role === 'landlord' && (
-          <div style={{ backgroundColor: '#fff', border: '1px solid #e5e7eb', borderRadius: 12, padding: 24 }}>
+          <div className="no-print" style={{ backgroundColor: '#fff', border: '1px solid #e5e7eb', borderRadius: 12, padding: 24 }}>
             <h2 style={{ fontSize: 16, fontWeight: 700, color: '#1f2937', marginBottom: 4 }}>
               Submit Your Certificate of Insurance
             </h2>
