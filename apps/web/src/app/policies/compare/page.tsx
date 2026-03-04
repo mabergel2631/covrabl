@@ -178,6 +178,31 @@ function CompareContent() {
     }
   };
 
+  // Auto-filter: once any slot has a selection, other slots show same policy_type
+  // with an opt-out "Show all types" toggle
+  const [showAllTypes, setShowAllTypes] = useState(false);
+
+  const getFilteredPolicies = (slotIndex: number): Policy[] => {
+    if (showAllTypes) return allPolicies;
+    // Find the first selected policy's type (from any slot)
+    const firstSelectedId = selectedIds.find((id, i) => id !== null && i !== slotIndex);
+    if (firstSelectedId == null) return allPolicies;
+    const firstSelected = allPolicies.find(p => p.id === firstSelectedId);
+    if (!firstSelected) return allPolicies;
+    return allPolicies.filter(p => p.policy_type === firstSelected.policy_type);
+  };
+
+  const formatPolicyOption = (p: Policy): string => {
+    const parts = [p.carrier, '-', p.policy_type];
+    if (p.renewal_date) {
+      parts.push(`(renews ${p.renewal_date})`);
+    } else {
+      parts.push(`(${p.policy_number})`);
+    }
+    if (p.status === 'archived') parts.push('[Archived]');
+    return parts.join(' ');
+  };
+
   const getPolicyLabel = (policyId: number): string => {
     const bundle = bundles.find(b => b.policy.id === policyId);
     if (bundle) return bundle.policy.nickname || `${bundle.policy.carrier} - ${bundle.policy.policy_type}`;
@@ -210,40 +235,45 @@ function CompareContent() {
 
       {/* Policy Selectors */}
       <div style={{ backgroundColor: '#fff', padding: 20, borderRadius: 8, border: '1px solid #ddd', marginBottom: 24 }}>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'flex-end' }}>
-          {selectedIds.map((id, index) => (
-            <div key={index} style={{ flex: '1 1 200px', minWidth: 200 }}>
-              <label style={{ fontSize: 12, fontWeight: 600, color: '#666', display: 'block', marginBottom: 4 }}>
-                Policy {index + 1}
-              </label>
-              <div style={{ display: 'flex', gap: 4 }}>
-                <select
-                  value={id ?? ''}
-                  onChange={e => updateSelection(index, e.target.value ? Number(e.target.value) : null)}
-                  style={{
-                    flex: 1, padding: '8px 12px', fontSize: 14, border: '1px solid #ddd',
-                    borderRadius: 4, backgroundColor: '#fff', cursor: 'pointer',
-                  }}
-                >
-                  <option value="">Select a policy...</option>
-                  {allPolicies.map(p => (
-                    <option key={p.id} value={p.id}>
-                      {p.carrier} - {p.policy_type} ({p.policy_number}){p.status === 'archived' ? ' [Archived]' : ''}
-                    </option>
-                  ))}
-                </select>
-                {selectedIds.length > 2 && (
-                  <button
-                    onClick={() => removeSlot(index)}
-                    style={{ padding: '4px 8px', fontSize: 16, background: 'none', border: '1px solid #ddd', borderRadius: 4, cursor: 'pointer', color: '#999' }}
-                    title="Remove"
+        <div style={{ display: 'grid', gridTemplateColumns: `repeat(${selectedIds.length}, 1fr)`, gap: 12, marginBottom: 12 }}>
+          {selectedIds.map((id, index) => {
+            const filtered = getFilteredPolicies(index);
+            return (
+              <div key={index}>
+                <label style={{ fontSize: 12, fontWeight: 600, color: '#666', display: 'block', marginBottom: 4 }}>
+                  Policy {index + 1}
+                </label>
+                <div style={{ display: 'flex', gap: 4 }}>
+                  <select
+                    value={id ?? ''}
+                    onChange={e => updateSelection(index, e.target.value ? Number(e.target.value) : null)}
+                    style={{
+                      width: '100%', minWidth: 0, padding: '8px 12px', fontSize: 14, border: '1px solid #ddd',
+                      borderRadius: 4, backgroundColor: '#fff', cursor: 'pointer',
+                    }}
                   >
-                    &times;
-                  </button>
-                )}
+                    <option value="">Select a policy...</option>
+                    {filtered.map(p => (
+                      <option key={p.id} value={p.id}>
+                        {formatPolicyOption(p)}
+                      </option>
+                    ))}
+                  </select>
+                  {selectedIds.length > 2 && (
+                    <button
+                      onClick={() => removeSlot(index)}
+                      style={{ padding: '4px 8px', fontSize: 16, background: 'none', border: '1px solid #ddd', borderRadius: 4, cursor: 'pointer', color: '#999', flexShrink: 0 }}
+                      title="Remove"
+                    >
+                      &times;
+                    </button>
+                  )}
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
+        </div>
+        <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
           {selectedIds.length < 4 && (
             <button
               onClick={addSlot}
@@ -268,6 +298,17 @@ function CompareContent() {
           >
             {loading ? 'Comparing...' : 'Compare'}
           </button>
+          {selectedIds.some(id => id !== null) && (
+            <label style={{ fontSize: 12, color: '#888', display: 'flex', alignItems: 'center', gap: 4, cursor: 'pointer', marginLeft: 'auto' }}>
+              <input
+                type="checkbox"
+                checked={showAllTypes}
+                onChange={e => setShowAllTypes(e.target.checked)}
+                style={{ cursor: 'pointer' }}
+              />
+              Show all policy types
+            </label>
+          )}
         </div>
       </div>
 
