@@ -42,6 +42,7 @@ from app.routes_certificates import router as certificates_router
 from app.routes_profile import router as profile_router
 from app.routes_billing import router as billing_router
 from app.routes_chat import router as chat_router
+from app.routes_compare_analysis import router as compare_analysis_router
 from app.routes_lease_compliance import router as lease_compliance_router
 
 app = FastAPI(title="Covrabl API")
@@ -117,6 +118,11 @@ def on_startup():
                 conn.execute(text("ALTER TABLE policies ADD COLUMN deductible_period_start DATE"))
             if "deductible_applied" not in cols:
                 conn.execute(text("ALTER TABLE policies ADD COLUMN deductible_applied INTEGER"))
+            if "replaces_policy_id" not in cols:
+                conn.execute(text(
+                    "ALTER TABLE policies ADD COLUMN replaces_policy_id INTEGER "
+                    "REFERENCES policies(id) ON DELETE SET NULL"
+                ))
     if "users" in insp.get_table_names():
         user_cols = [c["name"] for c in insp.get_columns("users")]
         with engine.begin() as conn:
@@ -185,4 +191,5 @@ app.include_router(certificates_router)
 app.include_router(profile_router)
 app.include_router(billing_router)
 app.include_router(chat_router)
+app.include_router(compare_analysis_router)
 app.include_router(lease_compliance_router)

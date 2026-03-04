@@ -159,14 +159,24 @@ def _cache_document_text(doc: Document, db: Session) -> str | None:
     return None
 
 
-def _build_chat_context(user: User, db: Session, *, policy_id: int | None = None) -> str:
+def _build_chat_context(
+    user: User,
+    db: Session,
+    *,
+    policy_id: int | None = None,
+    compare_policy_ids: list[int] | None = None,
+) -> str:
     """Assemble full context block from user's data for the system prompt.
 
     When policy_id is provided, scope context to just that single policy.
+    When compare_policy_ids is provided, scope to those policies with comparison framing.
     """
     sections = []
 
-    if policy_id:
+    if compare_policy_ids:
+        sections.append("## CONTEXT: POLICY COMPARISON")
+        sections.append("The user is comparing the following policies. Focus your answers on differences between these policies.\n")
+    elif policy_id:
         sections.append("## CONTEXT: SINGLE POLICY FOCUS")
         sections.append("The user is asking about a specific policy. Focus your answers on this policy's details.\n")
 
@@ -199,14 +209,16 @@ def _build_chat_context(user: User, db: Session, *, policy_id: int | None = None
         if flags:
             sections.append(f"- Profile flags: {', '.join(flags)}")
 
-    # 2. Policies with eager-loaded relationships (scoped if policy_id provided)
+    # 2. Policies with eager-loaded relationships (scoped if policy_id or compare_policy_ids provided)
     policy_query = select(Policy).where(Policy.user_id == user.id).options(
         selectinload(Policy.contacts),
         selectinload(Policy.details),
         selectinload(Policy.coverage_items),
         selectinload(Policy.exposure),
     )
-    if policy_id:
+    if compare_policy_ids:
+        policy_query = policy_query.where(Policy.id.in_(compare_policy_ids))
+    elif policy_id:
         policy_query = policy_query.where(Policy.id == policy_id)
     policies = db.execute(policy_query).scalars().all()
 
@@ -220,8 +232,8 @@ def _build_chat_context(user: User, db: Session, *, policy_id: int | None = None
     else:
         sections.append("No policies on file.")
 
-    # 3. Coverage summary (skip when scoped to single policy)
-    if policy_dicts and not policy_id:
+    # 3. Coverage summary (skip when scoped to single policy or comparison)
+    if policy_dicts and not policy_id and not compare_policy_ids:
         summary = get_coverage_summary(policy_dicts)
         sections.append("## COVERAGE SUMMARY")
         sections.append(f"- Total policies: {summary.get('total_policies', 0)}")
@@ -235,8 +247,8 @@ def _build_chat_context(user: User, db: Session, *, policy_id: int | None = None
         if missing:
             sections.append(f"- Missing categories: {', '.join(missing)}")
 
-    # 4. Gap analysis (skip when scoped to single policy)
-    if policy_dicts and not policy_id:
+    # 4. Gap analysis (skip when scoped to single policy or comparison)
+    if policy_dicts and not policy_id and not compare_policy_ids:
         user_context = None
         if profile:
             user_context = {
@@ -501,6 +513,7 @@ class ChatSendRequest(BaseModel):
     message: str
     conversation_id: int | None = None
     policy_id: int | None = None
+    compare_policy_ids: list[int] | None = None
 
 
 # ── Endpoints ────────────────────────────────────────
@@ -550,7 +563,7 @@ def chat_send(body: ChatSendRequest, user: User = Depends(get_current_user), db:
     messages = [{"role": m.role, "content": m.content} for m in recent]
 
     # Build system prompt with context
-    context = _build_chat_context(user, db, policy_id=body.policy_id)
+    context = _build_chat_context(user, db, policy_id=body.policy_id, compare_policy_ids=body.compare_policy_ids)
     system_prompt = SYSTEM_PROMPT_TEMPLATE.format(
         today=datetime.now().strftime("%Y-%m-%d"),
         context=context,

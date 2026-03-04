@@ -86,6 +86,8 @@ export type Policy = {
   coi_summary?: { status: string; count: number } | null;
   // Permission: null/undefined = owner, "view" = view-only shared, "edit" = edit shared
   permission?: string | null;
+  // Version chain
+  replaces_policy_id?: number | null;
 };
 
 export type PolicyCreate = {
@@ -101,6 +103,7 @@ export type PolicyCreate = {
   renewal_date?: string | null;
   exposure_id?: number | null;
   status?: string;
+  replaces_policy_id?: number | null;
   // Deductible tracking
   deductible_type?: string | null;
   deductible_period_start?: string | null;
@@ -202,9 +205,31 @@ export const authApi = {
 
 // ── Policies API ─────────────────────────────────────
 
+export type PolicyVersionEntry = {
+  id: number;
+  carrier: string;
+  policy_type: string;
+  policy_number: string;
+  nickname?: string | null;
+  status: string;
+  renewal_date?: string | null;
+  created_at: string;
+  replaces_policy_id?: number | null;
+};
+
+export type ActiveByTypeEntry = {
+  id: number;
+  carrier: string;
+  policy_type: string;
+  policy_number: string;
+  nickname: string | null;
+  scope: string;
+};
+
 export const policiesApi = {
-  list(): Promise<Policy[]> {
-    return request<Policy[]>("/policies");
+  list(status?: string): Promise<Policy[]> {
+    const qs = status ? `?status=${status}` : '';
+    return request<Policy[]>(`/policies${qs}`);
   },
   get(id: number): Promise<Policy> {
     return request<Policy>(`/policies/${id}`);
@@ -235,6 +260,12 @@ export const policiesApi = {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ old_name: oldName, new_name: newName }),
     });
+  },
+  activeByType(): Promise<ActiveByTypeEntry[]> {
+    return request<ActiveByTypeEntry[]>("/policies/active-by-type");
+  },
+  versions(id: number): Promise<PolicyVersionEntry[]> {
+    return request<PolicyVersionEntry[]>(`/policies/${id}/versions`);
   },
 };
 
@@ -745,9 +776,45 @@ export type PolicyBundle = {
   premiums: { id: number; amount: number; frequency: string; due_date: string; paid_date?: string | null }[];
 };
 
+export type DataSufficiency = {
+  policy_id: number;
+  carrier: string;
+  has_documents: boolean;
+  has_coverage_items: boolean;
+  has_details: boolean;
+  document_char_count: number;
+  coverage_item_count: number;
+  detail_count: number;
+  sufficiency: 'full' | 'partial' | 'minimal';
+  warning: string | null;
+};
+
+export type ComparisonFinding = {
+  category: string;
+  severity: 'critical' | 'important' | 'informational';
+  title: string;
+  description: string;
+  policies_affected: number[];
+  recommendation: string | null;
+};
+
+export type CompareAnalysis = {
+  summary: string;
+  data_sufficiency: DataSufficiency[];
+  findings: ComparisonFinding[];
+  limitations: string[];
+};
+
 export const compareApi = {
   compare(ids: number[]): Promise<PolicyBundle[]> {
     return request<PolicyBundle[]>(`/policies/compare?ids=${ids.join(",")}`);
+  },
+  analyze(ids: number[]): Promise<CompareAnalysis> {
+    return request<CompareAnalysis>('/policies/compare/analyze', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ policy_ids: ids }),
+    });
   },
 };
 
@@ -2066,6 +2133,7 @@ export const chatApi = {
     onDone: () => void,
     onError: (err: string) => void,
     policyId?: number | null,
+    comparePolicyIds?: number[] | null,
   ): AbortController {
     const controller = new AbortController();
     const token = getToken();
@@ -2077,7 +2145,12 @@ export const chatApi = {
         "Content-Type": "application/json",
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
       },
-      body: JSON.stringify({ message, conversation_id: conversationId, ...(policyId ? { policy_id: policyId } : {}) }),
+      body: JSON.stringify({
+        message,
+        conversation_id: conversationId,
+        ...(policyId ? { policy_id: policyId } : {}),
+        ...(comparePolicyIds && comparePolicyIds.length > 0 ? { compare_policy_ids: comparePolicyIds } : {}),
+      }),
       signal: controller.signal,
     })
       .then(async (res) => {
