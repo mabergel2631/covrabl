@@ -8,6 +8,8 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
+from sqlalchemy import select
+
 from .auth import get_current_user
 from .db import get_db
 from .extraction import get_extractor
@@ -77,6 +79,24 @@ def extract_document(document_id: int, db: Session = Depends(get_db), user: User
         doc.extraction_status = "review"
         db.commit()
 
+        # Check for potential renewal matches
+        potential_renewals = []
+        if result.policy_type:
+            existing = db.execute(
+                select(Policy).where(
+                    Policy.user_id == user.id,
+                    Policy.policy_type == result.policy_type,
+                    Policy.status == "active",
+                    Policy.id != policy.id,
+                )
+            ).scalars().all()
+            potential_renewals = [
+                {"id": p.id, "carrier": p.carrier, "policy_type": p.policy_type,
+                 "policy_number": p.policy_number, "renewal_date": str(p.renewal_date) if p.renewal_date else None,
+                 "premium_amount": p.premium_amount, "nickname": p.nickname}
+                for p in existing
+            ]
+
         return {
             "ok": True,
             "document_id": doc.id,
@@ -102,6 +122,7 @@ def extract_document(document_id: int, db: Session = Depends(get_db), user: User
                     for d in result.details
                 ],
             },
+            "potential_renewals": potential_renewals,
         }
 
     except HTTPException:
@@ -145,6 +166,7 @@ class ConfirmExtraction(BaseModel):
     contacts: list[ConfirmContact] = []
     coverage_items: list[ConfirmCoverageItem] = []
     details: list[ConfirmDetail] = []
+    replaces_policy_id: Optional[int] = None
 
 
 @router.post("/{document_id}/extract/confirm")
@@ -190,6 +212,30 @@ def confirm_extraction(document_id: int, payload: ConfirmExtraction, db: Session
             policy.renewal_date = date.fromisoformat(payload.renewal_date)
         except ValueError:
             pass
+
+    # Handle renewal linking
+    if payload.replaces_policy_id:
+        old = db.execute(
+            select(Policy).where(
+                Policy.id == payload.replaces_policy_id,
+                Policy.user_id == user.id,
+            )
+        ).scalar_one_or_none()
+        if old:
+            old.status = "archived"
+            policy.replaces_policy_id = payload.replaces_policy_id
+            log_action(db, user.id, "archived", "policy", old.id)
+
+    # Auto-record premium history
+    if payload.premium_amount is not None:
+        from .routes_premium_history import record_premium_change
+        effective = None
+        if payload.renewal_date:
+            try:
+                effective = date.fromisoformat(payload.renewal_date)
+            except ValueError:
+                pass
+        record_premium_change(policy.id, payload.premium_amount, db, source="extraction", effective=effective)
 
     for c in payload.contacts:
         contact = Contact(

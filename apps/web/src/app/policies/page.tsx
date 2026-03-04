@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '../../../lib/auth';
-import { API_BASE, policiesApi, renewalsApi, remindersApi, premiumsApi, sharingApi, documentsApi, gapsApi, inboundApi, profileApi, scoresApi, Policy, PolicyCreate, RenewalItem, SmartAlert, SharedPolicy, PendingShare, CoverageGap, CoverageSummary, InboundAddress, PolicyDraftData, CoverageScoresResult, checkFeatureAccess } from '../../../lib/api';
+import { API_BASE, policiesApi, renewalsApi, remindersApi, premiumsApi, sharingApi, documentsApi, gapsApi, inboundApi, profileApi, scoresApi, Policy, PolicyCreate, RenewalItem, SmartAlert, SharedPolicy, PendingShare, CoverageGap, CoverageSummary, InboundAddress, PolicyDraftData, CoverageScoresResult, ActiveByTypeEntry, checkFeatureAccess } from '../../../lib/api';
 import { useToast } from '../components/Toast';
 import ConfirmDialog from '../components/ConfirmDialog';
 import BulkShareModal from '../components/BulkShareModal';
@@ -62,6 +62,9 @@ function PoliciesPageInner() {
   const [profileIncomplete, setProfileIncomplete] = useState(false);
   const [profileDismissed, setProfileDismissed] = useState(false);
   const [showBulkShare, setShowBulkShare] = useState(false);
+  const [showArchived, setShowArchived] = useState(false);
+  const [renewalTargetId, setRenewalTargetId] = useState<number | null>(null);
+  const [sameTypePolicies, setSameTypePolicies] = useState<ActiveByTypeEntry[]>([]);
   const [sortBy, setSortBy] = useState<'default' | 'carrier' | 'renewal' | 'type' | 'newest'>('default');
   const [editingGroup, setEditingGroup] = useState<string | null>(null);
   const [editGroupValue, setEditGroupValue] = useState('');
@@ -153,6 +156,7 @@ function PoliciesPageInner() {
         policy_number: 'TBD',
         nickname: null, coverage_amount: null, deductible: null, renewal_date: null,
         business_name: wizardData.scope === 'business' ? (wizardData.business_name || null) : null,
+        replaces_policy_id: renewalTargetId,
       });
 
       const document_id = await new Promise<number>((resolve, reject) => {
@@ -185,6 +189,7 @@ function PoliciesPageInner() {
         sessionStorage.setItem(`pv_extract_${newPolicy.id}`, JSON.stringify({
           docId: extractResult.document_id,
           data: extractResult.extraction,
+          potentialRenewals: extractResult.potential_renewals || [],
         }));
       } catch {}
 
@@ -213,6 +218,7 @@ function PoliciesPageInner() {
         policy_number: 'TBD',
         nickname: null, coverage_amount: null, deductible: null, renewal_date: null,
         business_name: wizardData.scope === 'business' ? (wizardData.business_name || null) : null,
+        replaces_policy_id: renewalTargetId,
       });
 
       const importResult = await documentsApi.importFromUrl(newPolicy.id, url);
@@ -223,6 +229,7 @@ function PoliciesPageInner() {
         sessionStorage.setItem(`pv_extract_${newPolicy.id}`, JSON.stringify({
           docId: extractResult.document_id,
           data: extractResult.extraction,
+          potentialRenewals: extractResult.potential_renewals || [],
         }));
       } catch {}
 
@@ -248,6 +255,8 @@ function PoliciesPageInner() {
     setUrlInput('');
     setImportingUrl(false);
     setShowNewGroupInput(false);
+    setRenewalTargetId(null);
+    setSameTypePolicies([]);
   };
 
   const handleFirstTimeUpload = async (file: File) => {
@@ -298,6 +307,7 @@ function PoliciesPageInner() {
         sessionStorage.setItem(`pv_extract_${newPolicy.id}`, JSON.stringify({
           docId: extractResult.document_id,
           data: extractResult.extraction,
+          potentialRenewals: extractResult.potential_renewals || [],
         }));
       } catch {}
 
@@ -400,8 +410,10 @@ function PoliciesPageInner() {
 
   // Computed values for insights
   const activePolicies = policies.filter(p => p.carrier !== 'Pending extraction...');
-  const hasMultipleScopes = activePolicies.some(p => p.scope === 'personal') && activePolicies.some(p => p.scope === 'business');
-  const scopedPolicies = scopeTab === 'all' ? activePolicies : activePolicies.filter(p => p.scope === scopeTab);
+  const displayPolicies = showArchived ? activePolicies : activePolicies.filter(p => p.status !== 'archived');
+  const archivedCount = activePolicies.filter(p => p.status === 'archived').length;
+  const hasMultipleScopes = displayPolicies.some(p => p.scope === 'personal') && displayPolicies.some(p => p.scope === 'business');
+  const scopedPolicies = scopeTab === 'all' ? displayPolicies : displayPolicies.filter(p => p.scope === scopeTab);
   const scopedPolicyIds = new Set(scopedPolicies.map(p => p.id));
   const scopedRenewals = scopeTab === 'all' ? renewals : renewals.filter(r => scopedPolicyIds.has(r.id));
   const nextRenewal = scopedRenewals.length > 0 ? scopedRenewals[0] : null;
@@ -515,6 +527,7 @@ function PoliciesPageInner() {
           border: `1px solid ${policyStatus.status === 'alert' ? 'var(--color-danger-border)' : policyStatus.status === 'warning' ? 'var(--color-warning-border)' : 'var(--color-border)'}`,
           borderRadius: 'var(--radius-lg)', cursor: 'pointer', transition: 'border-color 0.15s, box-shadow 0.15s',
           padding: '20px', display: 'flex', flexDirection: 'column', gap: 12, position: 'relative',
+          opacity: p.status === 'archived' ? 0.6 : 1,
         }}
         onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--color-primary)'; e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.06)'; }}
         onMouseLeave={e => { e.currentTarget.style.borderColor = policyStatus.status === 'alert' ? 'var(--color-danger-border)' : policyStatus.status === 'warning' ? 'var(--color-warning-border)' : 'var(--color-border)'; e.currentTarget.style.boxShadow = 'none'; }}
@@ -1049,6 +1062,17 @@ function PoliciesPageInner() {
               Your Coverage {scopedPolicies.length > 0 && `(${scopedPolicies.length})`}
             </h2>
             <div className="search-toolbar" style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              {archivedCount > 0 && (
+                <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, color: 'var(--color-text-muted)', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                  <input
+                    type="checkbox"
+                    checked={showArchived}
+                    onChange={e => setShowArchived(e.target.checked)}
+                    style={{ cursor: 'pointer' }}
+                  />
+                  Show archived ({archivedCount})
+                </label>
+              )}
               {activePolicies.length > 3 && (
                 <>
                   <input
@@ -1631,7 +1655,19 @@ function PoliciesPageInner() {
                           return (
                             <button
                               key={key}
-                              onClick={() => { setWizardData(d => ({ ...d, policy_type: key })); setWizardStep(wizardMethod === 'url' ? 4 : 3); }}
+                              onClick={async () => {
+                                setWizardData(d => ({ ...d, policy_type: key }));
+                                try {
+                                  const active = await policiesApi.activeByType();
+                                  const matches = active.filter(p => p.policy_type === key);
+                                  if (matches.length > 0) {
+                                    setSameTypePolicies(matches);
+                                    setWizardStep(25);
+                                    return;
+                                  }
+                                } catch {}
+                                setWizardStep(wizardMethod === 'url' ? 4 : 3);
+                              }}
                               style={{
                                 display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, padding: 14,
                                 border: '2px solid var(--color-border)', borderRadius: 'var(--radius-md)', backgroundColor: '#fff', cursor: 'pointer',
@@ -1645,6 +1681,62 @@ function PoliciesPageInner() {
                       </div>
                     </div>
                   ))}
+              </div>
+            )}
+
+            {/* Step 2.5: Renewal Detection */}
+            {wizardStep === 25 && (
+              <div>
+                <button onClick={() => { setWizardStep(2); setRenewalTargetId(null); setSameTypePolicies([]); }} className="btn btn-ghost" style={{ marginBottom: 16, padding: '4px 8px', fontSize: 13 }}>&larr; Back</button>
+                <p style={{ fontSize: 15, color: 'var(--color-text-secondary)', marginBottom: 20 }}>Is this a new policy or a renewal of an existing one?</p>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                  <button
+                    onClick={() => { setRenewalTargetId(null); setWizardStep(wizardMethod === 'url' ? 4 : 3); }}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 12, padding: '16px 20px',
+                      border: '2px solid var(--color-border)', borderRadius: 'var(--radius-md)',
+                      backgroundColor: '#fff', cursor: 'pointer', textAlign: 'left',
+                      transition: 'border-color 0.15s',
+                    }}
+                    onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--color-primary)'; }}
+                    onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--color-border)'; }}
+                  >
+                    <span style={{ fontSize: 24 }}>+</span>
+                    <div>
+                      <div style={{ fontWeight: 600, fontSize: 15, color: 'var(--color-text)' }}>New policy</div>
+                      <div style={{ fontSize: 12, color: 'var(--color-text-muted)', marginTop: 2 }}>I&apos;m adding a separate policy</div>
+                    </div>
+                  </button>
+
+                  <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginTop: 4, marginBottom: 4 }}>
+                    Or replace an existing policy
+                  </div>
+
+                  {sameTypePolicies.map(p => (
+                    <button
+                      key={p.id}
+                      onClick={() => { setRenewalTargetId(p.id); setWizardStep(wizardMethod === 'url' ? 4 : 3); }}
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: 12, padding: '16px 20px',
+                        border: '2px solid var(--color-border)', borderRadius: 'var(--radius-md)',
+                        backgroundColor: '#fff', cursor: 'pointer', textAlign: 'left',
+                        transition: 'border-color 0.15s',
+                      }}
+                      onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--color-primary)'; }}
+                      onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--color-border)'; }}
+                    >
+                      <span style={{ fontSize: 24 }}>🔄</span>
+                      <div>
+                        <div style={{ fontWeight: 600, fontSize: 15, color: 'var(--color-text)' }}>
+                          {p.nickname || p.carrier} &mdash; {p.policy_number}
+                        </div>
+                        <div style={{ fontSize: 12, color: 'var(--color-text-muted)', marginTop: 2 }}>
+                          Renewal &mdash; old version will be archived
+                        </div>
+                      </div>
+                    </button>
+                  ))}
+                </div>
               </div>
             )}
 

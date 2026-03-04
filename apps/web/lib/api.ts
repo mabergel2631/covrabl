@@ -315,7 +315,7 @@ export const documentsApi = {
     });
   },
   extract(documentId: number) {
-    return request<{ ok: boolean; document_id: number; extraction: ExtractionData }>(`/documents/${documentId}/extract`, {
+    return request<{ ok: boolean; document_id: number; extraction: ExtractionData; potential_renewals?: PotentialRenewal[] }>(`/documents/${documentId}/extract`, {
       method: "POST",
     });
   },
@@ -336,6 +336,16 @@ export const documentsApi = {
       body: JSON.stringify({ policy_id: policyId, url, doc_type: docType }),
     });
   },
+};
+
+export type PotentialRenewal = {
+  id: number;
+  carrier: string;
+  policy_type: string;
+  policy_number: string;
+  renewal_date: string | null;
+  premium_amount: number | null;
+  nickname: string | null;
 };
 
 export type ExtractedContact = {
@@ -364,6 +374,7 @@ export type ExtractionData = {
   contacts: ExtractedContact[];
   coverage_items?: ExtractedCoverageItem[];
   details?: ExtractedDetail[];
+  replaces_policy_id?: number | null;
 };
 
 export type ExtractedDetail = {
@@ -1020,6 +1031,8 @@ export type PremiumHistoryEntry = {
   notes?: string | null;
   change_pct?: number | null;
   created_at: string;
+  carrier?: string | null;
+  policy_id?: number;
 };
 
 export type PremiumHistoryResult = {

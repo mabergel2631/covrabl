@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useAuth } from '../../../../lib/auth';
-import { API_BASE, policiesApi, contactsApi, documentsApi, coverageApi, policyDetailsApi, claimsApi, sharingApi, exportApi, premiumHistoryApi, exposuresApi, gapsApi, certificatesApi, leaseComplianceApi, chatApi, Policy, Contact, DocMeta, ContactCreate, ExtractionData, CoverageItem, CoverageItemCreate, PolicyDetail, PolicyDetailCreate, PolicyUpdate, Claim, ClaimCreate, PolicyShareType, ShareCreate, PremiumHistoryEntry, Exposure, CoverageGap, Certificate, LeaseRequirement, LeaseRequirementItem, ComplianceResultItem, LeaseExtraction, BrokerEmail, checkFeatureAccess, parseUpgradeError } from '../../../../lib/api';
+import { API_BASE, policiesApi, contactsApi, documentsApi, coverageApi, policyDetailsApi, claimsApi, sharingApi, exportApi, premiumHistoryApi, exposuresApi, gapsApi, certificatesApi, leaseComplianceApi, chatApi, Policy, Contact, DocMeta, ContactCreate, ExtractionData, CoverageItem, CoverageItemCreate, PolicyDetail, PolicyDetailCreate, PolicyUpdate, Claim, ClaimCreate, PolicyShareType, ShareCreate, PremiumHistoryEntry, Exposure, CoverageGap, Certificate, LeaseRequirement, LeaseRequirementItem, ComplianceResultItem, LeaseExtraction, BrokerEmail, PolicyVersionEntry, PotentialRenewal, checkFeatureAccess, parseUpgradeError } from '../../../../lib/api';
 import { formatPhone, cleanPhone } from '../../../../lib/format';
 import { useToast } from '../../components/Toast';
 import { Skeleton } from '../../components/Skeleton';
@@ -144,6 +144,9 @@ export default function PolicyDetailPage() {
   const [leaseSending, setLeaseSending] = useState(false);
   const leasePdfRef = useRef<HTMLInputElement>(null);
 
+  // Version history
+  const [versionHistory, setVersionHistory] = useState<PolicyVersionEntry[]>([]);
+
   // Ask AI drawer
   const [aiDrawerOpen, setAiDrawerOpen] = useState(false);
   const [aiMessages, setAiMessages] = useState<{ role: 'user' | 'assistant'; content: string }[]>([]);
@@ -213,6 +216,8 @@ export default function PolicyDetailPage() {
   const [reviewDocId, setReviewDocId] = useState<number | null>(null);
   const [reviewData, setReviewData] = useState<ExtractionData | null>(null);
   const [confirming, setConfirming] = useState(false);
+  const [potentialRenewals, setPotentialRenewals] = useState<PotentialRenewal[]>([]);
+  const [renewalDismissed, setRenewalDismissed] = useState(false);
 
   useEffect(() => {
     if (showIdCard && idCardRef.current) {
@@ -228,9 +233,13 @@ export default function PolicyDetailPage() {
       if (stored) {
         sessionStorage.removeItem(`pv_extract_${policyId}`);
         try {
-          const { docId, data } = JSON.parse(stored);
+          const { docId, data, potentialRenewals: renewals } = JSON.parse(stored);
           setReviewDocId(docId);
           setReviewData(data);
+          if (renewals && renewals.length > 0) {
+            setPotentialRenewals(renewals);
+            setRenewalDismissed(false);
+          }
         } catch {}
       }
     });
@@ -265,6 +274,8 @@ export default function PolicyDetailPage() {
       setPolicyGaps(gapsResult.gaps || []);
       setPolicyCertificates(certs);
       setLeaseReqs(leaseReqsResult);
+      // Load version history (non-blocking)
+      policiesApi.versions(policyId).then(setVersionHistory).catch(() => setVersionHistory([]));
     } catch (err: any) {
       if (err.status === 401) { logout(); router.replace('/login'); return; }
       setError(err.message);
@@ -428,6 +439,10 @@ export default function PolicyDetailPage() {
       const res = await documentsApi.extract(docId);
       setReviewDocId(res.document_id);
       setReviewData(res.extraction);
+      if (res.potential_renewals && res.potential_renewals.length > 0) {
+        setPotentialRenewals(res.potential_renewals);
+        setRenewalDismissed(false);
+      }
       const d = await documentsApi.list(policyId);
       setDocs(d);
     } catch (err: any) {
@@ -452,6 +467,8 @@ export default function PolicyDetailPage() {
       await documentsApi.confirmExtraction(reviewDocId, reviewData);
       setReviewDocId(null);
       setReviewData(null);
+      setPotentialRenewals([]);
+      setRenewalDismissed(false);
       await loadAll();
       toast('Extraction data saved', 'success');
     } catch (err: any) {
@@ -464,6 +481,8 @@ export default function PolicyDetailPage() {
   const handleDiscardExtraction = () => {
     setReviewDocId(null);
     setReviewData(null);
+    setPotentialRenewals([]);
+    setRenewalDismissed(false);
   };
 
   const updateReviewField = (field: string, value: any) => {
@@ -520,12 +539,92 @@ export default function PolicyDetailPage() {
         </div>
       )}
 
+      {/* Archived Banner */}
+      {policy.status === 'archived' && (
+        <div style={{ padding: '10px 16px', marginBottom: 16, backgroundColor: '#fef3c7', border: '1px solid #fcd34d', borderRadius: 'var(--radius-md)', display: 'flex', alignItems: 'center', gap: 8, fontSize: 14, color: '#92400e' }}>
+          <span style={{ fontSize: 16 }}>📦</span>
+          <span><strong>Archived</strong> — This is an older version of this policy.</span>
+          {versionHistory.length > 0 && (() => {
+            const newest = versionHistory[versionHistory.length - 1];
+            if (newest.id !== policyId) {
+              return (
+                <a
+                  href={`/policies/${newest.id}`}
+                  onClick={e => { e.preventDefault(); router.push(`/policies/${newest.id}`); }}
+                  style={{ marginLeft: 'auto', fontWeight: 600, color: '#92400e', textDecoration: 'underline', cursor: 'pointer' }}
+                >
+                  View current version →
+                </a>
+              );
+            }
+            return null;
+          })()}
+        </div>
+      )}
+
       {/* Extraction Review Modal */}
       {reviewData && (
         <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
           <div style={{ backgroundColor: 'var(--color-surface)', borderRadius: 'var(--radius-lg)', padding: 32, width: 640, maxHeight: '90vh', overflow: 'auto', boxShadow: 'var(--shadow-lg)' }}>
             <h2 style={{ margin: '0 0 8px', fontSize: 20, fontWeight: 700 }}>Review Extracted Data</h2>
             <p style={{ margin: '0 0 20px', color: 'var(--color-text-secondary)', fontSize: 14 }}>Verify and edit the fields below before saving to the policy.</p>
+
+            {/* Renewal Detection Banner */}
+            {potentialRenewals.length > 0 && !renewalDismissed && (
+              <div style={{ marginBottom: 20, padding: 16, backgroundColor: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 'var(--radius-md)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
+                  <div>
+                    <h3 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: '#1e40af' }}>This looks like a renewal</h3>
+                    <p style={{ margin: '4px 0 0', fontSize: 13, color: '#3b82f6' }}>Link to an existing policy to track premium history across renewals.</p>
+                  </div>
+                  <button
+                    onClick={() => setRenewalDismissed(true)}
+                    style={{ background: 'none', border: 'none', color: '#6b7280', cursor: 'pointer', fontSize: 13, padding: '2px 8px', whiteSpace: 'nowrap' }}
+                  >
+                    This is a separate policy
+                  </button>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {potentialRenewals.map(r => (
+                    <div
+                      key={r.id}
+                      style={{
+                        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                        padding: '10px 12px', backgroundColor: reviewData?.replaces_policy_id === r.id ? '#dbeafe' : '#fff',
+                        borderRadius: 'var(--radius-sm)', border: reviewData?.replaces_policy_id === r.id ? '2px solid #3b82f6' : '1px solid var(--color-border)',
+                        cursor: 'pointer',
+                      }}
+                      onClick={() => {
+                        if (reviewData?.replaces_policy_id === r.id) {
+                          updateReviewField('replaces_policy_id', null);
+                        } else {
+                          updateReviewField('replaces_policy_id', r.id);
+                        }
+                      }}
+                    >
+                      <div>
+                        <div style={{ fontWeight: 600, fontSize: 14 }}>
+                          {r.nickname || r.carrier}
+                          {r.nickname && <span style={{ fontWeight: 400, color: 'var(--color-text-secondary)', marginLeft: 8, fontSize: 12 }}>{r.carrier}</span>}
+                        </div>
+                        <div style={{ fontSize: 12, color: 'var(--color-text-muted)', marginTop: 2 }}>
+                          #{r.policy_number}
+                          {r.premium_amount && <span style={{ marginLeft: 8 }}>${r.premium_amount.toLocaleString()}/yr</span>}
+                          {r.renewal_date && <span style={{ marginLeft: 8 }}>Renews: {r.renewal_date}</span>}
+                        </div>
+                      </div>
+                      <span style={{
+                        padding: '4px 12px', borderRadius: 4, fontSize: 12, fontWeight: 600,
+                        backgroundColor: reviewData?.replaces_policy_id === r.id ? '#3b82f6' : '#e5e7eb',
+                        color: reviewData?.replaces_policy_id === r.id ? '#fff' : '#374151',
+                      }}>
+                        {reviewData?.replaces_policy_id === r.id ? 'Linked' : 'Link as renewal'}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             <div className="form-grid-2" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
               <div>
@@ -1575,7 +1674,7 @@ export default function PolicyDetailPage() {
                           borderRadius: '4px 4px 0 0',
                           minHeight: 4,
                         }}
-                        title={`$${entry.amount.toLocaleString()} - ${entry.effective_date}`}
+                        title={`${entry.carrier ? entry.carrier + ': ' : ''}$${entry.amount.toLocaleString()} - ${entry.effective_date}`}
                       />
                     </div>
                   );
@@ -1605,7 +1704,12 @@ export default function PolicyDetailPage() {
                   }}
                 >
                   <div>
-                    <div style={{ fontWeight: 600, fontSize: 15 }}>${entry.amount.toLocaleString()}/year</div>
+                    <div style={{ fontWeight: 600, fontSize: 15 }}>
+                      ${entry.amount.toLocaleString()}/year
+                      {entry.carrier && new Set(premiumHistory.map(e => e.carrier)).size > 1 && (
+                        <span style={{ marginLeft: 8, padding: '2px 8px', borderRadius: 10, fontSize: 11, fontWeight: 500, backgroundColor: '#f3f4f6', color: '#6b7280' }}>{entry.carrier}</span>
+                      )}
+                    </div>
                     <div style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>
                       Effective: {entry.effective_date}
                       {entry.source !== 'manual' && (
@@ -2824,6 +2928,68 @@ export default function PolicyDetailPage() {
           &larr; Back to Policies
         </button>
       </div>
+
+      {/* Version History */}
+      {versionHistory.length > 0 && (
+        <div style={{ marginTop: 32, padding: 24, backgroundColor: '#fff', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-lg)' }}>
+          <h3 style={{ margin: '0 0 16px', fontSize: 16, fontWeight: 700, color: 'var(--color-text)' }}>
+            Version History
+          </h3>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {versionHistory.map((v, idx) => {
+              const isCurrent = v.id === policyId;
+              return (
+                <div
+                  key={v.id}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 12, padding: '12px 16px',
+                    backgroundColor: isCurrent ? '#eff6ff' : '#fafafa',
+                    border: `1px solid ${isCurrent ? '#bfdbfe' : 'var(--color-border)'}`,
+                    borderRadius: 'var(--radius-md)',
+                  }}
+                >
+                  <div style={{ width: 28, height: 28, borderRadius: '50%', backgroundColor: isCurrent ? '#2563eb' : '#e5e7eb', color: isCurrent ? '#fff' : '#6b7280', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700, flexShrink: 0 }}>
+                    {idx + 1}
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--color-text)' }}>
+                      {v.carrier} &mdash; {v.policy_number}
+                      {isCurrent && <span style={{ marginLeft: 8, padding: '2px 8px', backgroundColor: '#2563eb', color: '#fff', borderRadius: 10, fontSize: 10, fontWeight: 700, verticalAlign: 'middle' }}>Current</span>}
+                    </div>
+                    <div style={{ fontSize: 12, color: 'var(--color-text-muted)', marginTop: 2 }}>
+                      {v.renewal_date ? `Expires ${new Date(v.renewal_date).toLocaleDateString()}` : 'No expiration'}
+                      {' · '}
+                      <span style={{ padding: '1px 6px', backgroundColor: v.status === 'active' ? '#dcfce7' : v.status === 'archived' ? '#f3f4f6' : '#fef2f2', color: v.status === 'active' ? '#166534' : v.status === 'archived' ? '#6b7280' : '#991b1b', borderRadius: 8, fontSize: 10, fontWeight: 600 }}>
+                        {v.status}
+                      </span>
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
+                    {!isCurrent && (
+                      <>
+                        <button
+                          onClick={() => router.push(`/policies/${v.id}`)}
+                          className="btn btn-ghost"
+                          style={{ padding: '6px 12px', fontSize: 12 }}
+                        >
+                          View
+                        </button>
+                        <button
+                          onClick={() => router.push(`/policies/compare?ids=${policyId},${v.id}`)}
+                          className="btn btn-ghost"
+                          style={{ padding: '6px 12px', fontSize: 12 }}
+                        >
+                          Compare
+                        </button>
+                      </>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Ask AI Drawer */}
       {aiDrawerOpen && (
