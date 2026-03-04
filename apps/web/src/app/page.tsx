@@ -621,7 +621,7 @@ export default function Home() {
   };
 
   const ctaAction = () => router.push(token ? '/policies' : '/login');
-  const ctaLabel = token ? 'View My Coverage' : 'Get Started Free';
+  const ctaLabel = token ? 'View My Coverage' : 'Upload Policies \u2014 See Your Coverage';
 
   /* Scroll-reveal refs for each animated section */
   const step1Ref = useScrollReveal();
@@ -778,7 +778,7 @@ export default function Home() {
             See what you have. Verify what&apos;s required. Stay ahead of changes.
           </p>
           <p style={{ fontSize: 15, opacity: 0.7, margin: '0 0 36px', lineHeight: 1.7, maxWidth: 600, marginLeft: 'auto', marginRight: 'auto', letterSpacing: 'var(--letter-spacing-wide)' }}>
-            Free forever. No credit card required.
+            Free for up to 3 policies. No credit card required.
           </p>
           <div style={{ display: 'flex', gap: 12, justifyContent: 'center', flexWrap: 'wrap', marginBottom: 36 }}>
             <button onClick={ctaAction} style={{
@@ -815,6 +815,49 @@ export default function Home() {
           1b. PRODUCT DEMO (auto-playing simulation)
       ═══════════════════════════════════════════════════════════════ */}
       <ProductDemo />
+
+      {/* ═══════════════════════════════════════════════════════════════
+          1c. STATIC COMPLIANCE PREVIEW
+      ═══════════════════════════════════════════════════════════════ */}
+      <section style={{ padding: '0 24px 80px', background: '#fff' }}>
+        <div style={{ maxWidth: 520, margin: '0 auto' }}>
+          <div style={{ textAlign: 'center', marginBottom: 20 }}>
+            <h3 style={{ fontSize: 18, fontWeight: 700, color: 'var(--color-text)', margin: '0 0 6px' }}>Verify compliance in seconds</h3>
+            <p style={{ fontSize: 13, color: 'var(--color-text-muted)', margin: 0 }}>
+              Upload requirements from a lease, contract, or vendor agreement — Covrabl checks your policies automatically.
+            </p>
+          </div>
+          <div style={{
+            border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)',
+            overflow: 'hidden', backgroundColor: '#fff',
+            boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
+          }}>
+            <div style={{ padding: '10px 16px', backgroundColor: 'var(--color-bg)', borderBottom: '1px solid var(--color-border)', fontSize: 12, fontWeight: 600, color: 'var(--color-text-secondary)' }}>
+              Sample Compliance Output
+            </div>
+            {[
+              { req: 'General Liability \u2265 $1,000,000', status: 'Pass', color: '#22c55e', bg: '#f0fdf4' },
+              { req: 'Additional Insured endorsement', status: 'Pass', color: '#22c55e', bg: '#f0fdf4' },
+              { req: 'Workers\u2019 Compensation coverage', status: 'Fail', color: '#ef4444', bg: '#fef2f2' },
+              { req: 'Waiver of Subrogation', status: 'Unclear', color: '#f59e0b', bg: '#fffbeb' },
+            ].map((item, i) => (
+              <div key={i} style={{
+                display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                padding: '10px 16px', borderBottom: i < 3 ? '1px solid var(--color-border)' : 'none',
+              }}>
+                <span style={{ fontSize: 13, color: 'var(--color-text)' }}>{item.req}</span>
+                <span style={{
+                  fontSize: 11, fontWeight: 700, color: item.color, padding: '2px 10px',
+                  borderRadius: 4, backgroundColor: item.bg,
+                }}>{item.status}</span>
+              </div>
+            ))}
+            <div style={{ padding: '8px 16px', backgroundColor: 'var(--color-bg)', fontSize: 11, color: 'var(--color-text-muted)' }}>
+              <strong>Unclear</strong> means the uploaded documents did not provide definitive evidence.
+            </div>
+          </div>
+        </div>
+      </section>
 
       {/* ═══════════════════════════════════════════════════════════════
           2. HOW IT WORKS (4 steps — animated)
@@ -916,6 +959,9 @@ export default function Home() {
                 <h3 className="stagger-2" style={{ fontSize: 22, fontWeight: 600, margin: '0 0 12px', color: 'var(--color-text)' }}>AI insights you can act on</h3>
                 <p className="stagger-3" style={{ fontSize: 15, color: 'var(--color-text-secondary)', margin: 0, lineHeight: 1.7 }}>
                   Complex policies are translated into clear, color-coded coverage you can actually understand. Your Coverage Health Score shows where you&#39;re strong, where you&#39;re exposed, and gives you specific questions to ask your agent — without reading a single page of legalese.
+                </p>
+                <p className="stagger-3" style={{ fontSize: 13, color: 'var(--color-text-muted)', margin: '8px 0 0', lineHeight: 1.6 }}>
+                  Every answer is based on your actual uploaded documents — not generic AI.
                 </p>
               </div>
               {/* Visual — right side */}
@@ -1399,7 +1445,7 @@ export default function Home() {
             {ctaLabel}
           </button>
           <div style={{ marginTop: 16, fontSize: 13, opacity: 0.6, letterSpacing: 'var(--letter-spacing-wide)' }}>
-            Free forever. No credit card required.
+            Free for up to 3 policies. No credit card required.
           </div>
         </div>
       </section>
