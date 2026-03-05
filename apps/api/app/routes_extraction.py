@@ -90,11 +90,62 @@ def extract_document(document_id: int, db: Session = Depends(get_db), user: User
                     Policy.id != policy.id,
                 )
             ).scalars().all()
+
+            # Smart filtering: cross-reference extracted details to exclude obvious non-matches
+            DIFFERENTIATING_FIELDS = {
+                "home": "property_address",
+                "renters": "property_address",
+                "auto": "vehicle_1_VIN",
+                "life": "insured_name",
+                "disability": "insured_name",
+            }
+            # Commercial types use business_name from the Policy model directly
+            COMMERCIAL_TYPES = {
+                "general_liability", "commercial_property", "bop",
+                "workers_comp", "professional_liability", "commercial_auto",
+                "cyber", "epli", "dno",
+            }
+
+            diff_field = DIFFERENTIATING_FIELDS.get(result.policy_type)
+            is_commercial = result.policy_type in COMMERCIAL_TYPES
+
+            # Build lookup of new extraction's detail values
+            new_details = {d.field_name.lower(): d.field_value for d in result.details}
+
+            filtered = []
+            for p in existing:
+                # Exposure shortcut: same asset = definite match, always keep
+                if policy.exposure_id and p.exposure_id and policy.exposure_id == p.exposure_id:
+                    filtered.append(p)
+                    continue
+
+                if is_commercial:
+                    # Compare business_name from Policy model
+                    new_biz = policy.business_name
+                    old_biz = p.business_name
+                    if new_biz and old_biz and new_biz.strip().lower() != old_biz.strip().lower():
+                        continue  # Different businesses — exclude
+
+                elif diff_field:
+                    new_val = new_details.get(diff_field.lower())
+                    # Look up candidate's PolicyDetail records
+                    candidate_details = db.execute(
+                        select(PolicyDetail).where(PolicyDetail.policy_id == p.id)
+                    ).scalars().all()
+                    old_val = next(
+                        (d.field_value for d in candidate_details if d.field_name.lower() == diff_field.lower()),
+                        None,
+                    )
+                    if new_val and old_val and new_val.strip().lower() != old_val.strip().lower():
+                        continue  # Different property/vehicle/person — exclude
+
+                filtered.append(p)
+
             potential_renewals = [
                 {"id": p.id, "carrier": p.carrier, "policy_type": p.policy_type,
                  "policy_number": p.policy_number, "renewal_date": str(p.renewal_date) if p.renewal_date else None,
                  "premium_amount": p.premium_amount, "nickname": p.nickname}
-                for p in existing
+                for p in filtered
             ]
 
         return {

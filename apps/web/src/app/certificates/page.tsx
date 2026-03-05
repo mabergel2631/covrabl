@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '../../../lib/auth';
-import { certificatesApi, policiesApi, Certificate, CertificateCreate, Policy, checkFeatureAccess } from '../../../lib/api';
+import { certificatesApi, policiesApi, leaseComplianceApi, Certificate, CertificateCreate, Policy, LeaseRequirement, checkFeatureAccess } from '../../../lib/api';
 import { useToast } from '../components/Toast';
 import ConfirmDialog from '../components/ConfirmDialog';
 import TabNav from '../components/TabNav';
@@ -40,6 +40,8 @@ function CertificatesContent() {
   const [certificates, setCertificates] = useState<Certificate[]>([]);
   const [policies, setPolicies] = useState<Policy[]>([]);
   const [loading, setLoading] = useState(true);
+  const [topTab, setTopTab] = useState<'certificates' | 'lease-check'>('certificates');
+  const [leaseReqs, setLeaseReqs] = useState<LeaseRequirement[]>([]);
   const [tab, setTab] = useState<'all' | 'issued' | 'received'>('all');
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
@@ -61,12 +63,14 @@ function CertificatesContent() {
 
   async function load() {
     try {
-      const [certs, pols] = await Promise.all([
+      const [certs, pols, reqs] = await Promise.all([
         certificatesApi.list(),
         policiesApi.list(),
+        leaseComplianceApi.list().catch(() => [] as LeaseRequirement[]),
       ]);
       setCertificates(certs);
       setPolicies(pols);
+      setLeaseReqs(reqs);
       // Auto-open form if navigated from a policy page with ?addFor=<policyId>
       if (addForPolicyId && pols.some(p => p.id === addForPolicyId)) {
         setForm(f => ({ ...f, policy_id: addForPolicyId }));
@@ -241,13 +245,140 @@ function CertificatesContent() {
 
   return (
     <div style={{ padding: 32, maxWidth: 960, margin: '0 auto' }}>
-      <BackButton href="/" label="Certificates" parentLabel="Home" />
-      {/* Header */}
+      <BackButton href="/" label="Compliance" parentLabel="Home" />
+      {/* Page Header */}
+      <div style={{ marginBottom: 20 }}>
+        <h1 style={{ fontSize: 22, fontWeight: 700 }}>Compliance</h1>
+        <p style={{ fontSize: 13, color: 'var(--color-text-secondary)', marginTop: 4 }}>Certificates of insurance and lease compliance checks</p>
+      </div>
+
+      {/* Top-level tab nav */}
+      <div style={{ marginBottom: 24 }}>
+        <TabNav
+          variant="segmented"
+          activeKey={topTab}
+          onSelect={(key) => setTopTab(key as 'certificates' | 'lease-check')}
+          tabs={[
+            { key: 'certificates', label: 'Certificates' },
+            { key: 'lease-check', label: 'Lease Check' },
+          ]}
+        />
+      </div>
+
+      {topTab === 'lease-check' && (() => {
+        const businessPolicies = policies.filter(p => p.scope === 'business' && p.status === 'active');
+        // Aggregate stats from lease requirements that have checks
+        const totalPass = leaseReqs.reduce((s, r) => s + (r.latest_check?.pass_count || 0), 0);
+        const totalFail = leaseReqs.reduce((s, r) => s + (r.latest_check?.fail_count || 0), 0);
+        const totalUnclear = leaseReqs.reduce((s, r) => s + (r.latest_check?.unclear_count || 0), 0);
+        const hasChecks = leaseReqs.some(r => r.latest_check);
+
+        return (
+          <div>
+            {/* How it works */}
+            <div style={{ marginBottom: 28, padding: 24, backgroundColor: '#f0f9ff', border: '1px solid #bae6fd', borderRadius: 'var(--radius-lg)' }}>
+              <h2 style={{ fontSize: 16, fontWeight: 700, marginBottom: 16, color: '#0c4a6e' }}>How Lease Check Works</h2>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 20 }}>
+                <div style={{ textAlign: 'center' }}>
+                  <div style={{ fontSize: 28, marginBottom: 8 }}>1</div>
+                  <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 4 }}>Upload Lease</div>
+                  <div style={{ fontSize: 12, color: 'var(--color-text-secondary)' }}>Paste lease text or upload a PDF with insurance requirements</div>
+                </div>
+                <div style={{ textAlign: 'center' }}>
+                  <div style={{ fontSize: 28, marginBottom: 8 }}>2</div>
+                  <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 4 }}>AI Extracts Requirements</div>
+                  <div style={{ fontSize: 12, color: 'var(--color-text-secondary)' }}>We automatically identify coverage types, limits, and special endorsements</div>
+                </div>
+                <div style={{ textAlign: 'center' }}>
+                  <div style={{ fontSize: 28, marginBottom: 8 }}>3</div>
+                  <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 4 }}>Check Compliance</div>
+                  <div style={{ fontSize: 12, color: 'var(--color-text-secondary)' }}>Compare your policy against requirements to see what passes, fails, or needs review</div>
+                </div>
+              </div>
+            </div>
+
+            {/* Aggregate stats */}
+            {hasChecks && (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginBottom: 24 }}>
+                <div style={{ padding: 16, backgroundColor: '#dcfce7', borderRadius: 'var(--radius-md)', textAlign: 'center' }}>
+                  <div style={{ fontSize: 24, fontWeight: 700, color: '#166534' }}>{totalPass}</div>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: '#166534' }}>Passing</div>
+                </div>
+                <div style={{ padding: 16, backgroundColor: '#fee2e2', borderRadius: 'var(--radius-md)', textAlign: 'center' }}>
+                  <div style={{ fontSize: 24, fontWeight: 700, color: '#991b1b' }}>{totalFail}</div>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: '#991b1b' }}>Failing</div>
+                </div>
+                <div style={{ padding: 16, backgroundColor: '#fef3c7', borderRadius: 'var(--radius-md)', textAlign: 'center' }}>
+                  <div style={{ fontSize: 24, fontWeight: 700, color: '#92400e' }}>{totalUnclear}</div>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: '#92400e' }}>Unclear</div>
+                </div>
+              </div>
+            )}
+
+            {/* Business policies list */}
+            <h2 style={{ fontSize: 16, fontWeight: 700, marginBottom: 12 }}>Business Policies</h2>
+            {businessPolicies.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '48px 20px', color: 'var(--color-text-secondary)' }}>
+                <div style={{ fontSize: 40, marginBottom: 12 }}>&#128188;</div>
+                <p style={{ fontSize: 15, fontWeight: 600, marginBottom: 6 }}>No business policies yet</p>
+                <p style={{ fontSize: 13, marginBottom: 16 }}>Add a business-scope policy first, then you can run lease compliance checks on it.</p>
+                <button
+                  className="btn btn-primary"
+                  onClick={() => router.push('/policies')}
+                >
+                  Go to Policies
+                </button>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {businessPolicies.map(p => {
+                  const policyReqs = leaseReqs.filter(r => r.policy_id === p.id);
+                  const policyPass = policyReqs.reduce((s, r) => s + (r.latest_check?.pass_count || 0), 0);
+                  const policyFail = policyReqs.reduce((s, r) => s + (r.latest_check?.fail_count || 0), 0);
+                  return (
+                    <div
+                      key={p.id}
+                      onClick={() => router.push(`/policies/${p.id}`)}
+                      style={{
+                        padding: 16, border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)',
+                        backgroundColor: '#fff', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                      }}
+                    >
+                      <div>
+                        <div style={{ fontWeight: 600, fontSize: 15 }}>
+                          {p.nickname || p.carrier || 'Untitled'}
+                          {p.business_name && <span style={{ fontWeight: 400, color: 'var(--color-text-secondary)', marginLeft: 8, fontSize: 13 }}>{p.business_name}</span>}
+                        </div>
+                        <div style={{ fontSize: 12, color: 'var(--color-text-muted)', marginTop: 4 }}>
+                          {p.policy_type} &middot; {p.carrier || 'No carrier'}
+                          {policyReqs.length > 0 && (
+                            <span style={{ marginLeft: 8 }}>
+                              {policyReqs.length} lease check{policyReqs.length !== 1 ? 's' : ''}
+                              {(policyPass > 0 || policyFail > 0) && (
+                                <span style={{ marginLeft: 6 }}>
+                                  <span style={{ color: '#166534' }}>{policyPass}P</span>
+                                  {' / '}
+                                  <span style={{ color: '#991b1b' }}>{policyFail}F</span>
+                                </span>
+                              )}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <span style={{ color: 'var(--color-text-muted)', fontSize: 18 }}>&rarr;</span>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        );
+      })()}
+
+      {topTab === 'certificates' && <>
+      {/* Certificates Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24, flexWrap: 'wrap', gap: 12 }}>
-        <div>
-          <h1 style={{ fontSize: 22, fontWeight: 700 }}>Certificates of Insurance</h1>
-          <p style={{ fontSize: 13, color: 'var(--color-text-secondary)', marginTop: 4 }}>Track COIs you share and receive</p>
-        </div>
+        <h2 style={{ fontSize: 18, fontWeight: 700 }}>Certificates of Insurance</h2>
         <button
           onClick={() => { resetForm(); setShowForm(true); }}
           style={{
@@ -259,7 +390,7 @@ function CertificatesContent() {
         </button>
       </div>
 
-      {/* Tabs */}
+      {/* Sub-Tabs */}
       <div style={{ marginBottom: 24 }}>
         <TabNav
           variant="underline"
@@ -276,7 +407,7 @@ function CertificatesContent() {
       {/* Empty state */}
       {filtered.length === 0 && !showForm && (
         <div style={{ textAlign: 'center', padding: '60px 20px', color: 'var(--color-text-secondary)' }}>
-          <div style={{ fontSize: 48, marginBottom: 16 }}>📜</div>
+          <div style={{ fontSize: 48, marginBottom: 16 }}>&#x1F4DC;</div>
           <p style={{ fontSize: 16, fontWeight: 600, marginBottom: 8 }}>No certificates yet</p>
           <p style={{ fontSize: 13 }}>
             {tab === 'issued' ? 'Track COIs you share with landlords, lenders, or clients.' :
@@ -443,6 +574,7 @@ function CertificatesContent() {
           </div>
         ))}
       </div>
+      </>}
 
       {/* Add/Edit Form Modal */}
       {showForm && (

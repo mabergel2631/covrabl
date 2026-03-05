@@ -571,57 +571,59 @@ export default function PolicyDetailPage() {
 
             {/* Renewal Detection Banner */}
             {potentialRenewals.length > 0 && !renewalDismissed && (
-              <div style={{ marginBottom: 20, padding: 16, backgroundColor: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 'var(--radius-md)' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
-                  <div>
+              <div style={{ marginBottom: 20, backgroundColor: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 'var(--radius-md)' }}>
+                <div style={{ padding: 16 }}>
+                  <div style={{ marginBottom: 12 }}>
                     <h3 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: '#1e40af' }}>This looks like a renewal</h3>
                     <p style={{ margin: '4px 0 0', fontSize: 13, color: '#3b82f6' }}>Link to an existing policy to track premium history across renewals.</p>
                   </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    {potentialRenewals.map(r => (
+                      <div
+                        key={r.id}
+                        style={{
+                          display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                          padding: '10px 12px', backgroundColor: reviewData?.replaces_policy_id === r.id ? '#dbeafe' : '#fff',
+                          borderRadius: 'var(--radius-sm)', border: reviewData?.replaces_policy_id === r.id ? '2px solid #3b82f6' : '1px solid var(--color-border)',
+                          cursor: 'pointer',
+                        }}
+                        onClick={() => {
+                          if (reviewData?.replaces_policy_id === r.id) {
+                            updateReviewField('replaces_policy_id', null);
+                          } else {
+                            updateReviewField('replaces_policy_id', r.id);
+                          }
+                        }}
+                      >
+                        <div>
+                          <div style={{ fontWeight: 600, fontSize: 14 }}>
+                            {r.nickname || r.carrier}
+                            {r.nickname && <span style={{ fontWeight: 400, color: 'var(--color-text-secondary)', marginLeft: 8, fontSize: 12 }}>{r.carrier}</span>}
+                          </div>
+                          <div style={{ fontSize: 12, color: 'var(--color-text-muted)', marginTop: 2 }}>
+                            #{r.policy_number}
+                            {r.premium_amount && <span style={{ marginLeft: 8 }}>${r.premium_amount.toLocaleString()}/yr</span>}
+                            {r.renewal_date && <span style={{ marginLeft: 8 }}>Renews: {r.renewal_date}</span>}
+                          </div>
+                        </div>
+                        <span style={{
+                          padding: '4px 12px', borderRadius: 4, fontSize: 12, fontWeight: 600,
+                          backgroundColor: reviewData?.replaces_policy_id === r.id ? '#3b82f6' : '#e5e7eb',
+                          color: reviewData?.replaces_policy_id === r.id ? '#fff' : '#374151',
+                        }}>
+                          {reviewData?.replaces_policy_id === r.id ? 'Linked' : 'Link as renewal'}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                <div style={{ borderTop: '1px solid #bfdbfe', padding: '12px 16px', display: 'flex', justifyContent: 'flex-end' }}>
                   <button
+                    className="btn btn-outline"
                     onClick={() => setRenewalDismissed(true)}
-                    style={{ background: 'none', border: 'none', color: '#6b7280', cursor: 'pointer', fontSize: 13, padding: '2px 8px', whiteSpace: 'nowrap' }}
                   >
                     This is a separate policy
                   </button>
-                </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  {potentialRenewals.map(r => (
-                    <div
-                      key={r.id}
-                      style={{
-                        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                        padding: '10px 12px', backgroundColor: reviewData?.replaces_policy_id === r.id ? '#dbeafe' : '#fff',
-                        borderRadius: 'var(--radius-sm)', border: reviewData?.replaces_policy_id === r.id ? '2px solid #3b82f6' : '1px solid var(--color-border)',
-                        cursor: 'pointer',
-                      }}
-                      onClick={() => {
-                        if (reviewData?.replaces_policy_id === r.id) {
-                          updateReviewField('replaces_policy_id', null);
-                        } else {
-                          updateReviewField('replaces_policy_id', r.id);
-                        }
-                      }}
-                    >
-                      <div>
-                        <div style={{ fontWeight: 600, fontSize: 14 }}>
-                          {r.nickname || r.carrier}
-                          {r.nickname && <span style={{ fontWeight: 400, color: 'var(--color-text-secondary)', marginLeft: 8, fontSize: 12 }}>{r.carrier}</span>}
-                        </div>
-                        <div style={{ fontSize: 12, color: 'var(--color-text-muted)', marginTop: 2 }}>
-                          #{r.policy_number}
-                          {r.premium_amount && <span style={{ marginLeft: 8 }}>${r.premium_amount.toLocaleString()}/yr</span>}
-                          {r.renewal_date && <span style={{ marginLeft: 8 }}>Renews: {r.renewal_date}</span>}
-                        </div>
-                      </div>
-                      <span style={{
-                        padding: '4px 12px', borderRadius: 4, fontSize: 12, fontWeight: 600,
-                        backgroundColor: reviewData?.replaces_policy_id === r.id ? '#3b82f6' : '#e5e7eb',
-                        color: reviewData?.replaces_policy_id === r.id ? '#fff' : '#374151',
-                      }}>
-                        {reviewData?.replaces_policy_id === r.id ? 'Linked' : 'Link as renewal'}
-                      </span>
-                    </div>
-                  ))}
                 </div>
               </div>
             )}
