@@ -497,6 +497,217 @@ def _score_catastrophic(policies: list[dict], profile: dict, details: dict) -> d
 
 
 # ═══════════════════════════════════════════════════════════════
+# Business Category Scorers
+# ═══════════════════════════════════════════════════════════════
+
+def _score_biz_core_liability(policies: list[dict], details: dict) -> dict:
+    """Score business core liability protection (0-100)."""
+    comps = []
+    recs = []
+
+    gl = _by_types(policies, ["general_liability", "bop"])
+    prof = _by_types(policies, ["professional_liability"])
+
+    # ── GL / BOP presence (40 pts) ────────────────
+    gl_pts = 0
+    if gl:
+        gl_pts = 40
+        comps.append({"name": "General Liability / BOP", "score": 40, "max": 40,
+                      "detail": "General liability or business owner's policy found"})
+    else:
+        comps.append({"name": "General Liability / BOP", "score": 0, "max": 40,
+                      "detail": "No general liability or business owner's policy visible"})
+        recs.append({"priority": "high",
+                     "text": "Upload your general liability policy",
+                     "detail": "General liability insurance is foundational for business protection against third-party claims."})
+
+    # ── Professional Liability / E&O (30 pts) ─────
+    prof_pts = 0
+    if prof:
+        prof_pts = 30
+        comps.append({"name": "Professional Liability (E&O)", "score": 30, "max": 30,
+                      "detail": "Professional liability / errors & omissions policy found"})
+    else:
+        comps.append({"name": "Professional Liability (E&O)", "score": 0, "max": 30,
+                      "detail": "No professional liability policy visible"})
+        recs.append({"priority": "medium",
+                     "text": "Consider professional liability (E&O) coverage",
+                     "detail": "E&O insurance protects against claims arising from professional services, advice, or errors."})
+
+    # ── GL coverage adequacy (30 pts) ─────────────
+    adeq_pts = 0
+    if gl:
+        mx = max((p.get("coverage_amount") or 0) for p in gl)
+        if mx >= 1_000_000:
+            adeq_pts = 30
+            comps.append({"name": "GL coverage adequacy", "score": 30, "max": 30,
+                          "detail": f"GL coverage of {_fmt(mx)} meets $1M recommended minimum"})
+        elif mx > 0:
+            adeq_pts = max(5, int(30 * min(1.0, mx / 1_000_000)))
+            comps.append({"name": "GL coverage adequacy", "score": adeq_pts, "max": 30,
+                          "detail": f"GL coverage of {_fmt(mx)} — $1M per occurrence is commonly recommended"})
+        else:
+            adeq_pts = 15
+            comps.append({"name": "GL coverage adequacy", "score": 15, "max": 30,
+                          "detail": "GL policy found — coverage limit not recorded"})
+
+    score = min(100, max(0, gl_pts + prof_pts + adeq_pts))
+    return {"score": score, "components": comps, "recommendations": recs}
+
+
+def _score_biz_property_fleet(policies: list[dict], details: dict) -> dict:
+    """Score business property & fleet protection (0-100)."""
+    comps = []
+    recs = []
+
+    comm_prop = _by_types(policies, ["commercial_property"])
+    comm_auto = _by_types(policies, ["commercial_auto"])
+    inland = _by_types(policies, ["inland_marine"])
+
+    # ── Commercial Property (40 pts) ──────────────
+    prop_pts = 0
+    if comm_prop:
+        prop_pts = 40
+        comps.append({"name": "Commercial Property", "score": 40, "max": 40,
+                      "detail": "Commercial property insurance found"})
+    else:
+        comps.append({"name": "Commercial Property", "score": 0, "max": 40,
+                      "detail": "No commercial property policy visible"})
+        recs.append({"priority": "medium",
+                     "text": "Consider commercial property insurance",
+                     "detail": "Commercial property insurance protects business premises, equipment, and inventory."})
+
+    # ── Commercial Auto (30 pts) ──────────────────
+    auto_pts = 0
+    if comm_auto:
+        auto_pts = 30
+        comps.append({"name": "Commercial Auto", "score": 30, "max": 30,
+                      "detail": "Commercial auto policy found"})
+    else:
+        comps.append({"name": "Commercial Auto", "score": 0, "max": 30,
+                      "detail": "No commercial auto policy visible"})
+
+    # ── Inland Marine / Equipment (30 pts) ────────
+    inland_pts = 0
+    if inland:
+        inland_pts = 30
+        comps.append({"name": "Inland Marine / Equipment", "score": 30, "max": 30,
+                      "detail": "Inland marine or equipment coverage found"})
+    else:
+        comps.append({"name": "Inland Marine / Equipment", "score": 0, "max": 30,
+                      "detail": "No inland marine or equipment coverage visible"})
+
+    score = min(100, max(0, prop_pts + auto_pts + inland_pts))
+    return {"score": score, "components": comps, "recommendations": recs}
+
+
+def _score_biz_workforce(policies: list[dict], details: dict) -> dict:
+    """Score business workforce protection (0-100)."""
+    comps = []
+    recs = []
+
+    wc = _by_types(policies, ["workers_comp"])
+    epli = _by_types(policies, ["epli"])
+    do_policies = _by_types(policies, ["directors_officers"])
+
+    # ── Workers' Comp (50 pts) ────────────────────
+    wc_pts = 0
+    if wc:
+        wc_pts = 50
+        comps.append({"name": "Workers' Compensation", "score": 50, "max": 50,
+                      "detail": "Workers' compensation policy found"})
+    else:
+        comps.append({"name": "Workers' Compensation", "score": 0, "max": 50,
+                      "detail": "No workers' compensation policy visible"})
+        recs.append({"priority": "high",
+                     "text": "Upload your workers' compensation policy",
+                     "detail": "Workers' comp is legally required in most states for businesses with employees."})
+
+    # ── EPLI (25 pts) ─────────────────────────────
+    epli_pts = 0
+    if epli:
+        epli_pts = 25
+        comps.append({"name": "Employment Practices (EPLI)", "score": 25, "max": 25,
+                      "detail": "Employment practices liability policy found"})
+    else:
+        comps.append({"name": "Employment Practices (EPLI)", "score": 0, "max": 25,
+                      "detail": "No EPLI policy visible"})
+
+    # ── D&O (25 pts) ──────────────────────────────
+    do_pts = 0
+    if do_policies:
+        do_pts = 25
+        comps.append({"name": "Directors & Officers", "score": 25, "max": 25,
+                      "detail": "Directors & officers liability policy found"})
+    else:
+        comps.append({"name": "Directors & Officers", "score": 0, "max": 25,
+                      "detail": "No D&O policy visible"})
+
+    score = min(100, max(0, wc_pts + epli_pts + do_pts))
+    return {"score": score, "components": comps, "recommendations": recs}
+
+
+def _score_biz_specialty(policies: list[dict], details: dict) -> dict:
+    """Score business specialty protection (0-100)."""
+    comps = []
+    recs = []
+
+    cyber = _by_types(policies, ["cyber"])
+    umbrella = _by_types(policies, ["umbrella"])
+    # Any business types beyond the main scored categories
+    scored_types = {"general_liability", "professional_liability", "commercial_property",
+                    "commercial_auto", "inland_marine", "workers_comp", "epli",
+                    "directors_officers", "cyber", "umbrella", "bop"}
+    other = [p for p in policies if p.get("policy_type", "") not in scored_types]
+
+    # ── Cyber Insurance (40 pts) ──────────────────
+    cyber_pts = 0
+    if cyber:
+        cyber_pts = 40
+        comps.append({"name": "Cyber Liability", "score": 40, "max": 40,
+                      "detail": "Cyber liability insurance found"})
+    else:
+        comps.append({"name": "Cyber Liability", "score": 0, "max": 40,
+                      "detail": "No cyber liability policy visible"})
+        recs.append({"priority": "medium",
+                     "text": "Consider cyber liability insurance",
+                     "detail": "Cyber insurance protects against data breaches, ransomware, and other digital threats."})
+
+    # ── Umbrella / Excess Liability (30 pts) ──────
+    umb_pts = 0
+    if umbrella:
+        mx = max((p.get("coverage_amount") or 0) for p in umbrella)
+        if mx >= 1_000_000:
+            umb_pts = 30
+            comps.append({"name": "Umbrella / Excess", "score": 30, "max": 30,
+                          "detail": f"Umbrella coverage of {_fmt(mx)} provides extended protection"})
+        elif mx > 0:
+            umb_pts = max(8, int(30 * min(1.0, mx / 1_000_000)))
+            comps.append({"name": "Umbrella / Excess", "score": umb_pts, "max": 30,
+                          "detail": f"Umbrella coverage of {_fmt(mx)} found"})
+        else:
+            umb_pts = 15
+            comps.append({"name": "Umbrella / Excess", "score": 15, "max": 30,
+                          "detail": "Umbrella policy found — coverage limit not recorded"})
+    else:
+        comps.append({"name": "Umbrella / Excess", "score": 0, "max": 30,
+                      "detail": "No umbrella or excess liability policy visible"})
+
+    # ── Additional coverage (30 pts) ──────────────
+    add_pts = 0
+    if other:
+        add_pts = 30
+        comps.append({"name": "Additional coverage", "score": 30, "max": 30,
+                      "detail": f"{len(other)} additional business coverage(s) found"})
+    else:
+        comps.append({"name": "Additional coverage", "score": 0, "max": 30,
+                      "detail": "No additional business coverages detected"})
+
+    score = min(100, max(0, cyber_pts + umb_pts + add_pts))
+    return {"score": score, "components": comps, "recommendations": recs}
+
+
+# ═══════════════════════════════════════════════════════════════
 # Confidence & Policy Health
 # ═══════════════════════════════════════════════════════════════
 
@@ -694,6 +905,120 @@ def _compute_scores(db: Session, user: User) -> dict:
     return result
 
 
+def _compute_scores_for_scope(db: Session, user: User, scope: str):
+    """Compute scores for a specific scope (personal or business). Returns None if no policies."""
+    profile = _load_user_profile(db, user.id)
+
+    policies_orm = db.execute(
+        select(Policy).where(
+            Policy.user_id == user.id,
+            Policy.status != "archived",
+            Policy.scope == scope,
+        )
+    ).scalars().all()
+
+    if not policies_orm:
+        return None
+
+    policies = [
+        {
+            "id": p.id,
+            "policy_type": (p.policy_type or "").lower(),
+            "carrier": p.carrier,
+            "coverage_amount": p.coverage_amount,
+            "deductible": p.deductible,
+            "premium_amount": p.premium_amount,
+            "renewal_date": p.renewal_date,
+            "status": p.status,
+            "created_at": p.created_at,
+        }
+        for p in policies_orm
+        if p.carrier != "Pending extraction..."
+    ]
+
+    if not policies:
+        return None
+
+    all_details: dict[int, dict] = {}
+    for p in policies_orm:
+        rows = db.execute(
+            select(PolicyDetail).where(PolicyDetail.policy_id == p.id)
+        ).scalars().all()
+        all_details[p.id] = {d.field_name.lower(): d.field_value for d in rows}
+
+    if scope == "personal":
+        weights = _calculate_dynamic_weights(profile)
+        categories = {
+            "liability": _score_liability(policies, profile, all_details),
+            "property": _score_property(policies, profile, all_details),
+            "income": _score_income(policies, profile, all_details),
+            "catastrophic": _score_catastrophic(policies, profile, all_details),
+        }
+        for cat_name, cat_data in categories.items():
+            cat_data["weight"] = weights[cat_name]
+        expected = [t for t in _expected_policy_types(profile)
+                    if t not in ("general_liability",)]
+    else:
+        biz_weights = {"core_liability": 35, "property_fleet": 25, "workforce": 20, "specialty": 20}
+        categories = {
+            "core_liability": _score_biz_core_liability(policies, all_details),
+            "property_fleet": _score_biz_property_fleet(policies, all_details),
+            "workforce": _score_biz_workforce(policies, all_details),
+            "specialty": _score_biz_specialty(policies, all_details),
+        }
+        for cat_name, cat_data in categories.items():
+            cat_data["weight"] = biz_weights[cat_name]
+        expected = ["general_liability", "workers_comp", "commercial_property", "cyber"]
+
+    weighted_sum = sum(
+        categories[c]["score"] * categories[c]["weight"] for c in categories
+    )
+    overall_score = round(weighted_sum / 100)
+
+    uploaded_types = set(p["policy_type"] for p in policies)
+    not_visible = [t for t in expected if t not in uploaded_types]
+    confidence = _calculate_confidence(policies, expected)
+
+    # Cache to DB
+    cache_category = f"{scope}_v1"
+    breakdown_json = json.dumps({
+        "version": SCORE_VERSION,
+        "scope": scope,
+        "categories": {
+            c: {"score": d["score"], "weight": d["weight"]}
+            for c, d in categories.items()
+        },
+    })
+
+    existing = db.execute(
+        select(CoverageScore).where(
+            CoverageScore.user_id == user.id,
+            CoverageScore.category == cache_category,
+        )
+    ).scalar_one_or_none()
+
+    now = datetime.now(timezone.utc)
+    if existing:
+        existing.score_total = overall_score
+        existing.score_breakdown = breakdown_json
+        existing.last_calculated = now
+    else:
+        db.add(CoverageScore(
+            user_id=user.id,
+            category=cache_category,
+            score_total=overall_score,
+            score_breakdown=breakdown_json,
+        ))
+
+    return {
+        "overall_score": overall_score,
+        "confidence": confidence,
+        "policies_analyzed": len(policies),
+        "not_visible": not_visible,
+        "categories": categories,
+    }
+
+
 # ═══════════════════════════════════════════════════════════════
 # API Routes
 # ═══════════════════════════════════════════════════════════════
@@ -717,3 +1042,15 @@ def recalculate_scores(
     db.execute(sa_delete(CoverageScore).where(CoverageScore.user_id == user.id))
     db.commit()
     return _compute_scores(db, user)
+
+
+@router.get("/by-scope")
+def get_scores_by_scope(
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Get separate coverage scores for personal and business scopes."""
+    personal = _compute_scores_for_scope(db, user, "personal")
+    business = _compute_scores_for_scope(db, user, "business")
+    db.commit()
+    return {"personal": personal, "business": business}

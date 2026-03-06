@@ -1180,6 +1180,9 @@ export const scoresApi = {
   recalculate(): Promise<CoverageScoresResult> {
     return request<CoverageScoresResult>("/coverage-scores/recalculate", { method: "POST" });
   },
+  byScope(): Promise<{ personal: CoverageScoresResult | null; business: CoverageScoresResult | null }> {
+    return request<{ personal: CoverageScoresResult | null; business: CoverageScoresResult | null }>("/coverage-scores/by-scope");
+  },
 };
 
 // ── Email Ingestion API ─────────────────────────────────────
