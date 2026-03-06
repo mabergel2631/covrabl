@@ -181,7 +181,11 @@ def rename_business_group(payload: BusinessGroupRename, db: Session = Depends(ge
 def business_group_stats(name: str, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     check_feature(user, "business_grouping")
     policies = db.execute(
-        select(Policy).where(Policy.user_id == user.id, Policy.business_name == name)
+        select(Policy).where(
+            Policy.user_id == user.id,
+            Policy.business_name == name,
+            Policy.carrier != "Pending extraction...",
+        )
     ).scalars().all()
     policy_ids = [p.id for p in policies]
     cert_count = 0
@@ -214,7 +218,11 @@ def delete_business_group(payload: BusinessGroupDelete, db: Session = Depends(ge
 @router.get("/active-by-type")
 def active_by_type(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     policies = db.execute(
-        select(Policy).where(Policy.user_id == user.id, Policy.status == "active")
+        select(Policy).where(
+            Policy.user_id == user.id,
+            Policy.status == "active",
+            Policy.carrier != "Pending extraction...",
+        )
     ).scalars().all()
     return [{"id": p.id, "carrier": p.carrier, "policy_type": p.policy_type,
              "policy_number": p.policy_number, "nickname": p.nickname,

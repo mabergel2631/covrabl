@@ -75,7 +75,10 @@ def smart_reminders(db: Session = Depends(get_db), user: User = Depends(get_curr
     alerts = []
 
     policies = db.execute(
-        select(Policy).where(Policy.user_id == user.id)
+        select(Policy).where(
+            Policy.user_id == user.id,
+            Policy.carrier != "Pending extraction...",
+        )
     ).scalars().all()
 
     for p in policies:

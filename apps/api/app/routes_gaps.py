@@ -39,7 +39,10 @@ def get_gap_analysis(db: Session = Depends(get_db), user: User = Depends(get_cur
     Analyze the user's policies and return identified coverage gaps.
     """
     policies = db.execute(
-        select(Policy).where(Policy.user_id == user.id)
+        select(Policy).where(
+            Policy.user_id == user.id,
+            Policy.carrier != "Pending extraction...",
+        )
         .options(selectinload(Policy.contacts), selectinload(Policy.details))
     ).unique().scalars().all()
 
@@ -62,7 +65,10 @@ def get_coverage_summary_only(db: Session = Depends(get_db), user: User = Depend
     Lighter endpoint for dashboard widgets.
     """
     policies = db.execute(
-        select(Policy).where(Policy.user_id == user.id)
+        select(Policy).where(
+            Policy.user_id == user.id,
+            Policy.carrier != "Pending extraction...",
+        )
     ).scalars().all()
 
     policy_data = [{
@@ -95,7 +101,10 @@ def _serialize_policies(policies: list[Policy]) -> list[dict]:
 def _load_policies_eager(db: Session, user_id: int) -> list[Policy]:
     """Load all user policies with contacts and details eagerly."""
     return db.execute(
-        select(Policy).where(Policy.user_id == user_id)
+        select(Policy).where(
+            Policy.user_id == user_id,
+            Policy.carrier != "Pending extraction...",
+        )
         .options(selectinload(Policy.contacts), selectinload(Policy.details))
     ).unique().scalars().all()
 
