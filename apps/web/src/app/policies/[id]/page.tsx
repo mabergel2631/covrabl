@@ -143,6 +143,7 @@ export default function PolicyDetailPage() {
   const [leaseTenantNotes, setLeaseTenantNotes] = useState('');
   const [leaseSending, setLeaseSending] = useState(false);
   const leasePdfRef = useRef<HTMLInputElement>(null);
+  const leaseAutoShareRef = useRef(false);
 
   // Version history
   const [versionHistory, setVersionHistory] = useState<PolicyVersionEntry[]>([]);
@@ -1937,7 +1938,7 @@ export default function PolicyDetailPage() {
             if (ext.property_address) setLeaseFormPropertyAddress(ext.property_address);
             if (ext.landlord_name && leaseFormRole === 'tenant') setLeaseFormCounterpartyName(ext.landlord_name);
             if (ext.tenant_name && leaseFormRole === 'landlord') setLeaseFormCounterpartyName(ext.tenant_name);
-            if (!leaseFormLabel && ext.property_address) setLeaseFormLabel(`${ext.property_address} Lease`);
+            if (!leaseFormLabel) setLeaseFormLabel(ext.property_address ? `${ext.property_address} Lease` : `Lease Requirements – ${new Date().toLocaleDateString()}`);
             setLeaseCreateStep(2);
             toast('Requirements extracted successfully');
           } catch (err: any) {
@@ -1958,7 +1959,7 @@ export default function PolicyDetailPage() {
             if (ext.property_address) setLeaseFormPropertyAddress(ext.property_address);
             if (ext.landlord_name && leaseFormRole === 'tenant') setLeaseFormCounterpartyName(ext.landlord_name);
             if (ext.tenant_name && leaseFormRole === 'landlord') setLeaseFormCounterpartyName(ext.tenant_name);
-            if (!leaseFormLabel && ext.property_address) setLeaseFormLabel(`${ext.property_address} Lease`);
+            if (!leaseFormLabel) setLeaseFormLabel(ext.property_address ? `${ext.property_address} Lease` : `Lease Requirements – ${new Date().toLocaleDateString()}`);
             setLeaseCreateStep(2);
             toast('Requirements extracted from PDF');
             if (leasePdfRef.current) leasePdfRef.current.value = '';
@@ -2013,6 +2014,12 @@ export default function PolicyDetailPage() {
             setLeaseView('results');
             // Reload lease reqs
             leaseComplianceApi.list(undefined, policyId).then(setLeaseReqs).catch(() => {});
+
+            // Auto-open share modal if landlord clicked "Save & Share"
+            if (leaseAutoShareRef.current && leaseFormRole === 'landlord') {
+              leaseAutoShareRef.current = false;
+              handleLeaseShare(created);
+            }
           } catch (err: any) {
             toast(err.message || 'Failed to save', 'error');
           } finally {
@@ -2327,9 +2334,14 @@ export default function PolicyDetailPage() {
 
                     <div style={{ display: 'flex', gap: 8 }}>
                       <button onClick={() => setLeaseCreateStep(1)} style={{ padding: '8px 16px', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)', backgroundColor: '#fff', cursor: 'pointer', fontSize: 13 }}>Back</button>
-                      <button onClick={handleLeaseSaveAndCheck} disabled={leaseSaving} style={{ padding: '8px 20px', backgroundColor: 'var(--color-primary)', color: '#fff', border: 'none', borderRadius: 'var(--radius-sm)', fontWeight: 600, fontSize: 13, cursor: leaseSaving ? 'wait' : 'pointer', opacity: leaseSaving ? 0.7 : 1 }}>
-                        {leaseSaving ? 'Saving...' : leaseFormRole === 'tenant' ? 'Save & Check My Policy' : 'Save & Share with Tenant'}
+                      <button onClick={() => { leaseAutoShareRef.current = false; handleLeaseSaveAndCheck(); }} disabled={leaseSaving} style={{ padding: '8px 20px', backgroundColor: leaseFormRole === 'landlord' ? '#fff' : 'var(--color-primary)', color: leaseFormRole === 'landlord' ? 'var(--color-text)' : '#fff', border: leaseFormRole === 'landlord' ? '1px solid var(--color-border)' : 'none', borderRadius: 'var(--radius-sm)', fontWeight: 600, fontSize: 13, cursor: leaseSaving ? 'wait' : 'pointer', opacity: leaseSaving ? 0.7 : 1 }}>
+                        {leaseSaving ? 'Saving...' : leaseFormRole === 'tenant' ? 'Save & Check My Policy' : 'Save'}
                       </button>
+                      {leaseFormRole === 'landlord' && (
+                        <button onClick={() => { leaseAutoShareRef.current = true; handleLeaseSaveAndCheck(); }} disabled={leaseSaving} style={{ padding: '8px 20px', backgroundColor: 'var(--color-primary)', color: '#fff', border: 'none', borderRadius: 'var(--radius-sm)', fontWeight: 600, fontSize: 13, cursor: leaseSaving ? 'wait' : 'pointer', opacity: leaseSaving ? 0.7 : 1 }}>
+                          {leaseSaving ? 'Saving...' : 'Save & Share with Tenant'}
+                        </button>
+                      )}
                     </div>
                   </>
                 )}
