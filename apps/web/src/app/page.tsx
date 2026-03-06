@@ -620,15 +620,16 @@ export default function Home() {
   const [openFaq, setOpenFaq] = useState<number | null>(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [announcementDismissed, setAnnouncementDismissed] = useState(false);
-  const showAnnouncement = ANNOUNCEMENT_BAR.enabled && !token && !announcementDismissed;
+  const showAsPublic = !token || isReferral;
+  const showAnnouncement = ANNOUNCEMENT_BAR.enabled && showAsPublic && !announcementDismissed;
 
   const scrollTo = (id: string) => {
     document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' });
     setMobileMenuOpen(false);
   };
 
-  const ctaAction = () => router.push(token ? '/policies' : '/login');
-  const ctaLabel = token ? 'View My Coverage' : 'Upload Policies \u2014 See Your Coverage';
+  const ctaAction = () => router.push(showAsPublic ? '/login' : '/policies');
+  const ctaLabel = showAsPublic ? 'Upload Policies \u2014 See Your Coverage' : 'View My Coverage';
 
   /* Scroll-reveal refs for each animated section */
   const step1Ref = useScrollReveal();
@@ -668,7 +669,7 @@ export default function Home() {
       {/* ═══════════════════════════════════════════════════════════════
           NAVIGATION
       ═══════════════════════════════════════════════════════════════ */}
-      {!token && (
+      {showAsPublic && (
         <header className="landing-header" style={{
           position: 'fixed', top: showAnnouncement ? 36 : 0, left: 0, right: 0, zIndex: 100,
           background: 'rgba(255,255,255,0.95)', backdropFilter: 'blur(8px)',
@@ -711,7 +712,7 @@ export default function Home() {
       )}
 
       {/* Mobile menu dropdown */}
-      {!token && mobileMenuOpen && (
+      {showAsPublic && mobileMenuOpen && (
         <div className="mobile-menu-dropdown" style={{
           position: 'fixed', top: 52, left: 0, right: 0, zIndex: 99,
           background: '#fff', borderBottom: '1px solid var(--color-border)',
@@ -742,7 +743,7 @@ export default function Home() {
           1. HERO
       ═══════════════════════════════════════════════════════════════ */}
       <section style={{
-        paddingTop: token ? 60 : (showAnnouncement ? 156 : 120), paddingBottom: 80, paddingLeft: 24, paddingRight: 24,
+        paddingTop: showAsPublic ? (showAnnouncement ? 156 : 120) : 60, paddingBottom: 80, paddingLeft: 24, paddingRight: 24,
         background: 'linear-gradient(160deg, #0f1f33 0%, var(--color-primary-dark) 30%, var(--color-primary) 70%, var(--color-primary-light) 100%)',
         color: '#fff',
         position: 'relative',
