@@ -808,3 +808,27 @@ def get_active_announcements(db: Session = Depends(get_db)):
             "type": a.type,
         })
     return active
+
+
+# ═══════════════════════════════════════════════════════
+#  DATA CLEANUP
+# ═══════════════════════════════════════════════════════
+
+@router.delete("/cleanup-pending-extractions")
+def admin_cleanup_pending(
+    admin: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    """Delete all 'Pending extraction...' placeholder policies across all users."""
+    from .routes_policies import _delete_policy_cascade
+
+    stale = db.execute(
+        select(Policy).where(Policy.carrier == "Pending extraction...")
+    ).scalars().all()
+
+    count = len(stale)
+    for p in stale:
+        _delete_policy_cascade(db, p.id)
+    db.commit()
+
+    return {"ok": True, "deleted": count}
