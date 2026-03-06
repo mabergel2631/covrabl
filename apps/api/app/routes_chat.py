@@ -21,6 +21,7 @@ from .models_documents import Document
 from .models_features import (
     Claim, Certificate, Premium, PremiumHistory,
     PolicyDelta, DeltaExplanation, CoverageScore, PolicyShare,
+    LeaseRequirement, ComplianceCheck,
 )
 from .models_profile import UserProfile, ProfileContact
 
@@ -445,7 +446,62 @@ def _build_chat_context(
                 if sh.expires_at:
                     sections.append(f"  Expires: {sh.expires_at}")
 
-    # 13. Document text (cached, lazy-extracted)
+    # 13. Lease compliance requirements and check results
+    lease_reqs = db.execute(
+        select(LeaseRequirement).where(LeaseRequirement.user_id == user.id)
+    ).scalars().all()
+
+    if lease_reqs:
+        sections.append("\n## LEASE COMPLIANCE REQUIREMENTS")
+        for lr in lease_reqs:
+            linked = next((p for p in policies if p.id == lr.policy_id), None) if lr.policy_id else None
+            lines = [f"### {lr.label}"]
+            lines.append(f"- Role: {lr.role}")
+            if lr.property_address:
+                lines.append(f"- Property: {lr.property_address}")
+            if lr.counterparty_name:
+                lines.append(f"- {'Tenant' if lr.role == 'landlord' else 'Landlord'}: {lr.counterparty_name}")
+            if linked:
+                lines.append(f"- Linked policy: {linked.carrier} ({linked.policy_type})")
+            lines.append(f"- Status: {lr.status}")
+
+            # Parse requirements
+            try:
+                import json as _json
+                reqs_list = _json.loads(lr.requirements_json)
+                if reqs_list:
+                    lines.append(f"- Requirements ({len(reqs_list)}):")
+                    for r in reqs_list:
+                        lines.append(f"  - [{r.get('category', 'other')}] {r.get('label', '')}")
+            except Exception:
+                pass
+
+            # Latest compliance check
+            latest = db.execute(
+                select(ComplianceCheck).where(
+                    ComplianceCheck.lease_requirement_id == lr.id,
+                ).order_by(ComplianceCheck.id.desc()).limit(1)
+            ).scalar_one_or_none()
+
+            if latest:
+                lines.append(f"- Latest check: {latest.pass_count} pass, {latest.fail_count} fail, {latest.unclear_count} unclear")
+                lines.append(f"  Checked against: {latest.checked_against}")
+                if latest.tenant_name:
+                    lines.append(f"  Tenant: {latest.tenant_name}")
+                if latest.submitted_at:
+                    lines.append(f"  Submitted: {latest.submitted_at}")
+                # Include individual results
+                try:
+                    results = _json.loads(latest.results_json)
+                    for r in results:
+                        status_label = r.get("status", "unclear").upper()
+                        lines.append(f"  - [{status_label}] {r.get('requirement_label', '')}: {r.get('note', '')}")
+                except Exception:
+                    pass
+
+            sections.append("\n".join(lines))
+
+    # 14. Document text (cached, lazy-extracted)
     if policies:
         docs = db.execute(
             select(Document)
