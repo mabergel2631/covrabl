@@ -36,6 +36,9 @@ class Policy(Base):
     user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), index=True)
     exposure_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("exposures.id", ondelete="SET NULL"), nullable=True, index=True)
     status: Mapped[str] = mapped_column(String(20), default="active")  # active, expired, archived
+    replaces_policy_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("policies.id", ondelete="SET NULL"), nullable=True, index=True
+    )
 
     scope: Mapped[str] = mapped_column(String(20), index=True)
     policy_type: Mapped[str] = mapped_column(String(50), index=True)
@@ -62,6 +65,16 @@ class Policy(Base):
     renewal_date: Mapped[Date | None] = mapped_column(Date, nullable=True)
 
     created_at: Mapped[DateTime] = mapped_column(DateTime, server_default=func.now())
+
+    # Version chain relationships
+    replaced_by: Mapped[list["Policy"]] = relationship(
+        "Policy", back_populates="replaces", foreign_keys="Policy.replaces_policy_id",
+        lazy="select"
+    )
+    replaces: Mapped["Policy | None"] = relationship(
+        "Policy", back_populates="replaced_by", remote_side="Policy.id",
+        foreign_keys="Policy.replaces_policy_id", lazy="select"
+    )
 
     # Relationships for eager loading
     contacts: Mapped[list["Contact"]] = relationship("Contact", lazy="select", cascade="all, delete-orphan")
