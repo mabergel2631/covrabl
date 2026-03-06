@@ -106,6 +106,8 @@ function PoliciesPageInner() {
   const loadAll = async () => {
     try {
       setLoading(true);
+      // Fire-and-forget: clean up stale draft policies older than 24h
+      policiesApi.cleanupDrafts().catch(() => {});
       const [pols, rens, spend, shared, pending, alerts, gapsResult, addressResult, draftsResult, scoresResult] = await Promise.all([
         policiesApi.list(),
         renewalsApi.upcoming(90),
@@ -443,9 +445,8 @@ function PoliciesPageInner() {
   };
 
   // Computed values for insights
-  const activePolicies = policies.filter(p => p.carrier !== 'Pending extraction...');
-  const displayPolicies = showArchived ? activePolicies : activePolicies.filter(p => p.status !== 'archived');
-  const archivedCount = activePolicies.filter(p => p.status === 'archived').length;
+  const displayPolicies = showArchived ? policies : policies.filter(p => p.status !== 'archived');
+  const archivedCount = policies.filter(p => p.status === 'archived').length;
   const hasMultipleScopes = displayPolicies.some(p => p.scope === 'personal') && displayPolicies.some(p => p.scope === 'business');
   const scopedPolicies = scopeTab === 'all' ? displayPolicies : displayPolicies.filter(p => p.scope === scopeTab);
   const scopedPolicyIds = new Set(scopedPolicies.map(p => p.id));
@@ -528,7 +529,7 @@ function PoliciesPageInner() {
   // Determine system status
   const getSystemStatus = () => {
     if (urgentAlerts.length > 0) return { status: 'attention', message: `${urgentAlerts.length} item${urgentAlerts.length > 1 ? 's' : ''} need${urgentAlerts.length === 1 ? 's' : ''} attention`, color: 'var(--color-warning)' };
-    if (activePolicies.length === 0 && !isShareRecipientOnly) return { status: 'setup', message: 'Get started by adding your first policy', color: 'var(--color-text-muted)' };
+    if (policies.length === 0 && !isShareRecipientOnly) return { status: 'setup', message: 'Get started by adding your first policy', color: 'var(--color-text-muted)' };
     if (isShareRecipientOnly) return { status: 'good', message: `${sharedPolicies.length} polic${sharedPolicies.length === 1 ? 'y' : 'ies'} shared with you`, color: 'var(--color-success)' };
     return { status: 'good', message: 'All policies active. No urgent actions.', color: 'var(--color-success)' };
   };
@@ -749,7 +750,7 @@ function PoliciesPageInner() {
       {/* Bulk Share Modal */}
       <BulkShareModal
         open={showBulkShare}
-        policies={activePolicies}
+        policies={policies}
         onClose={() => setShowBulkShare(false)}
         onSuccess={(created, skipped) => {
           setShowBulkShare(false);
@@ -1089,7 +1090,7 @@ function PoliciesPageInner() {
             >
               Emergency Access
             </button>
-            {activePolicies.length > 0 && (
+            {policies.length > 0 && (
               <button
                 onClick={() => setShowBulkShare(true)}
                 className="btn btn-outline"
@@ -1098,7 +1099,7 @@ function PoliciesPageInner() {
                 Share Access
               </button>
             )}
-            {activePolicies.length >= 2 && (
+            {policies.length >= 2 && (
               <button
                 onClick={() => router.push('/policies/compare')}
                 className="btn btn-outline"
@@ -1130,7 +1131,7 @@ function PoliciesPageInner() {
                   Show archived ({archivedCount})
                 </label>
               )}
-              {activePolicies.length > 3 && (
+              {policies.length > 3 && (
                 <>
                   <input
                     className="form-input"

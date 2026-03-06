@@ -277,6 +277,9 @@ export const policiesApi = {
   versions(id: number): Promise<PolicyVersionEntry[]> {
     return request<PolicyVersionEntry[]>(`/policies/${id}/versions`);
   },
+  cleanupDrafts(): Promise<{ cleaned: number }> {
+    return request<{ cleaned: number }>("/policies/cleanup-drafts", { method: "DELETE" });
+  },
 };
 
 // ── Contacts API ─────────────────────────────────────

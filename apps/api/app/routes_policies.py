@@ -12,6 +12,7 @@ from .schemas import PolicyCreate, PolicyUpdate, PolicyOut, BusinessGroupRename,
 from .audit_helper import log_action
 from .routes_reminders import ensure_reminders
 from .access import get_policy_for_user
+from datetime import datetime, timedelta, timezone
 from .routes_billing import check_feature
 
 router = APIRouter(prefix="/policies", tags=["policies"])
@@ -20,7 +21,7 @@ router = APIRouter(prefix="/policies", tags=["policies"])
 @router.get("")
 def list_policies(status: Optional[str] = Query(None), db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     # Eager load contacts, details, and exposure in a single query
-    query = select(Policy).where(Policy.user_id == user.id)
+    query = select(Policy).where(Policy.user_id == user.id).where(Policy.carrier != "Pending extraction...")
     if status:
         query = query.where(Policy.status == status)
     policies = db.execute(
@@ -119,6 +120,7 @@ def list_business_names(db: Session = Depends(get_db), user: User = Depends(get_
         .where(Policy.business_name.isnot(None))
         .where(Policy.business_name != "")
         .where(Policy.status != "archived")
+        .where(Policy.carrier != "Pending extraction...")
     ).scalars().all()
     return sorted(names)
 
@@ -211,6 +213,22 @@ def active_by_type(user: User = Depends(get_current_user), db: Session = Depends
     return [{"id": p.id, "carrier": p.carrier, "policy_type": p.policy_type,
              "policy_number": p.policy_number, "nickname": p.nickname,
              "scope": p.scope} for p in policies]
+
+
+@router.delete("/cleanup-drafts")
+def cleanup_drafts(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    cutoff = datetime.now(timezone.utc) - timedelta(hours=24)
+    stale = db.execute(
+        select(Policy).where(
+            Policy.user_id == user.id,
+            Policy.carrier == "Pending extraction...",
+            Policy.created_at < cutoff,
+        )
+    ).scalars().all()
+    for p in stale:
+        db.delete(p)
+    db.commit()
+    return {"cleaned": len(stale)}
 
 
 @router.get("/compare")
