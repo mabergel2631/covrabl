@@ -372,6 +372,8 @@ def list_compliance_checks(
             "pass_count": c.pass_count,
             "fail_count": c.fail_count,
             "unclear_count": c.unclear_count,
+            "tenant_name": c.tenant_name,
+            "tenant_email": c.tenant_email,
             "submitted_at": c.submitted_at.isoformat() if c.submitted_at else None,
             "created_at": c.created_at.isoformat() if c.created_at else None,
         }
@@ -479,10 +481,10 @@ async def send_to_tenant(
     if not req:
         raise HTTPException(status_code=404, detail="Lease requirement not found")
 
-    # Update counterparty info
-    if payload.tenant_email:
+    # Only set counterparty if not already set (don't overwrite for multi-tenant)
+    if not req.counterparty_email and payload.tenant_email:
         req.counterparty_email = payload.tenant_email
-    if payload.tenant_name:
+    if not req.counterparty_name and payload.tenant_name:
         req.counterparty_name = payload.tenant_name
     db.commit()
 
@@ -626,6 +628,8 @@ async def submit_coi_public(
         pass_count=pass_count,
         fail_count=fail_count,
         unclear_count=unclear_count,
+        tenant_name=tenant_name or None,
+        tenant_email=tenant_email or None,
         submitted_at=datetime.now(timezone.utc),
     )
     db.add(check)
@@ -742,7 +746,33 @@ def _requirement_to_dict(req: LeaseRequirement, db: Session) -> dict:
             "fail_count": latest_check.fail_count,
             "unclear_count": latest_check.unclear_count,
             "checked_against": latest_check.checked_against,
+            "tenant_name": latest_check.tenant_name,
             "created_at": latest_check.created_at.isoformat() if latest_check.created_at else None,
         }
+
+    # Build per-tenant summary from all checks with submitted_at
+    all_checks = db.execute(
+        select(ComplianceCheck).where(
+            ComplianceCheck.lease_requirement_id == req.id,
+        ).order_by(ComplianceCheck.created_at.desc())
+    ).scalars().all()
+
+    tenants_map: dict[str, dict] = {}
+    for c in all_checks:
+        key = c.tenant_email or c.tenant_name
+        if not key:
+            continue
+        if key not in tenants_map:
+            tenants_map[key] = {
+                "tenant_name": c.tenant_name,
+                "tenant_email": c.tenant_email,
+                "pass_count": c.pass_count,
+                "fail_count": c.fail_count,
+                "unclear_count": c.unclear_count,
+                "submitted_at": c.submitted_at.isoformat() if c.submitted_at else None,
+                "created_at": c.created_at.isoformat() if c.created_at else None,
+                "check_id": c.id,
+            }
+    result["tenants"] = list(tenants_map.values())
 
     return result

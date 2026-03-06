@@ -48,6 +48,7 @@ class PolicyBase(BaseModel):
     renewal_date: Optional[date] = None
     exposure_id: Optional[int] = None
     status: Optional[Literal["active", "expired", "archived"]] = "active"
+    replaces_policy_id: Optional[int] = None
     # Health-specific fields
     plan_subtype: Optional[str] = None  # HMO, PPO, EPO, HDHP, POS
     out_of_pocket_max: Optional[int] = None
@@ -531,6 +532,8 @@ class ComplianceCheckOut(BaseModel):
     pass_count: int
     fail_count: int
     unclear_count: int
+    tenant_name: Optional[str] = None
+    tenant_email: Optional[str] = None
     submitted_at: Optional[datetime] = None
     created_at: datetime
 

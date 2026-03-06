@@ -258,5 +258,7 @@ class ComplianceCheck(Base):
     pass_count: Mapped[int] = mapped_column(Integer, default=0)
     fail_count: Mapped[int] = mapped_column(Integer, default=0)
     unclear_count: Mapped[int] = mapped_column(Integer, default=0)
+    tenant_name: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    tenant_email: Mapped[str | None] = mapped_column(String(255), nullable=True)
     submitted_at: Mapped[DateTime | None] = mapped_column(DateTime, nullable=True)
     created_at: Mapped[DateTime] = mapped_column(DateTime, server_default=func.now())

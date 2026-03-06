@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useAuth } from '../../../../lib/auth';
-import { API_BASE, policiesApi, contactsApi, documentsApi, coverageApi, policyDetailsApi, claimsApi, sharingApi, exportApi, premiumHistoryApi, exposuresApi, gapsApi, certificatesApi, leaseComplianceApi, chatApi, Policy, Contact, DocMeta, ContactCreate, ExtractionData, CoverageItem, CoverageItemCreate, PolicyDetail, PolicyDetailCreate, PolicyUpdate, Claim, ClaimCreate, PolicyShareType, ShareCreate, PremiumHistoryEntry, Exposure, CoverageGap, Certificate, LeaseRequirement, LeaseRequirementItem, ComplianceResultItem, LeaseExtraction, BrokerEmail, PolicyVersionEntry, PotentialRenewal, checkFeatureAccess, parseUpgradeError } from '../../../../lib/api';
+import { API_BASE, policiesApi, contactsApi, documentsApi, coverageApi, policyDetailsApi, claimsApi, sharingApi, exportApi, premiumHistoryApi, exposuresApi, gapsApi, certificatesApi, leaseComplianceApi, chatApi, Policy, Contact, DocMeta, ContactCreate, ExtractionData, CoverageItem, CoverageItemCreate, PolicyDetail, PolicyDetailCreate, PolicyUpdate, Claim, ClaimCreate, PolicyShareType, ShareCreate, PremiumHistoryEntry, Exposure, CoverageGap, Certificate, LeaseRequirement, LeaseRequirementTenant, LeaseRequirementItem, ComplianceResultItem, LeaseExtraction, BrokerEmail, PolicyVersionEntry, PotentialRenewal, checkFeatureAccess, parseUpgradeError } from '../../../../lib/api';
 import { formatPhone, cleanPhone } from '../../../../lib/format';
 import { useToast } from '../../components/Toast';
 import { Skeleton } from '../../components/Skeleton';
@@ -1989,16 +1989,25 @@ export default function PolicyDetailPage() {
             // Immediately add to local list so results view has access
             setLeaseReqs(prev => [created, ...prev]);
             setLeaseActiveReqId(created.id);
-            setLeaseCheckedAgainst(`${policy!.carrier ? policy!.carrier + ' ' : ''}${policy!.policy_type.replace(/_/g, ' ')} policy`);
-            setLeaseChecking(true);
-            try {
-              const check = await leaseComplianceApi.runCheck(created.id, 'policy', { policyId });
-              setLeaseResults(check.results || []);
-              setLeaseCheckCounts({ pass: check.pass_count, fail: check.fail_count, unclear: check.unclear_count });
-            } catch {
-              toast('Compliance check failed — you can re-check later', 'error');
-            } finally {
-              setLeaseChecking(false);
+
+            if (leaseFormRole === 'tenant') {
+              // Tenant flow: auto-run check against own policy
+              setLeaseCheckedAgainst(`${policy!.carrier ? policy!.carrier + ' ' : ''}${policy!.policy_type.replace(/_/g, ' ')} policy`);
+              setLeaseChecking(true);
+              try {
+                const check = await leaseComplianceApi.runCheck(created.id, 'policy', { policyId });
+                setLeaseResults(check.results || []);
+                setLeaseCheckCounts({ pass: check.pass_count, fail: check.fail_count, unclear: check.unclear_count });
+              } catch {
+                toast('Compliance check failed — you can re-check later', 'error');
+              } finally {
+                setLeaseChecking(false);
+              }
+            } else {
+              // Landlord flow: skip auto-check, go to results/next-steps
+              setLeaseResults([]);
+              setLeaseCheckCounts({ pass: 0, fail: 0, unclear: 0 });
+              setLeaseCheckedAgainst('');
             }
 
             setLeaseView('results');
@@ -2142,7 +2151,12 @@ export default function PolicyDetailPage() {
                         <div key={req.id} style={{ border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', padding: 14, backgroundColor: '#fff' }}>
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 8 }}>
                             <div style={{ flex: 1 }}>
-                              <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 4 }}>{req.label}</div>
+                              <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 4, display: 'flex', alignItems: 'center', gap: 6 }}>
+                                {req.label}
+                                <span style={{ padding: '1px 6px', borderRadius: 10, fontSize: 10, fontWeight: 600, backgroundColor: req.role === 'landlord' ? '#dcfce7' : '#dbeafe', color: req.role === 'landlord' ? '#166534' : '#1e40af' }}>
+                                  {req.role === 'landlord' ? 'Landlord' : 'Tenant'}
+                                </span>
+                              </div>
                               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', fontSize: 12, color: 'var(--color-text-secondary)' }}>
                                 {req.property_address && <span>{req.property_address}</span>}
                                 {req.counterparty_name && <span>&middot; {req.counterparty_name}</span>}
@@ -2188,24 +2202,57 @@ export default function PolicyDetailPage() {
             {/* ── Create View ── */}
             {leaseView === 'create' && (
               <>
-                {/* Role toggle */}
-                <div style={{ display: 'flex', gap: 0, marginBottom: 16, borderRadius: 'var(--radius-sm)', overflow: 'hidden', border: '1px solid var(--color-border)', maxWidth: 260 }}>
-                  {(['tenant', 'landlord'] as const).map(r => (
-                    <button key={r} onClick={() => setLeaseFormRole(r)} style={{ flex: 1, padding: '6px 12px', border: 'none', fontSize: 12, fontWeight: 600, cursor: 'pointer', backgroundColor: leaseFormRole === r ? 'var(--color-primary)' : '#fff', color: leaseFormRole === r ? '#fff' : 'var(--color-text)' }}>
-                      {r === 'tenant' ? 'As Tenant' : 'As Landlord'}
-                    </button>
-                  ))}
+                {/* Role selection cards */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 20 }}>
+                  <button
+                    onClick={() => setLeaseFormRole('tenant')}
+                    style={{
+                      padding: '16px 14px', textAlign: 'left', borderRadius: 'var(--radius-md)', cursor: 'pointer',
+                      border: leaseFormRole === 'tenant' ? '2px solid var(--color-primary)' : '1px solid var(--color-border)',
+                      backgroundColor: leaseFormRole === 'tenant' ? 'rgba(37,99,235,0.04)' : '#fff',
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                      <span style={{ width: 16, height: 16, borderRadius: '50%', border: leaseFormRole === 'tenant' ? '5px solid var(--color-primary)' : '2px solid #ccc', display: 'inline-block', flexShrink: 0 }} />
+                      <span style={{ fontSize: 14, fontWeight: 700 }}>I&apos;m the Tenant</span>
+                    </div>
+                    <p style={{ fontSize: 12, color: 'var(--color-text-secondary)', margin: '0 0 0 24px', lineHeight: 1.5 }}>
+                      Check if your policy meets your landlord&apos;s lease requirements
+                    </p>
+                  </button>
+                  <button
+                    onClick={() => setLeaseFormRole('landlord')}
+                    style={{
+                      padding: '16px 14px', textAlign: 'left', borderRadius: 'var(--radius-md)', cursor: 'pointer',
+                      border: leaseFormRole === 'landlord' ? '2px solid var(--color-primary)' : '1px solid var(--color-border)',
+                      backgroundColor: leaseFormRole === 'landlord' ? 'rgba(37,99,235,0.04)' : '#fff',
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                      <span style={{ width: 16, height: 16, borderRadius: '50%', border: leaseFormRole === 'landlord' ? '5px solid var(--color-primary)' : '2px solid #ccc', display: 'inline-block', flexShrink: 0 }} />
+                      <span style={{ fontSize: 14, fontWeight: 700 }}>I&apos;m the Landlord</span>
+                    </div>
+                    <p style={{ fontSize: 12, color: 'var(--color-text-secondary)', margin: '0 0 0 24px', lineHeight: 1.5 }}>
+                      Set requirements for your tenant and collect their proof of coverage
+                    </p>
+                  </button>
                 </div>
 
                 {leaseCreateStep === 1 && (
                   <>
                     <div style={{ marginBottom: 12 }}>
-                      <label style={labelStyle}>Paste Lease Insurance Clause</label>
+                      <label style={labelStyle}>
+                        {leaseFormRole === 'tenant'
+                          ? "Paste your landlord's lease requirements"
+                          : 'Paste the insurance clause from your lease'}
+                      </label>
                       <textarea
                         style={{ ...inputStyle, minHeight: 140, lineHeight: 1.6 }}
                         value={leaseClauseText}
                         onChange={e => setLeaseClauseText(e.target.value)}
-                        placeholder="Paste the insurance requirements section from your lease here..."
+                        placeholder={leaseFormRole === 'tenant'
+                          ? "Paste the insurance requirements section from your lease. We'll check if your policy covers what's needed."
+                          : "Paste the insurance requirements you need from your tenant. We'll extract them so you can share and track compliance."}
                       />
                     </div>
                     <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
@@ -2281,7 +2328,7 @@ export default function PolicyDetailPage() {
                     <div style={{ display: 'flex', gap: 8 }}>
                       <button onClick={() => setLeaseCreateStep(1)} style={{ padding: '8px 16px', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)', backgroundColor: '#fff', cursor: 'pointer', fontSize: 13 }}>Back</button>
                       <button onClick={handleLeaseSaveAndCheck} disabled={leaseSaving} style={{ padding: '8px 20px', backgroundColor: 'var(--color-primary)', color: '#fff', border: 'none', borderRadius: 'var(--radius-sm)', fontWeight: 600, fontSize: 13, cursor: leaseSaving ? 'wait' : 'pointer', opacity: leaseSaving ? 0.7 : 1 }}>
-                        {leaseSaving ? 'Saving...' : 'Save & Check'}
+                        {leaseSaving ? 'Saving...' : leaseFormRole === 'tenant' ? 'Save & Check My Policy' : 'Save & Share with Tenant'}
                       </button>
                     </div>
                   </>
@@ -2292,6 +2339,9 @@ export default function PolicyDetailPage() {
             {/* ── Results View ── */}
             {leaseView === 'results' && leaseActiveReqId && (() => {
               const activeReq = leaseReqs.find(r => r.id === leaseActiveReqId);
+              const isLandlord = activeReq?.role === 'landlord';
+              const hasResults = leaseResults.length > 0;
+              const landlordNoCheck = isLandlord && !hasResults && !leaseChecking;
               return (
                 <>
                   <div style={{ marginBottom: 16 }}>
@@ -2304,86 +2354,212 @@ export default function PolicyDetailPage() {
                     )}
                   </div>
 
-                  {/* Summary counts */}
-                  <div style={{ display: 'flex', gap: 10, marginBottom: 16, flexWrap: 'wrap' }}>
-                    {[
-                      { label: 'Pass', count: leaseCheckCounts.pass, color: '#166534', bg: '#dcfce7' },
-                      { label: 'Fail', count: leaseCheckCounts.fail, color: '#991b1b', bg: '#fee2e2' },
-                      { label: 'Unclear', count: leaseCheckCounts.unclear, color: '#92400e', bg: '#fef3c7' },
-                    ].map(s => (
-                      <div key={s.label} style={{ padding: '8px 16px', borderRadius: 'var(--radius-sm)', backgroundColor: s.bg, minWidth: 70, textAlign: 'center' }}>
-                        <div style={{ fontSize: 20, fontWeight: 700, color: s.color }}>{s.count}</div>
-                        <div style={{ fontSize: 11, fontWeight: 600, color: s.color }}>{s.label}</div>
-                      </div>
-                    ))}
-                  </div>
-
-                  {/* Results checklist */}
-                  {leaseChecking ? (
-                    <div style={{ padding: 24, textAlign: 'center', color: 'var(--color-text-secondary)', fontSize: 13 }}>Running compliance check...</div>
-                  ) : leaseResults.length > 0 ? (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 16 }}>
-                      {leaseResults.map((r, i) => {
-                        const si = STATUS_ICONS[r.status] || STATUS_ICONS.unclear;
-                        const cc = CATEGORY_COLORS[r.category] || CATEGORY_COLORS.other;
-                        return (
-                          <div key={i} style={{ border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)', padding: 12, backgroundColor: '#fff' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-                              <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 20, height: 20, borderRadius: '50%', backgroundColor: si.bg, color: si.color, fontSize: 11, fontWeight: 700 }}>{si.icon}</span>
-                              <span style={{ padding: '1px 6px', borderRadius: 10, fontSize: 10, fontWeight: 600, backgroundColor: cc.bg, color: cc.fg }}>{CATEGORY_LABELS[r.category] || r.category}</span>
-                              <span style={{ fontSize: 13, fontWeight: 600, flex: 1 }}>{r.requirement_label}</span>
-                            </div>
-                            {r.note && <p style={{ fontSize: 12, color: 'var(--color-text-secondary)', margin: '2px 0 0 28px', lineHeight: 1.5 }}>{r.note}</p>}
+                  {/* Landlord: next-steps card when no check has been run */}
+                  {landlordNoCheck ? (
+                    <div style={{ border: '1px solid #bfdbfe', borderRadius: 'var(--radius-md)', padding: 20, backgroundColor: '#f0f9ff', marginBottom: 16 }}>
+                      <h4 style={{ fontSize: 14, fontWeight: 700, margin: '0 0 6px', color: '#1e40af' }}>Requirements saved. Now collect your tenant&apos;s proof of insurance.</h4>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 14, marginTop: 14 }}>
+                        {/* Option 1: Send to Tenant */}
+                        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+                          <span style={{ fontSize: 18, flexShrink: 0 }}>1.</span>
+                          <div style={{ flex: 1 }}>
+                            <p style={{ fontSize: 13, fontWeight: 600, margin: '0 0 4px' }}>Send to Tenant</p>
+                            <p style={{ fontSize: 12, color: 'var(--color-text-secondary)', margin: '0 0 8px' }}>Email a link where your tenant can upload their COI directly</p>
+                            {activeReq && <button onClick={() => handleLeaseShare(activeReq)} style={{ padding: '6px 14px', backgroundColor: 'var(--color-primary)', color: '#fff', border: 'none', borderRadius: 'var(--radius-sm)', fontWeight: 600, cursor: 'pointer', fontSize: 12 }}>Send to Tenant</button>}
                           </div>
-                        );
-                      })}
+                        </div>
+                        {/* Option 2: Check a Certificate */}
+                        {policyCertificates.length > 0 && (
+                          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+                            <span style={{ fontSize: 18, flexShrink: 0 }}>2.</span>
+                            <div style={{ flex: 1 }}>
+                              <p style={{ fontSize: 13, fontWeight: 600, margin: '0 0 4px' }}>Check a Certificate</p>
+                              <p style={{ fontSize: 12, color: 'var(--color-text-secondary)', margin: '0 0 8px' }}>If you already have the tenant&apos;s COI on file, check it now</p>
+                              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                                {policyCertificates.map(cert => (
+                                  <button
+                                    key={cert.id}
+                                    onClick={async () => {
+                                      if (!leaseActiveReqId) return;
+                                      setLeaseChecking(true);
+                                      try {
+                                        const check = await leaseComplianceApi.runCheck(leaseActiveReqId, 'certificate', { certificateId: cert.id });
+                                        setLeaseResults(check.results || []);
+                                        setLeaseCheckCounts({ pass: check.pass_count, fail: check.fail_count, unclear: check.unclear_count });
+                                        setLeaseCheckedAgainst(`${cert.counterparty_name || 'Certificate'} (${cert.direction === 'issued' ? 'shared' : 'received'}${cert.coverage_types ? ' \u2014 ' + cert.coverage_types : ''})`);
+                                        toast(`Checked against ${cert.counterparty_name || 'certificate'}`);
+                                        leaseComplianceApi.list(undefined, policyId).then(setLeaseReqs).catch(() => {});
+                                      } catch (err: any) {
+                                        toast(err.message || 'Certificate check failed', 'error');
+                                      } finally {
+                                        setLeaseChecking(false);
+                                      }
+                                    }}
+                                    style={{ padding: '6px 14px', backgroundColor: '#7c3aed', color: '#fff', border: 'none', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontWeight: 600, fontSize: 12 }}
+                                  >
+                                    Check vs {cert.counterparty_name || `Certificate #${cert.id}`}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                        {/* Option 3: Copy Link */}
+                        {activeReq && (
+                          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+                            <span style={{ fontSize: 18, flexShrink: 0 }}>{policyCertificates.length > 0 ? '3.' : '2.'}</span>
+                            <div style={{ flex: 1 }}>
+                              <p style={{ fontSize: 13, fontWeight: 600, margin: '0 0 4px' }}>Copy Public Link</p>
+                              <p style={{ fontSize: 12, color: 'var(--color-text-secondary)', margin: '0 0 8px' }}>Share this link so your tenant can upload their certificate</p>
+                              <div style={{ display: 'flex', gap: 8 }}>
+                                <input style={{ ...inputStyle, flex: 1, fontSize: 12 }} readOnly value={getLeaseShareUrl(activeReq.access_code)} />
+                                <button onClick={() => { navigator.clipboard.writeText(getLeaseShareUrl(activeReq.access_code)); toast('Link copied'); }} style={{ padding: '6px 14px', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)', backgroundColor: '#fff', cursor: 'pointer', fontWeight: 600, fontSize: 12, whiteSpace: 'nowrap' }}>Copy</button>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   ) : (
-                    <div style={{ padding: 24, textAlign: 'center', color: 'var(--color-text-secondary)' }}>
-                      <p style={{ fontSize: 13, margin: '0 0 10px' }}>No results yet.</p>
-                      <button onClick={() => leaseActiveReqId && handleLeaseRecheck(leaseActiveReqId)} className="btn btn-primary">Run Check</button>
-                    </div>
+                    <>
+                      {/* Summary counts */}
+                      <div style={{ display: 'flex', gap: 10, marginBottom: 16, flexWrap: 'wrap' }}>
+                        {[
+                          { label: 'Pass', count: leaseCheckCounts.pass, color: '#166534', bg: '#dcfce7' },
+                          { label: 'Fail', count: leaseCheckCounts.fail, color: '#991b1b', bg: '#fee2e2' },
+                          { label: 'Unclear', count: leaseCheckCounts.unclear, color: '#92400e', bg: '#fef3c7' },
+                        ].map(s => (
+                          <div key={s.label} style={{ padding: '8px 16px', borderRadius: 'var(--radius-sm)', backgroundColor: s.bg, minWidth: 70, textAlign: 'center' }}>
+                            <div style={{ fontSize: 20, fontWeight: 700, color: s.color }}>{s.count}</div>
+                            <div style={{ fontSize: 11, fontWeight: 600, color: s.color }}>{s.label}</div>
+                          </div>
+                        ))}
+                      </div>
+
+                      {/* Results checklist */}
+                      {leaseChecking ? (
+                        <div style={{ padding: 24, textAlign: 'center', color: 'var(--color-text-secondary)', fontSize: 13 }}>Running compliance check...</div>
+                      ) : hasResults ? (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 16 }}>
+                          {leaseResults.map((r, i) => {
+                            const si = STATUS_ICONS[r.status] || STATUS_ICONS.unclear;
+                            const cc = CATEGORY_COLORS[r.category] || CATEGORY_COLORS.other;
+                            return (
+                              <div key={i} style={{ border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)', padding: 12, backgroundColor: '#fff' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                                  <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 20, height: 20, borderRadius: '50%', backgroundColor: si.bg, color: si.color, fontSize: 11, fontWeight: 700 }}>{si.icon}</span>
+                                  <span style={{ padding: '1px 6px', borderRadius: 10, fontSize: 10, fontWeight: 600, backgroundColor: cc.bg, color: cc.fg }}>{CATEGORY_LABELS[r.category] || r.category}</span>
+                                  <span style={{ fontSize: 13, fontWeight: 600, flex: 1 }}>{r.requirement_label}</span>
+                                </div>
+                                {r.note && <p style={{ fontSize: 12, color: 'var(--color-text-secondary)', margin: '2px 0 0 28px', lineHeight: 1.5 }}>{r.note}</p>}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      ) : (
+                        <div style={{ padding: 24, textAlign: 'center', color: 'var(--color-text-secondary)' }}>
+                          <p style={{ fontSize: 13, margin: '0 0 10px' }}>No results yet.</p>
+                          {!isLandlord && <button onClick={() => leaseActiveReqId && handleLeaseRecheck(leaseActiveReqId)} className="btn btn-primary">Run Check</button>}
+                        </div>
+                      )}
+
+                      {/* Action buttons */}
+                      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: hasResults ? 0 : 8 }}>
+                        {/* Re-check Policy — tenant only */}
+                        {!isLandlord && (
+                          <button onClick={() => leaseActiveReqId && handleLeaseRecheck(leaseActiveReqId)} disabled={leaseChecking} style={{ padding: '6px 14px', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)', backgroundColor: '#fff', cursor: 'pointer', fontWeight: 600, fontSize: 12 }}>
+                            {hasResults ? 'Re-check Policy' : 'Check Policy'}
+                          </button>
+                        )}
+                        {/* Check against certificate(s) */}
+                        {policyCertificates.map(cert => (
+                          <button
+                            key={cert.id}
+                            onClick={async () => {
+                              if (!leaseActiveReqId) return;
+                              setLeaseChecking(true);
+                              try {
+                                const check = await leaseComplianceApi.runCheck(leaseActiveReqId, 'certificate', { certificateId: cert.id });
+                                setLeaseResults(check.results || []);
+                                setLeaseCheckCounts({ pass: check.pass_count, fail: check.fail_count, unclear: check.unclear_count });
+                                setLeaseCheckedAgainst(`${cert.counterparty_name || 'Certificate'} (${cert.direction === 'issued' ? 'shared' : 'received'}${cert.coverage_types ? ' \u2014 ' + cert.coverage_types : ''})`);
+                                toast(`Checked against ${cert.counterparty_name || 'certificate'}`);
+                                leaseComplianceApi.list(undefined, policyId).then(setLeaseReqs).catch(() => {});
+                              } catch (err: any) {
+                                toast(err.message || 'Certificate check failed', 'error');
+                              } finally {
+                                setLeaseChecking(false);
+                              }
+                            }}
+                            disabled={leaseChecking}
+                            style={{ padding: '6px 14px', backgroundColor: '#7c3aed', color: '#fff', border: 'none', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontWeight: 600, fontSize: 12 }}
+                            title={`Check against ${cert.counterparty_name}'s certificate${cert.coverage_types ? ' (' + cert.coverage_types + ')' : ''}`}
+                          >
+                            Check vs {cert.counterparty_name || `Certificate #${cert.id}`}
+                          </button>
+                        ))}
+                        {/* Send to Broker — tenant only */}
+                        {!isLandlord && hasResults && (
+                          <button onClick={() => leaseActiveReqId && handleLeaseBrokerEmail(leaseActiveReqId)} style={{ padding: '6px 14px', backgroundColor: '#2563eb', color: '#fff', border: 'none', borderRadius: 'var(--radius-sm)', fontWeight: 600, cursor: 'pointer', fontSize: 12 }}>Send to Broker</button>
+                        )}
+                        {activeReq && <button onClick={() => handleLeaseShare(activeReq)} style={{ padding: '6px 14px', backgroundColor: 'var(--color-primary)', color: '#fff', border: 'none', borderRadius: 'var(--radius-sm)', fontWeight: 600, cursor: 'pointer', fontSize: 12 }}>{isLandlord ? 'Share / Send to Tenant' : 'Share'}</button>}
+                        {activeReq && (
+                          <button onClick={() => { const url = getLeaseShareUrl(activeReq.access_code); window.open(url + '?print=1', '_blank'); }} style={{ padding: '6px 14px', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)', backgroundColor: '#fff', cursor: 'pointer', fontWeight: 600, fontSize: 12 }}>Print</button>
+                        )}
+                      </div>
+                    </>
                   )}
 
-                  {/* Action buttons */}
-                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: leaseResults.length > 0 ? 0 : 8 }}>
-                    <button onClick={() => leaseActiveReqId && handleLeaseRecheck(leaseActiveReqId)} disabled={leaseChecking} style={{ padding: '6px 14px', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)', backgroundColor: '#fff', cursor: 'pointer', fontWeight: 600, fontSize: 12 }}>
-                      {leaseResults.length > 0 ? 'Re-check Policy' : 'Check Policy'}
-                    </button>
-                    {/* Check against certificate(s) */}
-                    {policyCertificates.map(cert => (
-                      <button
-                        key={cert.id}
-                        onClick={async () => {
-                          if (!leaseActiveReqId) return;
-                          setLeaseChecking(true);
-                          try {
-                            const check = await leaseComplianceApi.runCheck(leaseActiveReqId, 'certificate', { certificateId: cert.id });
-                            setLeaseResults(check.results || []);
-                            setLeaseCheckCounts({ pass: check.pass_count, fail: check.fail_count, unclear: check.unclear_count });
-                            setLeaseCheckedAgainst(`${cert.counterparty_name || 'Certificate'} (${cert.direction === 'issued' ? 'shared' : 'received'}${cert.coverage_types ? ' — ' + cert.coverage_types : ''})`);
-                            toast(`Checked against ${cert.counterparty_name || 'certificate'}`);
-                          } catch (err: any) {
-                            toast(err.message || 'Certificate check failed', 'error');
-                          } finally {
-                            setLeaseChecking(false);
-                          }
-                        }}
-                        disabled={leaseChecking}
-                        style={{ padding: '6px 14px', backgroundColor: '#7c3aed', color: '#fff', border: 'none', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontWeight: 600, fontSize: 12 }}
-                        title={`Check against ${cert.counterparty_name}'s certificate${cert.coverage_types ? ' (' + cert.coverage_types + ')' : ''}`}
-                      >
-                        Check vs {cert.counterparty_name || `Certificate #${cert.id}`}
-                      </button>
-                    ))}
-                    {leaseResults.length > 0 && (
-                      <button onClick={() => leaseActiveReqId && handleLeaseBrokerEmail(leaseActiveReqId)} style={{ padding: '6px 14px', backgroundColor: '#2563eb', color: '#fff', border: 'none', borderRadius: 'var(--radius-sm)', fontWeight: 600, cursor: 'pointer', fontSize: 12 }}>Send to Broker</button>
-                    )}
-                    {activeReq && <button onClick={() => handleLeaseShare(activeReq)} style={{ padding: '6px 14px', backgroundColor: 'var(--color-primary)', color: '#fff', border: 'none', borderRadius: 'var(--radius-sm)', fontWeight: 600, cursor: 'pointer', fontSize: 12 }}>Share / Send to Tenant</button>}
-                    {activeReq && (
-                      <button onClick={() => { const url = getLeaseShareUrl(activeReq.access_code); window.open(url + '?print=1', '_blank'); }} style={{ padding: '6px 14px', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)', backgroundColor: '#fff', cursor: 'pointer', fontWeight: 600, fontSize: 12 }}>Print</button>
-                    )}
-                  </div>
+                  {/* Tenant tracker panel — landlord only */}
+                  {isLandlord && activeReq?.tenants && activeReq.tenants.length > 0 && (
+                    <div style={{ marginTop: 20, borderTop: '1px solid var(--color-border)', paddingTop: 16 }}>
+                      <h4 style={{ fontSize: 14, fontWeight: 700, margin: '0 0 10px' }}>Tenants</h4>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                        {activeReq.tenants.map((t, i) => {
+                          const allPass = t.fail_count === 0 && t.unclear_count === 0 && t.pass_count > 0;
+                          const hasFail = t.fail_count > 0;
+                          const isPending = !t.submitted_at;
+                          return (
+                            <button
+                              key={i}
+                              onClick={async () => {
+                                // Load this tenant's specific check
+                                try {
+                                  const checks = await leaseComplianceApi.listChecks(activeReq.id);
+                                  const tenantCheck = checks.find((c: any) => c.id === t.check_id);
+                                  if (tenantCheck) {
+                                    const parsed = typeof tenantCheck.results_json === 'string' ? JSON.parse(tenantCheck.results_json) : [];
+                                    setLeaseResults(parsed);
+                                    setLeaseCheckCounts({ pass: tenantCheck.pass_count, fail: tenantCheck.fail_count, unclear: tenantCheck.unclear_count });
+                                    setLeaseCheckedAgainst(`${t.tenant_name || t.tenant_email || 'Tenant'}'s certificate`);
+                                  }
+                                } catch {
+                                  toast('Failed to load tenant check', 'error');
+                                }
+                              }}
+                              style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 14px', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)', backgroundColor: '#fff', cursor: 'pointer', width: '100%', textAlign: 'left' }}
+                            >
+                              <div>
+                                <div style={{ fontSize: 13, fontWeight: 600 }}>{t.tenant_name || t.tenant_email || 'Unknown Tenant'}{t.tenant_email && t.tenant_name ? ` (${t.tenant_email})` : ''}</div>
+                                <div style={{ fontSize: 11, color: 'var(--color-text-secondary)', marginTop: 2 }}>
+                                  {isPending ? 'Pending' : `Submitted ${new Date(t.submitted_at!).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`}
+                                </div>
+                              </div>
+                              <div>
+                                {isPending ? (
+                                  <span style={{ fontSize: 12, color: '#92400e' }}>Pending</span>
+                                ) : (
+                                  <span style={{ fontSize: 12, fontWeight: 600, color: allPass ? '#166534' : hasFail ? '#991b1b' : '#92400e' }}>
+                                    {allPass ? '\u2713' : '\u2717'} {t.pass_count}P/{t.fail_count}F
+                                  </span>
+                                )}
+                              </div>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
                 </>
               );
             })()}

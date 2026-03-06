@@ -1952,6 +1952,17 @@ export type ComplianceResultItem = {
   note: string;
 };
 
+export type LeaseRequirementTenant = {
+  tenant_name: string | null;
+  tenant_email: string | null;
+  pass_count: number;
+  fail_count: number;
+  unclear_count: number;
+  submitted_at: string | null;
+  created_at: string | null;
+  check_id: number;
+};
+
 export type LeaseRequirement = {
   id: number;
   user_id: number;
@@ -1973,8 +1984,10 @@ export type LeaseRequirement = {
     fail_count: number;
     unclear_count: number;
     checked_against: string;
+    tenant_name?: string | null;
     created_at: string;
   } | null;
+  tenants?: LeaseRequirementTenant[];
 };
 
 export type LeaseRequirementCreate = {
@@ -1996,6 +2009,8 @@ export type ComplianceCheckResult = {
   fail_count: number;
   unclear_count: number;
   checked_against: string;
+  tenant_name?: string | null;
+  tenant_email?: string | null;
   created_at: string;
 };
 
