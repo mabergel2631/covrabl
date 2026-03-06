@@ -1985,8 +1985,8 @@ export default function PolicyDetailPage() {
           setLeaseEditableReqs(reqs);
           setLeaseFormLabel(existing.label || '');
           setLeaseFormPropertyAddress(existing.property_address || '');
-          setLeaseFormCounterpartyName(existing.counterparty_name || '');
-          setLeaseFormCounterpartyEmail(existing.counterparty_email || '');
+          setLeaseFormCounterpartyName('');
+          setLeaseFormCounterpartyEmail('');
           setLeaseFormRole(existing.role);
           setLeaseExtraction(null);
           setLeaseCreateStep(2);
