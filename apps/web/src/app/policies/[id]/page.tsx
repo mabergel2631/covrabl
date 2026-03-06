@@ -2200,7 +2200,7 @@ export default function PolicyDetailPage() {
                               )}
                             </div>
                             <div style={{ display: 'flex', gap: 4 }}>
-                              <button onClick={() => handleLeaseViewResults(req)} style={{ padding: '4px 10px', fontSize: 12, border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)', backgroundColor: '#fff', cursor: 'pointer' }}>Check</button>
+                              <button onClick={() => handleLeaseViewResults(req)} style={{ padding: '4px 10px', fontSize: 12, border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)', backgroundColor: '#fff', cursor: 'pointer' }}>View</button>
                               <button onClick={() => handleLeaseShare(req)} style={{ padding: '4px 10px', fontSize: 12, border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)', backgroundColor: '#fff', cursor: 'pointer' }}>Share</button>
                               <button onClick={() => { const url = getLeaseShareUrl(req.access_code) + '?print=1'; window.open(url, '_blank'); }} style={{ padding: '4px 10px', fontSize: 12, border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)', backgroundColor: '#fff', cursor: 'pointer' }}>Print</button>
                               {canEdit && <button onClick={() => setLeaseDeleteConfirm(req.id)} style={{ padding: '4px 10px', fontSize: 12, border: '1px solid var(--color-danger-border)', borderRadius: 'var(--radius-sm)', backgroundColor: '#fff', color: 'var(--color-danger)', cursor: 'pointer' }}>Delete</button>}
@@ -2602,41 +2602,61 @@ export default function PolicyDetailPage() {
                           const hasFail = t.fail_count > 0;
                           const isPending = !t.submitted_at;
                           return (
-                            <button
-                              key={i}
-                              onClick={async () => {
-                                // Load this tenant's specific check
-                                try {
-                                  const checks = await leaseComplianceApi.listChecks(activeReq.id);
-                                  const tenantCheck = checks.find((c: any) => c.id === t.check_id);
-                                  if (tenantCheck) {
-                                    const parsed = typeof tenantCheck.results_json === 'string' ? JSON.parse(tenantCheck.results_json) : [];
-                                    setLeaseResults(parsed);
-                                    setLeaseCheckCounts({ pass: tenantCheck.pass_count, fail: tenantCheck.fail_count, unclear: tenantCheck.unclear_count });
-                                    setLeaseCheckedAgainst(`${t.tenant_name || t.tenant_email || 'Tenant'}'s certificate`);
-                                  }
-                                } catch {
-                                  toast('Failed to load tenant check', 'error');
-                                }
-                              }}
-                              style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 14px', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)', backgroundColor: '#fff', cursor: 'pointer', width: '100%', textAlign: 'left' }}
-                            >
-                              <div>
-                                <div style={{ fontSize: 13, fontWeight: 600 }}>{t.tenant_name || t.tenant_email || 'Unknown Tenant'}{t.tenant_email && t.tenant_name ? ` (${t.tenant_email})` : ''}</div>
-                                <div style={{ fontSize: 11, color: 'var(--color-text-secondary)', marginTop: 2 }}>
-                                  {isPending ? 'Pending' : `Submitted ${new Date(t.submitted_at!).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`}
+                            <div key={i} style={{ border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)', backgroundColor: '#fff', padding: '10px 14px' }}>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <div>
+                                  <div style={{ fontSize: 13, fontWeight: 600 }}>{t.tenant_name || t.tenant_email || 'Unknown Tenant'}{t.tenant_email && t.tenant_name ? ` (${t.tenant_email})` : ''}</div>
+                                  <div style={{ fontSize: 11, color: 'var(--color-text-secondary)', marginTop: 2 }}>
+                                    {isPending ? 'Pending' : `Submitted ${new Date(t.submitted_at!).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`}
+                                  </div>
+                                </div>
+                                <div>
+                                  {isPending ? (
+                                    <span style={{ fontSize: 12, color: '#92400e' }}>Pending</span>
+                                  ) : (
+                                    <span style={{ fontSize: 12, fontWeight: 600, color: allPass ? '#166534' : hasFail ? '#991b1b' : '#92400e' }}>
+                                      {allPass ? '\u2713' : '\u2717'} {t.pass_count}P/{t.fail_count}F
+                                    </span>
+                                  )}
                                 </div>
                               </div>
-                              <div>
-                                {isPending ? (
-                                  <span style={{ fontSize: 12, color: '#92400e' }}>Pending</span>
-                                ) : (
-                                  <span style={{ fontSize: 12, fontWeight: 600, color: allPass ? '#166534' : hasFail ? '#991b1b' : '#92400e' }}>
-                                    {allPass ? '\u2713' : '\u2717'} {t.pass_count}P/{t.fail_count}F
-                                  </span>
-                                )}
-                              </div>
-                            </button>
+                              {!isPending && (
+                                <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
+                                  <button
+                                    onClick={async () => {
+                                      try {
+                                        const checks = await leaseComplianceApi.listChecks(activeReq.id);
+                                        const tenantCheck = checks.find((c: any) => c.id === t.check_id);
+                                        if (tenantCheck) {
+                                          const parsed = typeof tenantCheck.results_json === 'string' ? JSON.parse(tenantCheck.results_json) : [];
+                                          setLeaseResults(parsed);
+                                          setLeaseCheckCounts({ pass: tenantCheck.pass_count, fail: tenantCheck.fail_count, unclear: tenantCheck.unclear_count });
+                                          setLeaseCheckedAgainst(`${t.tenant_name || t.tenant_email || 'Tenant'}'s certificate`);
+                                        }
+                                      } catch {
+                                        toast('Failed to load tenant check', 'error');
+                                      }
+                                    }}
+                                    style={{ padding: '4px 10px', fontSize: 11, fontWeight: 600, border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)', backgroundColor: '#fff', cursor: 'pointer', color: 'var(--color-primary)' }}
+                                  >
+                                    View Results
+                                  </button>
+                                  {hasFail && (
+                                    <button
+                                      onClick={() => {
+                                        setLeaseDeficiencyEmail(t.tenant_email || activeReq.counterparty_email || '');
+                                        setLeaseDeficiencyName(t.tenant_name || activeReq.counterparty_name || '');
+                                        setLeaseDeficiencyNotes('');
+                                        setLeaseDeficiencyModal(true);
+                                      }}
+                                      style={{ padding: '4px 10px', fontSize: 11, fontWeight: 600, border: '1px solid #fecaca', borderRadius: 'var(--radius-sm)', backgroundColor: '#fff', cursor: 'pointer', color: '#dc2626' }}
+                                    >
+                                      Send Deficiency Notice
+                                    </button>
+                                  )}
+                                </div>
+                              )}
+                            </div>
                           );
                         })}
                       </div>
