@@ -238,7 +238,9 @@ export default function LeaseCompliancePublicPage() {
               <div style={{ textAlign: 'center', padding: '16px 0' }}>
                 <p style={{ fontSize: 13, color: '#6b7280', marginBottom: 12 }}>Want to track your own insurance policies and stay on top of renewals?</p>
                 <a
-                  href="/"
+                  href="https://covrabl.com/login"
+                  target="_blank"
+                  rel="noopener noreferrer"
                   style={{
                     display: 'inline-block', padding: '10px 24px', backgroundColor: '#1e3a5f', color: '#fff',
                     borderRadius: 6, fontWeight: 600, fontSize: 14, textDecoration: 'none',
@@ -321,7 +323,7 @@ export default function LeaseCompliancePublicPage() {
 
         {/* Powered by */}
         <div style={{ textAlign: 'center', marginTop: 24, fontSize: 12, color: '#9ca3af' }}>
-          Powered by <a href="https://covrabl.com" style={{ color: '#6b7280', textDecoration: 'underline' }}>Covrabl</a>
+          Powered by <a href="https://covrabl.com" target="_blank" rel="noopener noreferrer" style={{ color: '#6b7280', textDecoration: 'underline' }}>Covrabl</a>
         </div>
       </div>
     </div>
