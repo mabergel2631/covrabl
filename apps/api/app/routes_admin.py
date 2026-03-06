@@ -832,3 +832,24 @@ def admin_cleanup_pending(
     db.commit()
 
     return {"ok": True, "deleted": count}
+
+
+@router.delete("/cleanup-lease-requirements")
+def admin_cleanup_lease_requirements(
+    admin: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    """Delete all lease requirements and their compliance checks for the admin's account."""
+    from .models_features import LeaseRequirement, ComplianceCheck
+
+    reqs = db.execute(
+        select(LeaseRequirement).where(LeaseRequirement.user_id == admin.id)
+    ).scalars().all()
+
+    count = len(reqs)
+    for req in reqs:
+        db.execute(delete(ComplianceCheck).where(ComplianceCheck.lease_requirement_id == req.id))
+        db.delete(req)
+    db.commit()
+
+    return {"ok": True, "deleted": count}

@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
 from pydantic import BaseModel
-from sqlalchemy import select
+from sqlalchemy import select, delete
 from sqlalchemy.orm import Session
 from typing import Optional
 
@@ -251,6 +251,10 @@ def delete_requirement(
     ).scalar_one_or_none()
     if not req:
         raise HTTPException(status_code=404, detail="Lease requirement not found")
+    # Manually cascade-delete compliance checks (live DB may lack CASCADE constraint)
+    db.execute(
+        delete(ComplianceCheck).where(ComplianceCheck.lease_requirement_id == req_id)
+    )
     db.delete(req)
     db.commit()
     return {"ok": True}
