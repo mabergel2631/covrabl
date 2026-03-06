@@ -1980,6 +1980,18 @@ export default function PolicyDetailPage() {
           }
         }
 
+        function handleLeaseUseExisting(existing: LeaseRequirement) {
+          const reqs: LeaseRequirementItem[] = (() => { try { return JSON.parse(existing.requirements_json); } catch { return []; } })();
+          setLeaseEditableReqs(reqs);
+          setLeaseFormLabel(existing.label || '');
+          setLeaseFormPropertyAddress(existing.property_address || '');
+          setLeaseFormCounterpartyName(existing.counterparty_name || '');
+          setLeaseFormCounterpartyEmail(existing.counterparty_email || '');
+          setLeaseFormRole(existing.role);
+          setLeaseExtraction(null);
+          setLeaseCreateStep(2);
+        }
+
         async function handleLeaseSaveAndCheck() {
           if (!leaseFormLabel.trim()) { toast('Please enter a label', 'error'); return; }
           if (leaseEditableReqs.length === 0) { toast('Add at least one requirement', 'error'); return; }
@@ -2257,6 +2269,43 @@ export default function PolicyDetailPage() {
 
                 {leaseCreateStep === 1 && (
                   <>
+                    {/* Use existing requirements if available */}
+                    {leaseReqs.length > 0 && (
+                      <div style={{ marginBottom: 16 }}>
+                        <label style={{ ...labelStyle, marginBottom: 8 }}>Use existing requirements</label>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                          {leaseReqs.map(existing => {
+                            const reqItems: LeaseRequirementItem[] = (() => { try { return JSON.parse(existing.requirements_json); } catch { return []; } })();
+                            return (
+                              <button
+                                key={existing.id}
+                                onClick={() => handleLeaseUseExisting(existing)}
+                                style={{
+                                  display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10,
+                                  padding: '10px 14px', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)',
+                                  backgroundColor: '#fff', cursor: 'pointer', textAlign: 'left', width: '100%',
+                                }}
+                              >
+                                <div style={{ flex: 1, minWidth: 0 }}>
+                                  <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-text)' }}>{existing.label}</div>
+                                  <div style={{ fontSize: 11, color: 'var(--color-text-muted)', marginTop: 2 }}>
+                                    {reqItems.length} requirement{reqItems.length !== 1 ? 's' : ''}
+                                    {existing.property_address ? ` \u2022 ${existing.property_address}` : ''}
+                                  </div>
+                                </div>
+                                <span style={{ fontSize: 12, color: 'var(--color-primary)', fontWeight: 600, whiteSpace: 'nowrap' }}>Use &rsaquo;</span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '14px 0 2px' }}>
+                          <div style={{ flex: 1, height: 1, backgroundColor: 'var(--color-border)' }} />
+                          <span style={{ fontSize: 11, color: 'var(--color-text-muted)', fontWeight: 600 }}>OR ENTER NEW</span>
+                          <div style={{ flex: 1, height: 1, backgroundColor: 'var(--color-border)' }} />
+                        </div>
+                      </div>
+                    )}
+
                     <div style={{ marginBottom: 12 }}>
                       <label style={labelStyle}>
                         {leaseFormRole === 'tenant'
