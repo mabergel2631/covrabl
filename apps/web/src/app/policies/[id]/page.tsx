@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useAuth } from '../../../../lib/auth';
-import { API_BASE, policiesApi, contactsApi, documentsApi, coverageApi, policyDetailsApi, claimsApi, sharingApi, exportApi, premiumHistoryApi, exposuresApi, gapsApi, certificatesApi, leaseComplianceApi, chatApi, Policy, Contact, DocMeta, ContactCreate, ExtractionData, CoverageItem, CoverageItemCreate, PolicyDetail, PolicyDetailCreate, PolicyUpdate, Claim, ClaimCreate, PolicyShareType, ShareCreate, PremiumHistoryEntry, Exposure, CoverageGap, Certificate, LeaseRequirement, LeaseRequirementTenant, LeaseRequirementItem, ComplianceResultItem, LeaseExtraction, BrokerEmail, PolicyVersionEntry, PotentialRenewal, checkFeatureAccess, parseUpgradeError } from '../../../../lib/api';
+import { API_BASE, policiesApi, contactsApi, documentsApi, coverageApi, policyDetailsApi, claimsApi, sharingApi, exportApi, premiumHistoryApi, exposuresApi, gapsApi, certificatesApi, leaseComplianceApi, chatApi, profileApi, Policy, Contact, DocMeta, ContactCreate, ExtractionData, CoverageItem, CoverageItemCreate, PolicyDetail, PolicyDetailCreate, PolicyUpdate, Claim, ClaimCreate, PolicyShareType, ShareCreate, PremiumHistoryEntry, Exposure, CoverageGap, Certificate, LeaseRequirement, LeaseRequirementTenant, LeaseRequirementItem, ComplianceResultItem, LeaseExtraction, BrokerEmail, PolicyVersionEntry, PotentialRenewal, checkFeatureAccess, parseUpgradeError } from '../../../../lib/api';
 import { formatPhone, cleanPhone } from '../../../../lib/format';
 import { useToast } from '../../components/Toast';
 import { Skeleton } from '../../components/Skeleton';
@@ -142,6 +142,12 @@ export default function PolicyDetailPage() {
   const [leaseTenantName, setLeaseTenantName] = useState('');
   const [leaseTenantNotes, setLeaseTenantNotes] = useState('');
   const [leaseSending, setLeaseSending] = useState(false);
+  const [leaseDeficiencyModal, setLeaseDeficiencyModal] = useState(false);
+  const [leaseDeficiencyEmail, setLeaseDeficiencyEmail] = useState('');
+  const [leaseDeficiencyName, setLeaseDeficiencyName] = useState('');
+  const [leaseDeficiencyNotes, setLeaseDeficiencyNotes] = useState('');
+  const [leaseDeficiencySending, setLeaseDeficiencySending] = useState(false);
+  const [leaseSenderName, setLeaseSenderName] = useState('');
   const leasePdfRef = useRef<HTMLInputElement>(null);
   const leaseAutoShareRef = useRef(false);
 
@@ -277,6 +283,10 @@ export default function PolicyDetailPage() {
       setLeaseReqs(leaseReqsResult);
       // Load version history (non-blocking)
       policiesApi.versions(policyId).then(setVersionHistory).catch(() => setVersionHistory([]));
+      // Load sender name for lease share/deficiency emails (non-blocking)
+      profileApi.get().then(({ profile }) => {
+        if (profile?.full_name) setLeaseSenderName(profile.full_name);
+      }).catch(() => {});
     } catch (err: any) {
       if (err.status === 401) { logout(); router.replace('/login'); return; }
       setError(err.message);
@@ -2510,6 +2520,17 @@ export default function PolicyDetailPage() {
                             Check vs {cert.counterparty_name || `Certificate #${cert.id}`}
                           </button>
                         ))}
+                        {/* Send Deficiency Notice — landlord only, when failures exist */}
+                        {isLandlord && hasResults && leaseCheckCounts.fail > 0 && activeReq && (
+                          <button onClick={() => {
+                            setLeaseDeficiencyEmail(activeReq.counterparty_email || '');
+                            setLeaseDeficiencyName(activeReq.counterparty_name || '');
+                            setLeaseDeficiencyNotes('');
+                            setLeaseDeficiencyModal(true);
+                          }} style={{ padding: '6px 14px', backgroundColor: '#dc2626', color: '#fff', border: 'none', borderRadius: 'var(--radius-sm)', fontWeight: 600, cursor: 'pointer', fontSize: 12 }}>
+                            Send Deficiency Notice
+                          </button>
+                        )}
                         {/* Send to Broker — tenant only */}
                         {!isLandlord && hasResults && (
                           <button onClick={() => leaseActiveReqId && handleLeaseBrokerEmail(leaseActiveReqId)} style={{ padding: '6px 14px', backgroundColor: '#2563eb', color: '#fff', border: 'none', borderRadius: 'var(--radius-sm)', fontWeight: 600, cursor: 'pointer', fontSize: 12 }}>Send to Broker</button>
@@ -2667,6 +2688,10 @@ export default function PolicyDetailPage() {
                       <div style={{ borderTop: '1px solid var(--color-border)', paddingTop: 16, marginBottom: 12 }}>
                         <label style={labelStyle}>Email to Tenant</label>
                       </div>
+                      <div style={{ marginBottom: 12 }}>
+                        <label style={labelStyle}>Send As (your name or company name)</label>
+                        <input style={inputStyle} value={leaseSenderName} onChange={e => setLeaseSenderName(e.target.value)} placeholder="e.g., Abergel Properties LLC" />
+                      </div>
                       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
                         <div>
                           <label style={labelStyle}>Tenant Name</label>
@@ -2691,7 +2716,7 @@ export default function PolicyDetailPage() {
                           if (!leaseTenantEmail.trim()) { toast('Email is required', 'error'); return; }
                           setLeaseSending(true);
                           try {
-                            await leaseComplianceApi.sendToTenant(leaseShareReq!.id, leaseTenantEmail, leaseTenantName || undefined, leaseTenantNotes || undefined);
+                            await leaseComplianceApi.sendToTenant(leaseShareReq!.id, leaseTenantEmail, leaseTenantName || undefined, leaseTenantNotes || undefined, leaseSenderName || undefined);
                             toast('Requirements sent to tenant');
                             setLeaseShareModal(false);
                             leaseComplianceApi.list(undefined, policyId).then(setLeaseReqs).catch(() => {});
@@ -2714,6 +2739,60 @@ export default function PolicyDetailPage() {
           </div>
         );
       })()}
+
+      {/* Deficiency Notice Modal */}
+      {leaseDeficiencyModal && leaseActiveReqId && (
+        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+          <div style={{ backgroundColor: 'var(--color-surface)', borderRadius: 'var(--radius-lg)', padding: 28, width: 480, maxHeight: '80vh', overflow: 'auto', boxShadow: 'var(--shadow-lg)' }}>
+            <h3 style={{ margin: '0 0 4px', fontSize: 17, fontWeight: 700 }}>Send Deficiency Notice</h3>
+            <p style={{ margin: '0 0 16px', fontSize: 13, color: 'var(--color-text-secondary)' }}>Notify the tenant about failed requirements and ask them to resubmit.</p>
+
+            <div style={{ marginBottom: 12 }}>
+              <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--color-text-muted)', marginBottom: 4 }}>Send As (your name or company name)</label>
+              <input style={{ width: '100%', padding: '8px 10px', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)', fontSize: 13 }} value={leaseSenderName} onChange={e => setLeaseSenderName(e.target.value)} placeholder="e.g., Abergel Properties LLC" />
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 12 }}>
+              <div>
+                <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--color-text-muted)', marginBottom: 4 }}>Tenant Email *</label>
+                <input style={{ width: '100%', padding: '8px 10px', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)', fontSize: 13 }} type="email" value={leaseDeficiencyEmail} onChange={e => setLeaseDeficiencyEmail(e.target.value)} placeholder="tenant@email.com" />
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--color-text-muted)', marginBottom: 4 }}>Tenant Name</label>
+                <input style={{ width: '100%', padding: '8px 10px', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)', fontSize: 13 }} value={leaseDeficiencyName} onChange={e => setLeaseDeficiencyName(e.target.value)} placeholder="Optional" />
+              </div>
+            </div>
+
+            <div style={{ marginBottom: 16 }}>
+              <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--color-text-muted)', marginBottom: 4 }}>Message to Tenant</label>
+              <textarea style={{ width: '100%', padding: '8px 10px', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)', fontSize: 13, minHeight: 70, resize: 'vertical' }} value={leaseDeficiencyNotes} onChange={e => setLeaseDeficiencyNotes(e.target.value)} placeholder="e.g., Please update your policy to include the required coverage and resubmit your COI." />
+            </div>
+
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+              <button onClick={() => setLeaseDeficiencyModal(false)} style={{ padding: '8px 16px', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)', backgroundColor: '#fff', cursor: 'pointer', fontSize: 13 }}>Cancel</button>
+              <button
+                onClick={async () => {
+                  if (!leaseDeficiencyEmail.trim()) { toast('Please enter tenant email', 'error'); return; }
+                  setLeaseDeficiencySending(true);
+                  try {
+                    await leaseComplianceApi.sendDeficiencyNotice(leaseActiveReqId, leaseDeficiencyEmail, leaseDeficiencyName || undefined, leaseDeficiencyNotes || undefined, leaseSenderName || undefined);
+                    toast('Deficiency notice sent');
+                    setLeaseDeficiencyModal(false);
+                  } catch (err: any) {
+                    toast(err.message || 'Failed to send', 'error');
+                  } finally {
+                    setLeaseDeficiencySending(false);
+                  }
+                }}
+                disabled={leaseDeficiencySending || !leaseDeficiencyEmail.trim()}
+                style={{ padding: '8px 20px', backgroundColor: '#dc2626', color: '#fff', border: 'none', borderRadius: 'var(--radius-sm)', fontWeight: 600, fontSize: 13, cursor: leaseDeficiencySending ? 'wait' : 'pointer', opacity: leaseDeficiencySending ? 0.7 : 1 }}
+              >
+                {leaseDeficiencySending ? 'Sending...' : 'Send Notice'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Contacts */}
       <div className="card" style={{ marginBottom: 32 }}>

@@ -212,3 +212,63 @@ async def send_coi_submission_email(
         )
     except Exception:
         logger.exception("Failed to send COI submission email to %s", to_email)
+
+
+async def send_deficiency_notice_email(
+    to_email: str,
+    tenant_name: str,
+    landlord_name: str,
+    property_address: str | None,
+    failed_items: list[dict],
+    notes: str | None,
+    resubmit_url: str,
+) -> None:
+    """Sent to tenant when landlord flags compliance failures."""
+    import html as html_mod
+
+    location = f" for {property_address}" if property_address else ""
+    safe_landlord = html_mod.escape(landlord_name)
+
+    items_html = ""
+    for item in failed_items:
+        label = html_mod.escape(item.get("label", ""))
+        note = html_mod.escape(item.get("note", ""))
+        items_html += f"""
+  <div style="border-left: 3px solid #ef4444; padding: 8px 14px; margin: 8px 0; background: #fef2f2; border-radius: 4px;">
+    <p style="margin: 0; font-weight: 600; font-size: 14px; color: #991b1b;">{label}</p>
+    {f'<p style="margin: 4px 0 0; font-size: 13px; color: #7f1d1d;">{note}</p>' if note else ''}
+  </div>"""
+
+    notes_html = ""
+    if notes and notes.strip():
+        safe_notes = html_mod.escape(notes.strip()).replace("\n", "<br>")
+        notes_html = f"""
+  <div style="background: #f8f9fa; border-left: 3px solid #1e3a5f; padding: 12px 16px; margin: 16px 0; border-radius: 4px;">
+    <p style="margin: 0 0 4px; font-size: 12px; font-weight: 600; color: #6b7280;">Message from {safe_landlord}:</p>
+    <p style="margin: 0; color: #374151; font-size: 14px; line-height: 1.6;">{safe_notes}</p>
+  </div>"""
+
+    html = f"""\
+<html>
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 480px; margin: 0 auto; padding: 40px 20px;">
+  <h2 style="color: #1a1a2e; margin-bottom: 16px;">Insurance Compliance Update</h2>
+  <p style="color: #555; line-height: 1.6;">
+    Your proof of insurance{location} did not meet all of the lease requirements. Please review the items below and submit an updated certificate.
+  </p>
+  <h3 style="color: #991b1b; font-size: 15px; margin: 20px 0 8px;">Requirements Not Met</h3>
+  {items_html}{notes_html}
+  <a href="{resubmit_url}"
+     style="display: inline-block; background: #1e3a5f; color: #fff; padding: 12px 28px; border-radius: 6px; text-decoration: none; font-weight: 600; margin: 24px 0;">
+    Resubmit Certificate
+  </a>
+</body>
+</html>"""
+
+    try:
+        await asyncio.to_thread(
+            _send_email, to_email,
+            f"Insurance compliance update{location}",
+            html,
+        )
+    except Exception:
+        logger.exception("Failed to send deficiency notice to %s", to_email)

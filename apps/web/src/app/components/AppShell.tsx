@@ -72,7 +72,9 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     return () => window.removeEventListener('keydown', handler);
   }, [sidebarOpen, router]);
 
-  if (!token) return <>{children}</>;
+  // Public routes should never show the authenticated shell (even if user is logged in)
+  const isPublicRoute = pathname.startsWith('/lease-compliance/') && pathname !== '/lease-compliance';
+  if (!token || isPublicRoute) return <>{children}</>;
 
   return (
     <div style={{ display: 'flex', minHeight: '100vh' }}>

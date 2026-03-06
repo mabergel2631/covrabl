@@ -2119,11 +2119,18 @@ export const leaseComplianceApi = {
       method: "POST",
     });
   },
-  sendToTenant(id: number, tenantEmail: string, tenantName?: string, notes?: string): Promise<{ ok: boolean; public_url: string }> {
+  sendToTenant(id: number, tenantEmail: string, tenantName?: string, notes?: string, fromName?: string): Promise<{ ok: boolean; public_url: string }> {
     return request<{ ok: boolean; public_url: string }>(`/lease-compliance/requirements/${id}/send-to-tenant`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ tenant_email: tenantEmail, tenant_name: tenantName, notes }),
+      body: JSON.stringify({ tenant_email: tenantEmail, tenant_name: tenantName, notes, from_name: fromName }),
+    });
+  },
+  sendDeficiencyNotice(id: number, tenantEmail: string, tenantName?: string, notes?: string, fromName?: string): Promise<{ ok: boolean }> {
+    return request<{ ok: boolean }>(`/lease-compliance/requirements/${id}/send-deficiency`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ tenant_email: tenantEmail, tenant_name: tenantName, notes, from_name: fromName }),
     });
   },
   getPublic(code: string): Promise<LeasePublicData> {

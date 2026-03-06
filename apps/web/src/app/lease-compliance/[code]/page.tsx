@@ -215,6 +215,42 @@ export default function LeaseCompliancePublicPage() {
           </div>
         )}
 
+        {/* Post-submission next steps */}
+        {results && (() => {
+          const allPass = counts.fail === 0 && counts.unclear === 0 && counts.pass > 0;
+          const hasFail = counts.fail > 0;
+          return (
+            <div className="no-print" style={{ marginBottom: 32 }}>
+              <div style={{
+                padding: 20, borderRadius: 10,
+                backgroundColor: allPass ? '#f0fdf4' : hasFail ? '#fef2f2' : '#fffbeb',
+                border: `1px solid ${allPass ? '#bbf7d0' : hasFail ? '#fecaca' : '#fde68a'}`,
+                marginBottom: 16,
+              }}>
+                <h3 style={{ margin: '0 0 6px', fontSize: 15, fontWeight: 700, color: allPass ? '#166534' : hasFail ? '#991b1b' : '#92400e' }}>
+                  {allPass ? 'Your insurance meets all requirements' : hasFail ? 'Some requirements were not met' : 'Some requirements need review'}
+                </h3>
+                <p style={{ margin: 0, fontSize: 13, color: allPass ? '#15803d' : hasFail ? '#b91c1c' : '#a16207', lineHeight: 1.5 }}>
+                  Your landlord has been notified automatically with these results.
+                  {hasFail && ' They may reach out with next steps. You can resubmit an updated certificate using this same link.'}
+                </p>
+              </div>
+              <div style={{ textAlign: 'center', padding: '16px 0' }}>
+                <p style={{ fontSize: 13, color: '#6b7280', marginBottom: 12 }}>Want to track your own insurance policies and stay on top of renewals?</p>
+                <a
+                  href="/"
+                  style={{
+                    display: 'inline-block', padding: '10px 24px', backgroundColor: '#1e3a5f', color: '#fff',
+                    borderRadius: 6, fontWeight: 600, fontSize: 14, textDecoration: 'none',
+                  }}
+                >
+                  Try Covrabl Free
+                </a>
+              </div>
+            </div>
+          );
+        })()}
+
         {/* Submit COI section (only if no results yet) */}
         {!results && data.role === 'landlord' && (
           <div className="no-print" style={{ backgroundColor: '#fff', border: '1px solid #e5e7eb', borderRadius: 12, padding: 24 }}>

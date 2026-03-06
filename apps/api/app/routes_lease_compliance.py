@@ -462,6 +462,7 @@ class SendToTenantRequest(BaseModel):
     tenant_email: str
     tenant_name: Optional[str] = None
     notes: Optional[str] = None
+    from_name: Optional[str] = None
 
 
 @router.post("/requirements/{req_id}/send-to-tenant")
@@ -492,12 +493,15 @@ async def send_to_tenant(
     public_url = f"{settings.app_url}/lease-compliance/{req.access_code}"
     from .email import send_lease_requirements_email
 
-    # Get user's name for the email
-    from .models_profile import UserProfile
-    profile = db.execute(
-        select(UserProfile).where(UserProfile.user_id == user.id)
-    ).scalar_one_or_none()
-    from_name = profile.full_name if profile and profile.full_name else user.email
+    # Get sender name: use custom from_name if provided, else fall back to profile
+    if payload.from_name and payload.from_name.strip():
+        from_name = payload.from_name.strip()
+    else:
+        from .models_profile import UserProfile
+        profile = db.execute(
+            select(UserProfile).where(UserProfile.user_id == user.id)
+        ).scalar_one_or_none()
+        from_name = profile.full_name if profile and profile.full_name else user.email
 
     await send_lease_requirements_email(
         to_email=payload.tenant_email,
@@ -512,6 +516,75 @@ async def send_to_tenant(
     db.commit()
 
     return {"ok": True, "public_url": public_url}
+
+
+class SendDeficiencyRequest(BaseModel):
+    tenant_email: str
+    tenant_name: Optional[str] = None
+    notes: Optional[str] = None
+    from_name: Optional[str] = None
+
+
+@router.post("/requirements/{req_id}/send-deficiency")
+async def send_deficiency_notice(
+    req_id: int,
+    payload: SendDeficiencyRequest,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    check_feature(user, "lease_compliance")
+    req = db.execute(
+        select(LeaseRequirement).where(
+            LeaseRequirement.id == req_id,
+            LeaseRequirement.user_id == user.id,
+        )
+    ).scalar_one_or_none()
+    if not req:
+        raise HTTPException(status_code=404, detail="Lease requirement not found")
+
+    # Find latest compliance check with failures
+    latest_check = db.execute(
+        select(ComplianceCheck).where(
+            ComplianceCheck.lease_requirement_id == req_id,
+        ).order_by(ComplianceCheck.id.desc())
+    ).scalar_one_or_none()
+
+    failed_items = []
+    if latest_check and latest_check.results_json:
+        results = json.loads(latest_check.results_json)
+        failed_items = [
+            {"label": r.get("requirement_label", ""), "note": r.get("note", "")}
+            for r in results if r.get("status") == "fail"
+        ]
+
+    resubmit_url = f"{settings.app_url}/lease-compliance/{req.access_code}"
+
+    # Get sender name: use custom from_name if provided, else fall back to profile
+    if payload.from_name and payload.from_name.strip():
+        landlord_name = payload.from_name.strip()
+    else:
+        from .models_profile import UserProfile
+        profile = db.execute(
+            select(UserProfile).where(UserProfile.user_id == user.id)
+        ).scalar_one_or_none()
+        landlord_name = profile.full_name if profile and profile.full_name else user.email
+
+    from .email import send_deficiency_notice_email
+    await send_deficiency_notice_email(
+        to_email=payload.tenant_email,
+        tenant_name=payload.tenant_name or "Tenant",
+        landlord_name=landlord_name,
+        property_address=req.property_address,
+        failed_items=failed_items,
+        notes=payload.notes,
+        resubmit_url=resubmit_url,
+    )
+
+    from .email import log_email_send
+    log_email_send(db, payload.tenant_email, "deficiency_notice", "Deficiency notice sent", "sent")
+    db.commit()
+
+    return {"ok": True}
 
 
 # ── Public Endpoints ────────────────────────────────
