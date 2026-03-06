@@ -88,6 +88,7 @@ def extract_document(document_id: int, db: Session = Depends(get_db), user: User
                     Policy.policy_type == result.policy_type,
                     Policy.status == "active",
                     Policy.id != policy.id,
+                    Policy.carrier != "Pending extraction...",
                 )
             ).scalars().all()
 
