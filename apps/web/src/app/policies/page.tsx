@@ -69,6 +69,9 @@ function PoliciesPageInner() {
   const [editingGroup, setEditingGroup] = useState<string | null>(null);
   const [editGroupValue, setEditGroupValue] = useState('');
   const [movingPolicy, setMovingPolicy] = useState<number | null>(null);
+  const [deleteGroupConfirm, setDeleteGroupConfirm] = useState<string | null>(null);
+  const [deleteGroupStats, setDeleteGroupStats] = useState<{ policy_count: number; certificate_count: number } | null>(null);
+  const [deletingGroup, setDeletingGroup] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -397,6 +400,33 @@ function PoliciesPageInner() {
     }
   };
 
+  const handleDeleteGroupClick = async (groupName: string) => {
+    setDeleteGroupConfirm(groupName);
+    setDeleteGroupStats(null);
+    try {
+      const stats = await policiesApi.businessGroupStats(groupName);
+      setDeleteGroupStats(stats);
+    } catch {
+      setDeleteGroupStats({ policy_count: 0, certificate_count: 0 });
+    }
+  };
+
+  const handleDeleteGroup = async () => {
+    if (!deleteGroupConfirm) return;
+    setDeletingGroup(true);
+    try {
+      const result = await policiesApi.deleteBusinessGroup(deleteGroupConfirm);
+      toast(`Deleted ${result.policies_deleted} policies and ${result.certificates_deleted} certificates`, 'success');
+      setDeleteGroupConfirm(null);
+      setDeleteGroupStats(null);
+      loadAll();
+    } catch (err: any) {
+      toast(err.message || 'Failed to delete group', 'error');
+    } finally {
+      setDeletingGroup(false);
+    }
+  };
+
   const handleMovePolicy = async (policyId: number, newBusinessName: string) => {
     try {
       await policiesApi.update(policyId, { business_name: newBusinessName || null });
@@ -697,6 +727,19 @@ function PoliciesPageInner() {
         danger={true}
         onConfirm={() => { if (deleteConfirm !== null) handleDelete(deleteConfirm); }}
         onCancel={() => setDeleteConfirm(null)}
+      />
+
+      {/* Delete Group Confirmation */}
+      <ConfirmDialog
+        open={deleteGroupConfirm !== null}
+        title={`Delete "${deleteGroupConfirm}" group?`}
+        message={deleteGroupStats
+          ? `This will permanently delete ${deleteGroupStats.policy_count} ${deleteGroupStats.policy_count === 1 ? 'policy' : 'policies'}${deleteGroupStats.certificate_count > 0 ? ` and ${deleteGroupStats.certificate_count} linked ${deleteGroupStats.certificate_count === 1 ? 'certificate' : 'certificates'}` : ''} in this group. This cannot be undone.`
+          : 'Loading group details...'}
+        confirmLabel={deletingGroup ? 'Deleting...' : 'Delete'}
+        danger={true}
+        onConfirm={handleDeleteGroup}
+        onCancel={() => { setDeleteGroupConfirm(null); setDeleteGroupStats(null); }}
       />
 
       {/* Bulk Share Modal */}
@@ -1277,6 +1320,20 @@ function PoliciesPageInner() {
                               onMouseLeave={e => { e.currentTarget.style.opacity = '0.5'; e.currentTarget.style.color = 'var(--color-text-muted)'; }}
                             >
                               ✏️
+                            </button>}
+                            {bizName !== 'General' && <button
+                              onClick={() => handleDeleteGroupClick(bizName)}
+                              aria-label={`Delete ${bizName}`}
+                              title="Delete group"
+                              style={{
+                                padding: '2px 6px', fontSize: 13, color: 'var(--color-text-muted)',
+                                background: 'none', border: 'none', cursor: 'pointer', opacity: 0.5,
+                                lineHeight: 1,
+                              }}
+                              onMouseEnter={e => { e.currentTarget.style.opacity = '1'; e.currentTarget.style.color = 'var(--color-danger)'; }}
+                              onMouseLeave={e => { e.currentTarget.style.opacity = '0.5'; e.currentTarget.style.color = 'var(--color-text-muted)'; }}
+                            >
+                              🗑️
                             </button>}
                           </>
                         )}

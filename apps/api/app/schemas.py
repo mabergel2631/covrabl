@@ -116,6 +116,10 @@ class BusinessGroupRename(BaseModel):
     new_name: str
 
 
+class BusinessGroupDelete(BaseModel):
+    name: str
+
+
 # ── Contacts ──────────────────────────────────────────
 
 class ContactBase(BaseModel):

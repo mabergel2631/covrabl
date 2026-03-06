@@ -1,14 +1,14 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
-from typing import List
+from typing import List, Optional
 from collections import defaultdict
 
 from .auth import get_current_user
 from .db import get_db
 from .models import Policy, Contact, CoverageItem, PolicyDetail, User, Exposure
 from .models_features import Premium, PolicyShare, Certificate
-from .schemas import PolicyCreate, PolicyUpdate, PolicyOut, BusinessGroupRename
+from .schemas import PolicyCreate, PolicyUpdate, PolicyOut, BusinessGroupRename, BusinessGroupDelete
 from .audit_helper import log_action
 from .routes_reminders import ensure_reminders
 from .access import get_policy_for_user
@@ -18,11 +18,13 @@ router = APIRouter(prefix="/policies", tags=["policies"])
 
 
 @router.get("")
-def list_policies(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+def list_policies(status: Optional[str] = Query(None), db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     # Eager load contacts, details, and exposure in a single query
+    query = select(Policy).where(Policy.user_id == user.id)
+    if status:
+        query = query.where(Policy.status == status)
     policies = db.execute(
-        select(Policy)
-        .where(Policy.user_id == user.id)
+        query
         .options(
             selectinload(Policy.contacts),
             selectinload(Policy.details),
@@ -100,6 +102,8 @@ def list_policies(db: Session = Depends(get_db), user: User = Depends(get_curren
             "deductible_applied": p.deductible_applied,
             # COI summary (only present when certificates exist)
             "coi_summary": coi_map.get(p.id),
+            # Version chain
+            "replaces_policy_id": p.replaces_policy_id,
         })
 
     return result
@@ -114,6 +118,7 @@ def list_business_names(db: Session = Depends(get_db), user: User = Depends(get_
         .where(Policy.user_id == user.id)
         .where(Policy.business_name.isnot(None))
         .where(Policy.business_name != "")
+        .where(Policy.status != "archived")
     ).scalars().all()
     return sorted(names)
 
@@ -144,6 +149,68 @@ def rename_business_group(payload: BusinessGroupRename, db: Session = Depends(ge
                details=f"{payload.old_name or '(ungrouped)'} -> {payload.new_name or '(ungrouped)'}")
     db.commit()
     return {"ok": True, "updated": len(policies)}
+
+
+@router.get("/business-names/{name}/stats")
+def business_group_stats(name: str, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    check_feature(user, "business_grouping")
+    policies = db.execute(
+        select(Policy).where(Policy.user_id == user.id, Policy.business_name == name)
+    ).scalars().all()
+    policy_ids = [p.id for p in policies]
+    cert_count = 0
+    if policy_ids:
+        cert_count = len(db.execute(
+            select(Certificate).where(Certificate.policy_id.in_(policy_ids))
+        ).scalars().all())
+    return {"policy_count": len(policies), "certificate_count": cert_count}
+
+
+@router.delete("/business-names/delete")
+def delete_business_group(payload: BusinessGroupDelete, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    check_feature(user, "business_grouping")
+    policies = db.execute(
+        select(Policy).where(Policy.user_id == user.id, Policy.business_name == payload.name)
+    ).scalars().all()
+    if not policies:
+        raise HTTPException(status_code=404, detail="No policies found in this group")
+
+    policy_ids = [p.id for p in policies]
+
+    # Delete linked certificates
+    certs_deleted = 0
+    if policy_ids:
+        certs = db.execute(
+            select(Certificate).where(Certificate.policy_id.in_(policy_ids))
+        ).scalars().all()
+        certs_deleted = len(certs)
+        for cert in certs:
+            db.delete(cert)
+
+    # Delete documents linked to policies
+    from .models_documents import Document
+    for pid in policy_ids:
+        for doc in db.execute(select(Document).where(Document.policy_id == pid)).scalars().all():
+            db.delete(doc)
+
+    # Delete policies
+    for p in policies:
+        db.delete(p)
+
+    log_action(db, user.id, "deleted_business_group", "policy", 0,
+               details=f"Deleted group '{payload.name}': {len(policies)} policies, {certs_deleted} certificates")
+    db.commit()
+    return {"ok": True, "policies_deleted": len(policies), "certificates_deleted": certs_deleted}
+
+
+@router.get("/active-by-type")
+def active_by_type(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    policies = db.execute(
+        select(Policy).where(Policy.user_id == user.id, Policy.status == "active")
+    ).scalars().all()
+    return [{"id": p.id, "carrier": p.carrier, "policy_type": p.policy_type,
+             "policy_number": p.policy_number, "nickname": p.nickname,
+             "scope": p.scope} for p in policies]
 
 
 @router.get("/compare")
@@ -222,6 +289,17 @@ def create_policy(payload: PolicyCreate, db: Session = Depends(get_db), user: Us
     log_action(db, user.id, "created", "policy", policy.id)
     if policy.renewal_date:
         ensure_reminders(policy.id, policy.renewal_date, db)
+    # Auto-archive the replaced policy
+    if payload.replaces_policy_id:
+        old = db.execute(
+            select(Policy).where(
+                Policy.id == payload.replaces_policy_id,
+                Policy.user_id == user.id
+            )
+        ).scalar_one_or_none()
+        if old:
+            old.status = "archived"
+            log_action(db, user.id, "archived", "policy", old.id)
     db.commit()
     db.refresh(policy)
     return policy
@@ -236,6 +314,57 @@ def get_policy(policy_id: int, db: Session = Depends(get_db), user: User = Depen
     # permission: null = owner (full access), "view" or "edit" = shared access
     result["permission"] = permission
     return result
+
+
+@router.get("/{policy_id}/versions")
+def policy_versions(policy_id: int, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    policy = db.get(Policy, policy_id)
+    if not policy or policy.user_id != user.id:
+        raise HTTPException(status_code=404, detail="Policy not found")
+
+    # Walk backward to find the oldest ancestor
+    current = policy
+    while current.replaces_policy_id:
+        prev = db.get(Policy, current.replaces_policy_id)
+        if not prev or prev.user_id != user.id:
+            break
+        current = prev
+
+    # Walk forward from oldest, collecting the chain
+    chain = [current]
+    visited = {current.id}
+    while True:
+        successors = db.execute(
+            select(Policy).where(
+                Policy.replaces_policy_id == current.id,
+                Policy.user_id == user.id
+            )
+        ).scalars().all()
+        next_policy = None
+        for s in successors:
+            if s.id not in visited:
+                next_policy = s
+                break
+        if not next_policy:
+            break
+        chain.append(next_policy)
+        visited.add(next_policy.id)
+        current = next_policy
+
+    if len(chain) <= 1:
+        return []
+
+    return [{
+        "id": p.id,
+        "carrier": p.carrier,
+        "policy_type": p.policy_type,
+        "policy_number": p.policy_number,
+        "nickname": p.nickname,
+        "status": p.status or "active",
+        "renewal_date": str(p.renewal_date) if p.renewal_date else None,
+        "created_at": str(p.created_at),
+        "replaces_policy_id": p.replaces_policy_id,
+    } for p in chain]
 
 
 @router.put("/{policy_id}", response_model=PolicyOut)

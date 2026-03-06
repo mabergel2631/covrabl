@@ -261,6 +261,16 @@ export const policiesApi = {
       body: JSON.stringify({ old_name: oldName, new_name: newName }),
     });
   },
+  businessGroupStats(name: string): Promise<{ policy_count: number; certificate_count: number }> {
+    return request<{ policy_count: number; certificate_count: number }>(`/policies/business-names/${encodeURIComponent(name)}/stats`);
+  },
+  deleteBusinessGroup(name: string): Promise<{ ok: boolean; policies_deleted: number; certificates_deleted: number }> {
+    return request<{ ok: boolean; policies_deleted: number; certificates_deleted: number }>("/policies/business-names/delete", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name }),
+    });
+  },
   activeByType(): Promise<ActiveByTypeEntry[]> {
     return request<ActiveByTypeEntry[]>("/policies/active-by-type");
   },
