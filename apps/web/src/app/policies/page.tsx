@@ -422,7 +422,7 @@ function PoliciesPageInner() {
     setDeletingGroup(true);
     try {
       const result = await policiesApi.deleteBusinessGroup(deleteGroupConfirm);
-      toast(`Deleted ${result.policies_deleted} policies and ${result.certificates_deleted} certificates`, 'success');
+      toast(`Deleted ${result.policies_deleted} policies`, 'success');
       setDeleteGroupConfirm(null);
       setDeleteGroupStats(null);
       loadAll();

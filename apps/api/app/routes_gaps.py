@@ -116,6 +116,7 @@ def get_business_entity_gaps(
         select(Policy).where(
             Policy.user_id == user.id,
             Policy.business_name == decoded_name,
+            Policy.carrier != "Pending extraction...",
         )
         .options(selectinload(Policy.contacts), selectinload(Policy.details))
     ).unique().scalars().all()

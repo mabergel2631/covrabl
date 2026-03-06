@@ -264,8 +264,8 @@ export const policiesApi = {
   businessGroupStats(name: string): Promise<{ policy_count: number; certificate_count: number }> {
     return request<{ policy_count: number; certificate_count: number }>(`/policies/business-names/${encodeURIComponent(name)}/stats`);
   },
-  deleteBusinessGroup(name: string): Promise<{ ok: boolean; policies_deleted: number; certificates_deleted: number }> {
-    return request<{ ok: boolean; policies_deleted: number; certificates_deleted: number }>("/policies/business-names/delete", {
+  deleteBusinessGroup(name: string): Promise<{ ok: boolean; policies_deleted: number }> {
+    return request<{ ok: boolean; policies_deleted: number }>("/policies/business-names/delete", {
       method: "DELETE",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ name }),

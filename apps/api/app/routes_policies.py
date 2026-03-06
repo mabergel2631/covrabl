@@ -7,7 +7,7 @@ from collections import defaultdict
 from .auth import get_current_user
 from .db import get_db
 from .models import Policy, Contact, CoverageItem, PolicyDetail, User, Exposure
-from .models_features import Premium, PolicyShare, Certificate
+from .models_features import Premium, PolicyShare, Certificate, Claim, RenewalReminder, PremiumHistory, PolicyDelta
 from .schemas import PolicyCreate, PolicyUpdate, PolicyOut, BusinessGroupRename, BusinessGroupDelete
 from .audit_helper import log_action
 from .routes_reminders import ensure_reminders
@@ -16,6 +16,30 @@ from datetime import datetime, timedelta, timezone
 from .routes_billing import check_feature
 
 router = APIRouter(prefix="/policies", tags=["policies"])
+
+
+def _delete_policy_cascade(db: Session, policy_id: int):
+    """Delete all FK-dependent records for a policy, then the policy itself.
+
+    The live DB may lack CASCADE constraints even though models declare them,
+    so we manually clean up every related table.
+    """
+    from .models_documents import Document
+
+    # Tables with FK to policies.id (order doesn't matter since we delete policy last)
+    for Model in (Document, Premium, Claim, RenewalReminder, PolicyShare,
+                  PremiumHistory, PolicyDelta, Certificate):
+        for row in db.execute(select(Model).where(Model.policy_id == policy_id)).scalars().all():
+            db.delete(row)
+
+    # Child tables on Policy ORM relationships (contacts, details, coverage_items)
+    for Model in (Contact, CoverageItem, PolicyDetail):
+        for row in db.execute(select(Model).where(Model.policy_id == policy_id)).scalars().all():
+            db.delete(row)
+
+    policy = db.get(Policy, policy_id)
+    if policy:
+        db.delete(policy)
 
 
 @router.get("")
@@ -177,32 +201,14 @@ def delete_business_group(payload: BusinessGroupDelete, db: Session = Depends(ge
     if not policies:
         raise HTTPException(status_code=404, detail="No policies found in this group")
 
-    policy_ids = [p.id for p in policies]
-
-    # Delete linked certificates
-    certs_deleted = 0
-    if policy_ids:
-        certs = db.execute(
-            select(Certificate).where(Certificate.policy_id.in_(policy_ids))
-        ).scalars().all()
-        certs_deleted = len(certs)
-        for cert in certs:
-            db.delete(cert)
-
-    # Delete documents linked to policies
-    from .models_documents import Document
-    for pid in policy_ids:
-        for doc in db.execute(select(Document).where(Document.policy_id == pid)).scalars().all():
-            db.delete(doc)
-
-    # Delete policies
+    count = len(policies)
     for p in policies:
-        db.delete(p)
+        _delete_policy_cascade(db, p.id)
 
     log_action(db, user.id, "deleted_business_group", "policy", 0,
-               details=f"Deleted group '{payload.name}': {len(policies)} policies, {certs_deleted} certificates")
+               details=f"Deleted group '{payload.name}': {count} policies")
     db.commit()
-    return {"ok": True, "policies_deleted": len(policies), "certificates_deleted": certs_deleted}
+    return {"ok": True, "policies_deleted": count}
 
 
 @router.get("/active-by-type")
@@ -226,7 +232,7 @@ def cleanup_drafts(db: Session = Depends(get_db), user: User = Depends(get_curre
         )
     ).scalars().all()
     for p in stale:
-        db.delete(p)
+        _delete_policy_cascade(db, p.id)
     db.commit()
     return {"cleaned": len(stale)}
 
@@ -407,14 +413,10 @@ def update_policy(policy_id: int, payload: PolicyUpdate, db: Session = Depends(g
 
 @router.delete("/{policy_id}")
 def delete_policy(policy_id: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
-    from .models_documents import Document
     policy = db.get(Policy, policy_id)
     if not policy or policy.user_id != user.id:
         raise HTTPException(status_code=404, detail="Policy not found")
     log_action(db, user.id, "deleted", "policy", policy.id)
-    # Delete documents first (FK lacks ondelete CASCADE)
-    for doc in db.execute(select(Document).where(Document.policy_id == policy_id)).scalars().all():
-        db.delete(doc)
-    db.delete(policy)
+    _delete_policy_cascade(db, policy_id)
     db.commit()
     return {"ok": True}
