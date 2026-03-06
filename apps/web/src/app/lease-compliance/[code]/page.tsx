@@ -238,7 +238,7 @@ export default function LeaseCompliancePublicPage() {
               <div style={{ textAlign: 'center', padding: '16px 0' }}>
                 <p style={{ fontSize: 13, color: '#6b7280', marginBottom: 12 }}>Want to track your own insurance policies and stay on top of renewals?</p>
                 <a
-                  href="https://covrabl.com/login"
+                  href="https://covrabl.com/?ref=tenant"
                   target="_blank"
                   rel="noopener noreferrer"
                   style={{

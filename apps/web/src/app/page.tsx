@@ -482,12 +482,13 @@ function Dashboard() {
   const strokeDash = (scoreValue / 100) * circumference;
   const unackCount = alerts?.unacknowledged_count ?? 0;
   const renewalPolicies = renewals?.policies?.slice(0, 3) ?? [];
+  const activeCount = policies.filter(p => p.status !== 'archived').length;
 
   return (
     <div style={{ padding: '32px 24px', maxWidth: 960, margin: '0 auto' }}>
       <h1 style={{ fontSize: 24, fontWeight: 700, color: 'var(--color-text)', marginBottom: 4 }}>Dashboard</h1>
       <p style={{ fontSize: 14, color: 'var(--color-text-muted)', marginBottom: 28 }}>
-        {policies.length} {policies.length === 1 ? 'policy' : 'policies'} on file
+        {activeCount} active {activeCount === 1 ? 'policy' : 'policies'} on file
       </p>
 
       {loading ? (
@@ -610,6 +611,12 @@ function Dashboard() {
 export default function Home() {
   const { token } = useAuth();
   const router = useRouter();
+  const [isReferral, setIsReferral] = useState(false);
+  useEffect(() => {
+    if (typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('ref') === 'tenant') {
+      setIsReferral(true);
+    }
+  }, []);
   const [openFaq, setOpenFaq] = useState<number | null>(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [announcementDismissed, setAnnouncementDismissed] = useState(false);
@@ -633,8 +640,8 @@ export default function Home() {
   /* Timeline fill tracker */
   const { containerRef: timelineContainer, lineRef: timelineLine, activeDots } = useTimelineFill();
 
-  // Authenticated users see the dashboard
-  if (token) return <Dashboard />;
+  // Authenticated users see the dashboard (unless arriving via tenant referral link)
+  if (token && !isReferral) return <Dashboard />;
 
   return (
     <div style={{ minHeight: '100vh', background: '#fff' }}>
