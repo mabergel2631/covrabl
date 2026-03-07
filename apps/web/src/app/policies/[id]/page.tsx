@@ -2079,8 +2079,10 @@ export default function PolicyDetailPage() {
                 const parsed = typeof latest.results_json === 'string' ? JSON.parse(latest.results_json) : (latest as any).results || [];
                 setLeaseResults(parsed);
                 setLeaseCheckCounts({ pass: latest.pass_count, fail: latest.fail_count, unclear: latest.unclear_count });
-                // Show what was checked against
-                if (latest.checked_against === 'certificate') {
+                // Show what was checked against — include tenant name if available
+                if (latest.tenant_name || latest.tenant_email) {
+                  setLeaseCheckedAgainst(`${latest.tenant_name || latest.tenant_email || 'Tenant'}'s certificate`);
+                } else if (latest.checked_against === 'certificate') {
                   setLeaseCheckedAgainst('certificate');
                 } else if (latest.checked_against === 'policy') {
                   setLeaseCheckedAgainst(`${policy!.carrier ? policy!.carrier + ' ' : ''}${policy!.policy_type.replace(/_/g, ' ')} policy`);
@@ -2605,6 +2607,7 @@ export default function PolicyDetailPage() {
                           const allPass = t.fail_count === 0 && t.unclear_count === 0 && t.pass_count > 0;
                           const hasFail = t.fail_count > 0;
                           const isPending = !t.submitted_at;
+                          const isCurrentlyViewing = leaseCheckedAgainst.includes(t.tenant_name || t.tenant_email || '');
                           return (
                             <div key={i} style={{ border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)', backgroundColor: '#fff', padding: '10px 14px' }}>
                               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -2616,39 +2619,49 @@ export default function PolicyDetailPage() {
                                 </div>
                                 <div>
                                   {isPending ? (
-                                    <span style={{ fontSize: 12, color: '#92400e' }}>Pending</span>
+                                    <span style={{ padding: '2px 10px', borderRadius: 10, fontSize: 11, fontWeight: 600, backgroundColor: '#fef3c7', color: '#92400e' }}>Awaiting</span>
+                                  ) : allPass ? (
+                                    <span style={{ padding: '2px 10px', borderRadius: 10, fontSize: 11, fontWeight: 600, backgroundColor: '#dcfce7', color: '#166534' }}>{t.pass_count} Pass</span>
                                   ) : (
-                                    <span style={{ fontSize: 12, fontWeight: 600, color: allPass ? '#166534' : hasFail ? '#991b1b' : '#92400e' }}>
-                                      {allPass ? '\u2713' : '\u2717'} {t.pass_count}P/{t.fail_count}F
+                                    <span style={{ display: 'flex', gap: 4 }}>
+                                      {t.pass_count > 0 && <span style={{ padding: '2px 8px', borderRadius: 10, fontSize: 11, fontWeight: 600, backgroundColor: '#dcfce7', color: '#166534' }}>{t.pass_count}P</span>}
+                                      {t.fail_count > 0 && <span style={{ padding: '2px 8px', borderRadius: 10, fontSize: 11, fontWeight: 600, backgroundColor: '#fee2e2', color: '#991b1b' }}>{t.fail_count}F</span>}
+                                      {t.unclear_count > 0 && <span style={{ padding: '2px 8px', borderRadius: 10, fontSize: 11, fontWeight: 600, backgroundColor: '#fef3c7', color: '#92400e' }}>{t.unclear_count}U</span>}
                                     </span>
                                   )}
                                 </div>
                               </div>
                               {!isPending && (
-                                <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
-                                  <button
-                                    onClick={async () => {
-                                      try {
-                                        const checks = await leaseComplianceApi.listChecks(activeReq.id);
-                                        const tenantCheck = checks.find((c: any) => c.id === t.check_id);
-                                        if (tenantCheck) {
-                                          const parsed = typeof tenantCheck.results_json === 'string' ? JSON.parse(tenantCheck.results_json) : [];
-                                          setLeaseResults(parsed);
-                                          setLeaseCheckCounts({ pass: tenantCheck.pass_count, fail: tenantCheck.fail_count, unclear: tenantCheck.unclear_count });
-                                          setLeaseCheckedAgainst(`${t.tenant_name || t.tenant_email || 'Tenant'}'s certificate`);
-                                          setLeaseActiveReqId(activeReq.id);
-                                          setLeaseView('results');
-                                        } else {
-                                          toast('No results found for this tenant', 'error');
+                                <div style={{ display: 'flex', gap: 6, marginTop: 8, alignItems: 'center' }}>
+                                  {isCurrentlyViewing ? (
+                                    <span style={{ fontSize: 11, color: 'var(--color-text-muted)', fontStyle: 'italic' }}>Results shown above</span>
+                                  ) : (
+                                    <button
+                                      onClick={async () => {
+                                        try {
+                                          const checks = await leaseComplianceApi.listChecks(activeReq.id);
+                                          const tenantCheck = checks.find((c: any) => c.id === t.check_id);
+                                          if (tenantCheck) {
+                                            const parsed = typeof tenantCheck.results_json === 'string' ? JSON.parse(tenantCheck.results_json) : [];
+                                            setLeaseResults(parsed);
+                                            setLeaseCheckCounts({ pass: tenantCheck.pass_count, fail: tenantCheck.fail_count, unclear: tenantCheck.unclear_count });
+                                            setLeaseCheckedAgainst(`${t.tenant_name || t.tenant_email || 'Tenant'}'s certificate`);
+                                            setLeaseActiveReqId(activeReq.id);
+                                            setLeaseView('results');
+                                            // Scroll to top of results
+                                            document.querySelector('.card')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                                          } else {
+                                            toast('No results found for this tenant', 'error');
+                                          }
+                                        } catch {
+                                          toast('Failed to load tenant check', 'error');
                                         }
-                                      } catch {
-                                        toast('Failed to load tenant check', 'error');
-                                      }
-                                    }}
-                                    style={{ padding: '4px 10px', fontSize: 11, fontWeight: 600, border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)', backgroundColor: '#fff', cursor: 'pointer', color: 'var(--color-primary)' }}
-                                  >
-                                    View Results
-                                  </button>
+                                      }}
+                                      style={{ padding: '4px 10px', fontSize: 11, fontWeight: 600, border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)', backgroundColor: '#fff', cursor: 'pointer', color: 'var(--color-primary)' }}
+                                    >
+                                      View Results
+                                    </button>
+                                  )}
                                   {hasFail && (
                                     <button
                                       onClick={() => {
