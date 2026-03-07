@@ -2632,7 +2632,7 @@ export default function PolicyDetailPage() {
                                 </div>
                               </div>
                               {!isPending && (
-                                <div style={{ display: 'flex', gap: 6, marginTop: 8, alignItems: 'center' }}>
+                                <div style={{ display: 'flex', gap: 6, marginTop: 8, alignItems: 'center', flexWrap: 'wrap' }}>
                                   {isCurrentlyViewing ? (
                                     <span style={{ fontSize: 11, color: 'var(--color-text-muted)', fontStyle: 'italic' }}>Results shown above</span>
                                   ) : (
@@ -2648,7 +2648,6 @@ export default function PolicyDetailPage() {
                                             setLeaseCheckedAgainst(`${t.tenant_name || t.tenant_email || 'Tenant'}'s certificate`);
                                             setLeaseActiveReqId(activeReq.id);
                                             setLeaseView('results');
-                                            // Scroll to top of results
                                             document.querySelector('.card')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
                                           } else {
                                             toast('No results found for this tenant', 'error');
@@ -2660,6 +2659,22 @@ export default function PolicyDetailPage() {
                                       style={{ padding: '4px 10px', fontSize: 11, fontWeight: 600, border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)', backgroundColor: '#fff', cursor: 'pointer', color: 'var(--color-primary)' }}
                                     >
                                       View Results
+                                    </button>
+                                  )}
+                                  {t.has_document && (
+                                    <button
+                                      onClick={async () => {
+                                        try {
+                                          const blob = await leaseComplianceApi.downloadCoiDocument(t.check_id);
+                                          const url = URL.createObjectURL(blob);
+                                          window.open(url, '_blank');
+                                        } catch {
+                                          toast('Document not available', 'error');
+                                        }
+                                      }}
+                                      style={{ padding: '4px 10px', fontSize: 11, fontWeight: 600, border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)', backgroundColor: '#fff', cursor: 'pointer', color: 'var(--color-text-secondary)' }}
+                                    >
+                                      View Document
                                     </button>
                                   )}
                                   {hasFail && (

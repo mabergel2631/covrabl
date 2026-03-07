@@ -267,11 +267,9 @@ function CertificatesContent() {
 
       {topTab === 'lease-check' && (() => {
         const businessPolicies = policies.filter(p => p.scope === 'business' && p.status === 'active');
-        // Aggregate stats from lease requirements that have checks
-        const totalPass = leaseReqs.reduce((s, r) => s + (r.latest_check?.pass_count || 0), 0);
-        const totalFail = leaseReqs.reduce((s, r) => s + (r.latest_check?.fail_count || 0), 0);
-        const totalUnclear = leaseReqs.reduce((s, r) => s + (r.latest_check?.unclear_count || 0), 0);
-        const hasChecks = leaseReqs.some(r => r.latest_check);
+        const checksWithResults = leaseReqs.filter(r => r.latest_check);
+        const checksAllPass = checksWithResults.filter(r => r.latest_check && r.latest_check.fail_count === 0 && r.latest_check.unclear_count === 0).length;
+        const checksWithIssues = checksWithResults.length - checksAllPass;
 
         return (
           <div>
@@ -297,21 +295,22 @@ function CertificatesContent() {
               </div>
             </div>
 
-            {/* Aggregate stats */}
-            {hasChecks && (
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginBottom: 24 }}>
-                <div style={{ padding: 16, backgroundColor: '#dcfce7', borderRadius: 'var(--radius-md)', textAlign: 'center' }}>
-                  <div style={{ fontSize: 24, fontWeight: 700, color: '#166534' }}>{totalPass}</div>
-                  <div style={{ fontSize: 12, fontWeight: 600, color: '#166534' }}>Passing</div>
-                </div>
-                <div style={{ padding: 16, backgroundColor: '#fee2e2', borderRadius: 'var(--radius-md)', textAlign: 'center' }}>
-                  <div style={{ fontSize: 24, fontWeight: 700, color: '#991b1b' }}>{totalFail}</div>
-                  <div style={{ fontSize: 12, fontWeight: 600, color: '#991b1b' }}>Failing</div>
-                </div>
-                <div style={{ padding: 16, backgroundColor: '#fef3c7', borderRadius: 'var(--radius-md)', textAlign: 'center' }}>
-                  <div style={{ fontSize: 24, fontWeight: 700, color: '#92400e' }}>{totalUnclear}</div>
-                  <div style={{ fontSize: 12, fontWeight: 600, color: '#92400e' }}>Unclear</div>
-                </div>
+            {/* Summary */}
+            {checksWithResults.length > 0 && (
+              <div style={{ marginBottom: 24, padding: '14px 20px', backgroundColor: '#fff', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+                <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--color-text)' }}>
+                  {leaseReqs.length} lease check{leaseReqs.length !== 1 ? 's' : ''}
+                </span>
+                {checksAllPass > 0 && (
+                  <span style={{ padding: '2px 10px', borderRadius: 10, fontSize: 12, fontWeight: 600, backgroundColor: '#dcfce7', color: '#166534' }}>
+                    {checksAllPass} fully compliant
+                  </span>
+                )}
+                {checksWithIssues > 0 && (
+                  <span style={{ padding: '2px 10px', borderRadius: 10, fontSize: 12, fontWeight: 600, backgroundColor: '#fee2e2', color: '#991b1b' }}>
+                    {checksWithIssues} with issues
+                  </span>
+                )}
               </div>
             )}
 
@@ -350,7 +349,7 @@ function CertificatesContent() {
                           {p.business_name && <span style={{ fontWeight: 400, color: 'var(--color-text-secondary)', marginLeft: 8, fontSize: 13 }}>{p.business_name}</span>}
                         </div>
                         <div style={{ fontSize: 12, color: 'var(--color-text-muted)', marginTop: 4 }}>
-                          {p.policy_type} &middot; {p.carrier || 'No carrier'}
+                          {p.policy_type} · {p.carrier || 'No carrier'}
                           {policyReqs.length > 0 && (
                             <span style={{ marginLeft: 8 }}>
                               {policyReqs.length} lease check{policyReqs.length !== 1 ? 's' : ''}
@@ -365,7 +364,7 @@ function CertificatesContent() {
                           )}
                         </div>
                       </div>
-                      <span style={{ color: 'var(--color-text-muted)', fontSize: 18 }}>&rarr;</span>
+                      <span style={{ color: 'var(--color-primary)', fontSize: 13, fontWeight: 600 }}>View</span>
                     </div>
                   );
                 })}

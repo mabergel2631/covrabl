@@ -3,7 +3,9 @@
 import json
 import logging
 import secrets
+import uuid
 from datetime import datetime, timezone
+from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
 from pydantic import BaseModel
@@ -385,6 +387,39 @@ def list_compliance_checks(
     ]
 
 
+# ── COI Document Download ──────────────────────────
+
+@router.get("/checks/{check_id}/document")
+def download_coi_document(
+    check_id: int,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Download the tenant's uploaded COI document."""
+    check = db.execute(
+        select(ComplianceCheck).where(
+            ComplianceCheck.id == check_id,
+            ComplianceCheck.user_id == user.id,
+        )
+    ).scalar_one_or_none()
+    if not check:
+        raise HTTPException(status_code=404, detail="Check not found")
+    if not check.coi_file_key:
+        raise HTTPException(status_code=404, detail="No document attached to this check")
+
+    upload_dir = Path(__file__).resolve().parent.parent / "uploads"
+    file_path = upload_dir / check.coi_file_key
+    if not file_path.exists():
+        raise HTTPException(status_code=404, detail="Document file not found")
+
+    from fastapi.responses import FileResponse
+    return FileResponse(
+        path=str(file_path),
+        media_type="application/pdf",
+        filename=file_path.name,
+    )
+
+
 # ── Broker Email ────────────────────────────────────
 
 @router.post("/requirements/{req_id}/broker-email")
@@ -642,6 +677,13 @@ async def submit_coi_public(
     if len(content) > 20 * 1024 * 1024:
         raise HTTPException(status_code=400, detail="File too large (max 20MB)")
 
+    # Save the COI PDF to disk so the landlord can view it later
+    upload_dir = Path(__file__).resolve().parent.parent / "uploads"
+    coi_file_key = f"coi/{req.id}/{uuid.uuid4()}-{file.filename or 'certificate.pdf'}"
+    coi_dest = upload_dir / coi_file_key
+    coi_dest.parent.mkdir(parents=True, exist_ok=True)
+    coi_dest.write_bytes(content)
+
     # Extract COI from PDF
     try:
         import fitz
@@ -707,6 +749,7 @@ async def submit_coi_public(
         unclear_count=unclear_count,
         tenant_name=tenant_name or None,
         tenant_email=tenant_email or None,
+        coi_file_key=coi_file_key,
         submitted_at=datetime.now(timezone.utc),
     )
     db.add(check)
@@ -849,6 +892,7 @@ def _requirement_to_dict(req: LeaseRequirement, db: Session) -> dict:
                 "submitted_at": c.submitted_at.isoformat() if c.submitted_at else None,
                 "created_at": c.created_at.isoformat() if c.created_at else None,
                 "check_id": c.id,
+                "has_document": bool(c.coi_file_key),
             }
     result["tenants"] = list(tenants_map.values())
 

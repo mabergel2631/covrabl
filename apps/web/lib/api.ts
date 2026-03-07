@@ -1977,6 +1977,7 @@ export type LeaseRequirementTenant = {
   submitted_at: string | null;
   created_at: string | null;
   check_id: number;
+  has_document: boolean;
 };
 
 export type LeaseRequirement = {
@@ -2147,6 +2148,15 @@ export const leaseComplianceApi = {
     const data = await res.json();
     if (!res.ok) throw new Error(data.detail || "Submission failed");
     return data;
+  },
+  async downloadCoiDocument(checkId: number): Promise<Blob> {
+    const url = `${API_BASE}/lease-compliance/checks/${checkId}/document`;
+    const token = getToken();
+    const headers: Record<string, string> = {};
+    if (token) headers["Authorization"] = `Bearer ${token}`;
+    const res = await fetch(url, { headers });
+    if (!res.ok) throw new Error("Document not found");
+    return res.blob();
   },
 };
 
