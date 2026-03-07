@@ -607,6 +607,7 @@ function CertificatesContent() {
                     {extracting ? 'Extracting...' : 'Upload & Extract'}
                   </button>
                 </div>
+                <div style={{ fontSize: 11, color: '#6b7280', marginTop: 6 }}>&#128274; Your documents are encrypted and never shared.</div>
                 {extracting && (
                   <p style={{ fontSize: 12, color: '#2563eb', marginTop: 8, fontStyle: 'italic', margin: '8px 0 0' }}>
                     Reading PDF and extracting certificate data... This may take a few seconds.

@@ -477,9 +477,11 @@ function Dashboard() {
   }, []);
 
   const scoreValue = scores?.overall_score ?? 0;
-  const scoreColor = scoreValue >= 75 ? '#22c55e' : scoreValue >= 50 ? '#f59e0b' : '#ef4444';
-  const circumference = 2 * Math.PI * 40;
-  const strokeDash = (scoreValue / 100) * circumference;
+  const healthStatus = scoreValue >= 75
+    ? { label: 'Good Standing', color: '#166534', bg: '#dcfce7', icon: '\u2713' }
+    : scoreValue >= 50
+    ? { label: 'Needs Review', color: '#92400e', bg: '#fef3c7', icon: '!' }
+    : { label: 'Action Needed', color: '#991b1b', bg: '#fee2e2', icon: '\u26A0' };
   const unackCount = alerts?.unacknowledged_count ?? 0;
   const renewalPolicies = renewals?.policies?.slice(0, 3) ?? [];
   const activeCount = policies.filter(p => p.status !== 'archived').length;
@@ -502,27 +504,32 @@ function Dashboard() {
           {/* Top row: Score + Alerts + Renewals */}
           <div className="dashboard-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 20, marginBottom: 28 }}>
 
-            {/* Coverage Score Widget */}
+            {/* Coverage Health Widget */}
             <div className="card" style={{ padding: 24, cursor: 'pointer' }} onClick={() => router.push('/score')}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 20 }}>
-                <div style={{ position: 'relative', width: 90, height: 90, flexShrink: 0 }}>
-                  <svg viewBox="0 0 100 100" width={90} height={90}>
-                    <circle cx={50} cy={50} r={40} fill="none" stroke="var(--color-border)" strokeWidth={8} />
-                    <circle cx={50} cy={50} r={40} fill="none" stroke={scoreColor} strokeWidth={8}
-                      strokeLinecap="round" strokeDasharray={`${strokeDash} ${circumference}`}
-                      transform="rotate(-90 50 50)" style={{ transition: 'stroke-dasharray 0.8s ease' }} />
-                  </svg>
-                  <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24, fontWeight: 700, color: 'var(--color-text)' }}>
-                    {scoreValue}
-                  </div>
+                <div style={{
+                  width: 56, height: 56, borderRadius: '50%', flexShrink: 0,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  backgroundColor: healthStatus.bg, color: healthStatus.color,
+                  fontSize: 24, fontWeight: 700,
+                }}>
+                  {healthStatus.icon}
                 </div>
                 <div>
-                  <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--color-text)', marginBottom: 4 }}>Coverage Score</div>
+                  <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--color-text)', marginBottom: 4 }}>Coverage Health</div>
+                  <div style={{
+                    display: 'inline-block', padding: '2px 10px', borderRadius: 10,
+                    fontSize: 12, fontWeight: 600,
+                    backgroundColor: healthStatus.bg, color: healthStatus.color,
+                    marginBottom: 4,
+                  }}>
+                    {healthStatus.label}
+                  </div>
                   <div style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>
                     {scores ? `${scores.policies_analyzed} policies analyzed` : 'No data yet'}
                   </div>
                   {scores?.confidence && (
-                    <div style={{ fontSize: 11, color: scoreColor, fontWeight: 600, marginTop: 4, textTransform: 'capitalize' }}>
+                    <div style={{ fontSize: 11, color: healthStatus.color, fontWeight: 600, marginTop: 4, textTransform: 'capitalize' }}>
                       {scores.confidence} confidence
                     </div>
                   )}
@@ -1355,7 +1362,7 @@ export default function Home() {
             Insurance is too important to feel this unclear.
           </p>
           <p style={{ fontSize: 16, color: 'var(--color-text-secondary)', lineHeight: 1.8, margin: '0 0 20px' }}>
-            {APP_NAME} exists to turn dense policy documents into an intelligent coverage picture — a single health score that shows where you stand, where the gaps are, and what to discuss with your agent.
+            {APP_NAME} exists to turn dense policy documents into an intelligent coverage picture — a clear health overview that shows where you stand, where the gaps are, and what to discuss with your agent.
           </p>
           <p style={{ fontSize: 15, color: 'var(--color-text)', fontWeight: 600, margin: '0 0 20px', letterSpacing: '0.01em' }}>
             Built for clarity. Built for emergencies. Built for peace of mind.

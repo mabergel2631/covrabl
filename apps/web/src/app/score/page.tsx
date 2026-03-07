@@ -20,33 +20,43 @@ const CATEGORY_DESCRIPTIONS: Record<string, string> = {
   catastrophic: 'Evaluates umbrella, flood, earthquake, and other catastrophic coverage.',
 };
 
-function scoreColor(s: number) {
-  if (s >= 75) return '#22c55e';
-  if (s >= 50) return '#f59e0b';
-  return '#ef4444';
+function overallStatus(score: number): { label: string; color: string; bg: string } {
+  if (score >= 75) return { label: 'Good Standing', color: '#166534', bg: '#dcfce7' };
+  if (score >= 50) return { label: 'Needs Review', color: '#92400e', bg: '#fef3c7' };
+  return { label: 'Action Needed', color: '#991b1b', bg: '#fee2e2' };
 }
 
-function ScoreGauge({ score, size = 120 }: { score: number; size?: number }) {
-  const r = (size - 12) / 2;
-  const circ = 2 * Math.PI * r;
+function categoryStatus(score: number): { label: string; icon: string; color: string; bg: string } {
+  if (score >= 75) return { label: 'Verified', icon: '\u2713', color: '#166534', bg: '#dcfce7' };
+  if (score >= 50) return { label: 'Needs Review', icon: '!', color: '#92400e', bg: '#fef3c7' };
+  return { label: 'Action Needed', icon: '\u2717', color: '#991b1b', bg: '#fee2e2' };
+}
+
+function componentStatus(score: number, max: number): { label: string; color: string } {
+  const pct = max > 0 ? (score / max) * 100 : 0;
+  if (pct >= 75) return { label: 'Strong', color: '#22c55e' };
+  if (pct >= 50) return { label: 'Fair', color: '#f59e0b' };
+  return { label: 'Weak', color: '#ef4444' };
+}
+
+function StatusBadge({ score, size = 'lg' }: { score: number; size?: 'lg' | 'md' | 'sm' }) {
+  const s = overallStatus(score);
+  const sizes = {
+    lg: { padding: '12px 28px', fontSize: 20, iconSize: 24 },
+    md: { padding: '8px 20px', fontSize: 16, iconSize: 20 },
+    sm: { padding: '4px 12px', fontSize: 12, iconSize: 14 },
+  };
+  const sz = sizes[size];
   return (
-    <div style={{ position: 'relative', width: size, height: size }}>
-      <svg viewBox={`0 0 ${size} ${size}`} width={size} height={size}>
-        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="#e5e7eb" strokeWidth={10} />
-        <circle
-          cx={size / 2} cy={size / 2} r={r} fill="none"
-          stroke={scoreColor(score)} strokeWidth={10} strokeLinecap="round"
-          strokeDasharray={`${(score / 100) * circ} ${circ}`}
-          transform={`rotate(-90 ${size / 2} ${size / 2})`}
-        />
-      </svg>
-      <div style={{
-        position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column',
-        alignItems: 'center', justifyContent: 'center',
-      }}>
-        <span style={{ fontSize: size * 0.3, fontWeight: 700, color: 'var(--color-text)', lineHeight: 1 }}>{score}</span>
-        <span style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>/ 100</span>
-      </div>
+    <div style={{
+      display: 'inline-flex', alignItems: 'center', gap: 10,
+      padding: sz.padding, borderRadius: 12,
+      backgroundColor: s.bg, color: s.color,
+    }}>
+      <span style={{ fontSize: sz.iconSize, fontWeight: 700, lineHeight: 1 }}>
+        {score >= 75 ? '\u2713' : score >= 50 ? '!' : '\u26A0'}
+      </span>
+      <span style={{ fontSize: sz.fontSize, fontWeight: 700 }}>{s.label}</span>
     </div>
   );
 }
@@ -55,6 +65,7 @@ function CategoryCard({ name, data, defaultOpen }: { name: string; data: Categor
   const [open, setOpen] = useState(defaultOpen || false);
   const label = CATEGORY_LABELS[name] || name;
   const desc = CATEGORY_DESCRIPTIONS[name] || '';
+  const status = categoryStatus(data.score);
 
   return (
     <div style={{
@@ -69,34 +80,33 @@ function CategoryCard({ name, data, defaultOpen }: { name: string; data: Categor
           textAlign: 'left',
         }}
       >
-        {/* Mini gauge */}
-        <div style={{ position: 'relative', width: 44, height: 44, flexShrink: 0 }}>
-          <svg viewBox="0 0 44 44" width={44} height={44}>
-            <circle cx={22} cy={22} r={18} fill="none" stroke="#e5e7eb" strokeWidth={4} />
-            <circle
-              cx={22} cy={22} r={18} fill="none"
-              stroke={scoreColor(data.score)} strokeWidth={4} strokeLinecap="round"
-              strokeDasharray={`${(data.score / 100) * 113} 113`}
-              transform="rotate(-90 22 22)"
-            />
-          </svg>
-          <div style={{
-            position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontSize: 13, fontWeight: 700, color: 'var(--color-text)',
-          }}>
-            {data.score}
-          </div>
+        {/* Status icon */}
+        <div style={{
+          width: 40, height: 40, borderRadius: '50%', flexShrink: 0,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          backgroundColor: status.bg, color: status.color,
+          fontSize: 18, fontWeight: 700,
+        }}>
+          {status.icon}
         </div>
 
         <div style={{ flex: 1 }}>
           <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--color-text)' }}>{label}</div>
-          <div style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>
-            Weight: {data.weight}% · {data.components.length} components
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 2 }}>
+            <span style={{
+              fontSize: 11, fontWeight: 600, color: status.color,
+              padding: '1px 8px', borderRadius: 10, backgroundColor: status.bg,
+            }}>
+              {status.label}
+            </span>
+            <span style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>
+              {data.components.length} components
+            </span>
           </div>
         </div>
 
         <span style={{ fontSize: 16, color: 'var(--color-text-muted)', transition: 'transform 0.2s', transform: open ? 'rotate(180deg)' : 'none' }}>
-          ▾
+          &#9662;
         </span>
       </button>
 
@@ -105,24 +115,28 @@ function CategoryCard({ name, data, defaultOpen }: { name: string; data: Categor
           <div style={{ fontSize: 12, color: 'var(--color-text-muted)', padding: '12px 0 16px' }}>{desc}</div>
 
           {/* Components */}
-          {data.components.map((comp, i) => (
-            <div key={i} style={{ marginBottom: 12 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 4 }}>
-                <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-text)' }}>{comp.name}</span>
-                <span style={{ fontSize: 12, fontWeight: 600, color: scoreColor((comp.score / comp.max) * 100) }}>
-                  {comp.score} / {comp.max}
-                </span>
+          {data.components.map((comp, i) => {
+            const cs = componentStatus(comp.score, comp.max);
+            const pct = comp.max > 0 ? (comp.score / comp.max) * 100 : 0;
+            return (
+              <div key={i} style={{ marginBottom: 12 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 4 }}>
+                  <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-text)' }}>{comp.name}</span>
+                  <span style={{ fontSize: 12, fontWeight: 600, color: cs.color }}>
+                    {cs.label}
+                  </span>
+                </div>
+                <div style={{ height: 4, backgroundColor: '#e5e7eb', borderRadius: 2, overflow: 'hidden', marginBottom: 4 }}>
+                  <div style={{
+                    height: '100%', width: `${pct}%`,
+                    backgroundColor: cs.color,
+                    borderRadius: 2, transition: 'width 0.5s ease',
+                  }} />
+                </div>
+                <div style={{ fontSize: 12, color: 'var(--color-text-muted)', lineHeight: 1.4 }}>{comp.detail}</div>
               </div>
-              <div style={{ height: 4, backgroundColor: '#e5e7eb', borderRadius: 2, overflow: 'hidden', marginBottom: 4 }}>
-                <div style={{
-                  height: '100%', width: `${(comp.score / comp.max) * 100}%`,
-                  backgroundColor: scoreColor((comp.score / comp.max) * 100),
-                  borderRadius: 2, transition: 'width 0.5s ease',
-                }} />
-              </div>
-              <div style={{ fontSize: 12, color: 'var(--color-text-muted)', lineHeight: 1.4 }}>{comp.detail}</div>
-            </div>
-          ))}
+            );
+          })}
 
           {/* Category recommendations */}
           {data.recommendations.length > 0 && (
@@ -164,7 +178,7 @@ export default function ScorePage() {
       .then(setData)
       .catch(err => {
         if (err.status === 401) { logout(); router.replace('/login'); return; }
-        setError(err.message || 'Failed to load score');
+        setError(err.message || 'Failed to load coverage health');
       })
       .finally(() => setLoading(false));
   }, [token]);
@@ -196,7 +210,7 @@ export default function ScorePage() {
   if (loading) {
     return (
       <div style={{ maxWidth: 800, margin: '0 auto', padding: '60px 24px', textAlign: 'center' }}>
-        <div style={{ fontSize: 16, color: 'var(--color-text-muted)' }}>Calculating your Coverage Health Score...</div>
+        <div style={{ fontSize: 16, color: 'var(--color-text-muted)' }}>Checking your coverage health...</div>
       </div>
     );
   }
@@ -204,7 +218,7 @@ export default function ScorePage() {
   if (error || !data) {
     return (
       <div style={{ maxWidth: 800, margin: '0 auto', padding: '60px 24px', textAlign: 'center' }}>
-        <div style={{ fontSize: 16, color: '#ef4444', marginBottom: 16 }}>{error || 'Unable to load score data'}</div>
+        <div style={{ fontSize: 16, color: '#ef4444', marginBottom: 16 }}>{error || 'Unable to load coverage health data'}</div>
         <button onClick={() => router.push('/policies')} style={{ padding: '8px 20px', borderRadius: 8, border: '1px solid var(--color-border)', background: '#fff', cursor: 'pointer' }}>
           Back to Policies
         </button>
@@ -212,9 +226,11 @@ export default function ScorePage() {
     );
   }
 
+  const status = overallStatus(data.overall_score);
+
   return (
     <div style={{ maxWidth: 800, margin: '0 auto', padding: '32px 24px 80px' }}>
-      <BackButton href="/policies" label="Score" parentLabel="Policies" />
+      <BackButton href="/policies" label="Coverage Health" parentLabel="Policies" />
 
       {/* Disclaimer banner */}
       <div style={{
@@ -222,24 +238,24 @@ export default function ScorePage() {
         backgroundColor: '#f0f9ff', border: '1px solid #bae6fd',
         borderRadius: 'var(--radius-md)', fontSize: 12, color: '#0369a1', lineHeight: 1.5,
       }}>
-        This score summarizes coverage found in your uploaded policies and profile information.
+        This overview summarizes coverage found in your uploaded policies and profile information.
         It helps highlight areas that may warrant review with your insurance professional.
       </div>
 
-      {/* Overall score */}
+      {/* Overall status */}
       <div style={{
         display: 'flex', alignItems: 'center', gap: 32, marginBottom: 32,
         padding: '28px 32px', backgroundColor: '#fff',
         border: '1px solid var(--color-border)', borderRadius: 'var(--radius-lg)',
       }}>
-        <ScoreGauge score={data.overall_score} size={130} />
+        <StatusBadge score={data.overall_score} size="lg" />
         <div style={{ flex: 1 }}>
           <h1 style={{ fontSize: 24, fontWeight: 700, margin: '0 0 6px', color: 'var(--color-text)' }}>
-            Coverage Health Score
+            Coverage Health Overview
           </h1>
           <div style={{ fontSize: 14, color: 'var(--color-text-secondary)', marginBottom: 12 }}>
-            Based on {data.policies_analyzed} {data.policies_analyzed === 1 ? 'policy' : 'policies'} · {data.confidence} confidence
-            {data.exposure_band !== 'unknown' && ` · ${data.exposure_band.replace('_', ' ')} exposure`}
+            Based on {data.policies_analyzed} {data.policies_analyzed === 1 ? 'policy' : 'policies'} &middot; {data.confidence} confidence
+            {data.exposure_band !== 'unknown' && ` \u00b7 ${data.exposure_band.replace('_', ' ')} exposure`}
           </div>
           <button
             onClick={handleRecalculate}
@@ -276,7 +292,7 @@ export default function ScorePage() {
           </div>
           <div style={{ fontSize: 13, color: '#78350f', lineHeight: 1.5 }}>
             Based on your profile, we&apos;d expect to see: <strong>{data.not_visible.join(', ')}</strong>.
-            Uploading these policies will improve score accuracy and confidence.
+            Uploading these policies will improve accuracy and confidence.
           </div>
           <button
             onClick={() => router.push('/policies')}
@@ -383,7 +399,7 @@ export default function ScorePage() {
         backgroundColor: '#f8fafc', border: '1px solid #e2e8f0',
         borderRadius: 'var(--radius-md)', fontSize: 11, color: '#64748b', lineHeight: 1.5, textAlign: 'center',
       }}>
-        For informational purposes only. This score is based on the policies and profile information you have uploaded.
+        For informational purposes only. This overview is based on the policies and profile information you have uploaded.
         It does not constitute insurance advice and does not replace consultation with a licensed insurance professional.
       </div>
 

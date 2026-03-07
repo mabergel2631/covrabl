@@ -287,6 +287,7 @@ export default function LeaseCompliancePublicPage() {
             <div style={{ marginBottom: 16 }}>
               <label style={labelStyle}>Certificate of Insurance (PDF)</label>
               <input ref={fileRef} type="file" accept=".pdf" style={{ fontSize: 13, display: 'block', marginTop: 4 }} />
+              <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 4 }}>&#128274; Your documents are encrypted and never shared.</div>
             </div>
 
             <button

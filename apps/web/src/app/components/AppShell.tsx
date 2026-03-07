@@ -23,7 +23,7 @@ const NAV_SECTIONS: NavSection[] = [
   {
     label: 'INTELLIGENCE',
     items: [
-      { href: '/score', label: 'Score', icon: '📊' },
+      { href: '/score', label: 'Health', icon: '📊' },
       { href: '/chat', label: 'Insights', icon: '💬' },
       { href: '/audit', label: 'Alerts', icon: '🔔' },
       { href: '/renewals', label: 'Renewals', icon: '🔄', feature: 'deltas' },

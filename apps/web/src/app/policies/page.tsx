@@ -785,7 +785,7 @@ function PoliciesPageInner() {
             )}
           </div>
 
-          {/* ── Coverage Health Score Tiles (scope-specific) ── */}
+          {/* ── Coverage Health Tiles (scope-specific) ── */}
           {!loading && scopedPolicies.length > 0 && (personalScore || businessScore) && (
             <div className="mobile-grid-1" style={{ display: 'grid', gridTemplateColumns: personalScore && businessScore ? '1fr 1fr' : '1fr', gap: 12, marginBottom: 16 }}>
               {[
@@ -797,6 +797,11 @@ function PoliciesPageInner() {
                   liability: 'Liability', property: 'Property', income: 'Income', catastrophic: 'Catastrophic',
                   core_liability: 'Core Liability', property_fleet: 'Property & Fleet', workforce: 'Workforce', specialty: 'Specialty',
                 };
+                const tileStatus = d.overall_score >= 75
+                  ? { label: 'Good Standing', color: '#166534', bg: '#dcfce7', icon: '\u2713' }
+                  : d.overall_score >= 50
+                  ? { label: 'Needs Review', color: '#92400e', bg: '#fef3c7', icon: '!' }
+                  : { label: 'Action Needed', color: '#991b1b', bg: '#fee2e2', icon: '\u26A0' };
                 return (
                   <div
                     key={tile.label}
@@ -811,48 +816,46 @@ function PoliciesPageInner() {
                     onMouseEnter={e => (e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.06)')}
                     onMouseLeave={e => (e.currentTarget.style.boxShadow = 'none')}
                   >
-                    {/* SVG Circular Gauge */}
-                    <div style={{ position: 'relative', width: 64, height: 64, flexShrink: 0 }}>
-                      <svg viewBox="0 0 64 64" width={64} height={64}>
-                        <circle cx={32} cy={32} r={26} fill="none" stroke="#e5e7eb" strokeWidth={5} />
-                        <circle
-                          cx={32} cy={32} r={26} fill="none"
-                          stroke={d.overall_score >= 75 ? '#22c55e' : d.overall_score >= 50 ? '#f59e0b' : '#ef4444'}
-                          strokeWidth={5} strokeLinecap="round"
-                          strokeDasharray={`${(d.overall_score / 100) * 163.4} 163.4`}
-                          transform="rotate(-90 32 32)"
-                        />
-                      </svg>
-                      <div style={{
-                        position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        fontSize: 18, fontWeight: 700, color: 'var(--color-text)',
-                      }}>
-                        {d.overall_score}
-                      </div>
+                    {/* Status badge */}
+                    <div style={{
+                      width: 48, height: 48, borderRadius: '50%', flexShrink: 0,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      backgroundColor: tileStatus.bg, color: tileStatus.color,
+                      fontSize: 20, fontWeight: 700,
+                    }}>
+                      {tileStatus.icon}
                     </div>
 
-                    {/* Category bars */}
+                    {/* Category status dots */}
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, marginBottom: 6 }}>
+                      <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, marginBottom: 4 }}>
                         <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--color-text)' }}>{tile.label}</span>
                         <span style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>
                           {d.policies_analyzed} {d.policies_analyzed === 1 ? 'policy' : 'policies'}
                         </span>
                       </div>
-                      <div className="mobile-grid-1" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
+                      <div style={{
+                        display: 'inline-block', padding: '2px 10px', borderRadius: 10,
+                        fontSize: 11, fontWeight: 600,
+                        backgroundColor: tileStatus.bg, color: tileStatus.color,
+                        marginBottom: 6,
+                      }}>
+                        {tileStatus.label}
+                      </div>
+                      <div className="mobile-grid-1" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 6 }}>
                         {tile.cats.map(cat => {
                           const c = d.categories[cat];
                           if (!c) return null;
-                          const color = c.score >= 75 ? '#22c55e' : c.score >= 50 ? '#f59e0b' : '#ef4444';
+                          const dotColor = c.score >= 75 ? '#22c55e' : c.score >= 50 ? '#f59e0b' : '#ef4444';
                           return (
-                            <div key={cat}>
-                              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: 'var(--color-text-muted)', marginBottom: 2 }}>
-                                <span>{catLabels[cat] || cat}</span>
-                                <span style={{ fontWeight: 600 }}>{c.score}</span>
-                              </div>
-                              <div style={{ height: 3, backgroundColor: '#e5e7eb', borderRadius: 2, overflow: 'hidden' }}>
-                                <div style={{ height: '100%', width: `${c.score}%`, backgroundColor: color, borderRadius: 2, transition: 'width 0.5s ease' }} />
-                              </div>
+                            <div key={cat} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                              <span style={{
+                                display: 'inline-block', width: 8, height: 8, borderRadius: '50%',
+                                backgroundColor: dotColor, flexShrink: 0,
+                              }} />
+                              <span style={{ fontSize: 10, color: 'var(--color-text-muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                {catLabels[cat] || cat}
+                              </span>
                             </div>
                           );
                         })}
@@ -860,7 +863,7 @@ function PoliciesPageInner() {
                     </div>
 
                     {/* Arrow */}
-                    <div style={{ color: 'var(--color-text-muted)', fontSize: 16, flexShrink: 0 }}>→</div>
+                    <div style={{ color: 'var(--color-text-muted)', fontSize: 16, flexShrink: 0 }}>&rarr;</div>
                   </div>
                 );
               })}
@@ -1825,7 +1828,8 @@ function PoliciesPageInner() {
                   <p style={{ margin: '0 0 24px', fontSize: 12, color: 'var(--color-text-muted)' }}>
                     Our AI reads your policy and organizes coverage instantly.
                   </p>
-                  <input ref={createFileRef} type="file" accept=".pdf" style={{ marginBottom: 16 }} />
+                  <input ref={createFileRef} type="file" accept=".pdf" style={{ marginBottom: 8 }} />
+                  <div style={{ fontSize: 11, color: 'var(--color-text-muted)', marginBottom: 12 }}>&#128274; Your documents are encrypted and never shared.</div>
                   <div>
                     <button
                       onClick={handleUpload}

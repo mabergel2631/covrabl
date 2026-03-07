@@ -1767,15 +1767,18 @@ export default function PolicyDetailPage() {
         <h2 style={{ margin: '0 0 4px', fontSize: 18 }}>Documents</h2>
         <p style={{ margin: '0 0 16px', fontSize: 13, color: '#666' }}>Upload a policy PDF to auto-extract carrier, coverage, contacts and more.</p>
         {canEdit && (
-          <div style={{ display: 'flex', gap: 8, marginBottom: 16, alignItems: 'center', flexWrap: 'wrap' }}>
-            <select value={docType} onChange={e => setDocType(e.target.value)} style={{ padding: '8px 10px', border: '1px solid #ddd', borderRadius: 4, fontSize: 13 }}>
-              {DOC_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
-            </select>
-            <input ref={fileRef} type="file" style={{ fontSize: 14, minWidth: 0 }} />
-            <button onClick={handleUpload} disabled={uploading} className="btn btn-accent">
-              {uploading ? 'Uploading...' : 'Upload'}
-            </button>
-          </div>
+          <>
+            <div style={{ display: 'flex', gap: 8, marginBottom: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+              <select value={docType} onChange={e => setDocType(e.target.value)} style={{ padding: '8px 10px', border: '1px solid #ddd', borderRadius: 4, fontSize: 13 }}>
+                {DOC_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+              </select>
+              <input ref={fileRef} type="file" style={{ fontSize: 14, minWidth: 0 }} />
+              <button onClick={handleUpload} disabled={uploading} className="btn btn-accent">
+                {uploading ? 'Uploading...' : 'Upload'}
+              </button>
+            </div>
+            <div style={{ fontSize: 11, color: 'var(--color-text-muted)', marginBottom: 12 }}>&#128274; Your documents are encrypted and never shared.</div>
+          </>
         )}
 
         {(uploading || extractingId) && (
@@ -2333,6 +2336,7 @@ export default function PolicyDetailPage() {
                         </button>
                       </div>
                     </div>
+                    <div style={{ fontSize: 11, color: 'var(--color-text-muted)', marginTop: 6 }}>&#128274; Your documents are encrypted and never shared.</div>
                     {leaseExtracting && <p style={{ fontSize: 12, color: '#2563eb', marginTop: 8, fontStyle: 'italic' }}>Analyzing lease clause...</p>}
                   </>
                 )}
@@ -2632,6 +2636,10 @@ export default function PolicyDetailPage() {
                                           setLeaseResults(parsed);
                                           setLeaseCheckCounts({ pass: tenantCheck.pass_count, fail: tenantCheck.fail_count, unclear: tenantCheck.unclear_count });
                                           setLeaseCheckedAgainst(`${t.tenant_name || t.tenant_email || 'Tenant'}'s certificate`);
+                                          setLeaseActiveReqId(activeReq.id);
+                                          setLeaseView('results');
+                                        } else {
+                                          toast('No results found for this tenant', 'error');
                                         }
                                       } catch {
                                         toast('Failed to load tenant check', 'error');

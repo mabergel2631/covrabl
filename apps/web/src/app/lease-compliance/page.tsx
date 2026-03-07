@@ -99,6 +99,24 @@ function LeaseComplianceContent() {
                       No linked policy
                     </span>
                   )}
+                  <button
+                    onClick={async () => {
+                      if (!confirm('Delete this lease check?')) return;
+                      try {
+                        await leaseComplianceApi.remove(req.id);
+                        setRequirements(prev => prev.filter(r => r.id !== req.id));
+                      } catch {
+                        alert('Failed to delete');
+                      }
+                    }}
+                    style={{
+                      padding: '6px 14px', fontSize: 13, fontWeight: 600,
+                      backgroundColor: '#fff', color: 'var(--color-danger)',
+                      border: '1px solid #fecaca', borderRadius: 'var(--radius-sm)', cursor: 'pointer',
+                    }}
+                  >
+                    Delete
+                  </button>
                 </div>
               </div>
             ))}

@@ -32,6 +32,14 @@ def _delete_policy_cascade(db: Session, policy_id: int):
         for row in db.execute(select(Model).where(Model.policy_id == policy_id)).scalars().all():
             db.delete(row)
 
+    # Cascade-delete lease requirements and their compliance checks
+    from .models_features import LeaseRequirement, ComplianceCheck
+    lease_reqs = db.execute(select(LeaseRequirement).where(LeaseRequirement.policy_id == policy_id)).scalars().all()
+    for lr in lease_reqs:
+        for cc in db.execute(select(ComplianceCheck).where(ComplianceCheck.lease_requirement_id == lr.id)).scalars().all():
+            db.delete(cc)
+        db.delete(lr)
+
     # Child tables on Policy ORM relationships (contacts, details, coverage_items)
     for Model in (Contact, CoverageItem, PolicyDetail):
         for row in db.execute(select(Model).where(Model.policy_id == policy_id)).scalars().all():

@@ -717,7 +717,7 @@ async def submit_coi_public(
     owner = db.execute(select(User).where(User.id == req.user_id)).scalar_one_or_none()
     if owner and owner.email:
         from .email import send_coi_submission_email
-        review_url = f"{settings.app_url}/lease-compliance"
+        review_url = f"{settings.app_url}/policies/{req.policy_id}#lease" if req.policy_id else f"{settings.app_url}/lease-compliance"
         submitter_name = tenant_name or tenant_email or "A tenant"
         await send_coi_submission_email(
             to_email=owner.email,
