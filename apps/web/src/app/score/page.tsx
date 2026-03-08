@@ -1,16 +1,23 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useEffect, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '../../../lib/auth';
 import { scoresApi, CoverageScoresResult, CategoryResult, ScoreRecommendation } from '../../../lib/api';
 import BackButton from '../components/BackButton';
+
+const PERSONAL_CATEGORIES = ['liability', 'property', 'income', 'catastrophic'];
+const BUSINESS_CATEGORIES = ['core_liability', 'property_fleet', 'workforce', 'specialty'];
 
 const CATEGORY_LABELS: Record<string, string> = {
   liability: 'Liability Protection',
   property: 'Property Protection',
   income: 'Income Protection',
   catastrophic: 'Catastrophic Protection',
+  core_liability: 'Core Liability',
+  property_fleet: 'Property & Fleet',
+  workforce: 'Workforce',
+  specialty: 'Specialty',
 };
 
 const CATEGORY_DESCRIPTIONS: Record<string, string> = {
@@ -18,6 +25,10 @@ const CATEGORY_DESCRIPTIONS: Record<string, string> = {
   property: 'Evaluates dwelling/renters coverage, auto physical damage, and deductible levels.',
   income: 'Evaluates life insurance, disability income, and policy status.',
   catastrophic: 'Evaluates umbrella, flood, earthquake, and other catastrophic coverage.',
+  core_liability: 'Evaluates general liability, professional liability (E&O), and umbrella/excess coverage.',
+  property_fleet: 'Evaluates commercial property, auto/fleet, and inland marine coverage.',
+  workforce: 'Evaluates workers\u2019 compensation, employment practices, and key person coverage.',
+  specialty: 'Evaluates cyber liability, D&O, and industry-specific coverage.',
 };
 
 function overallStatus(score: number): { label: string; color: string; bg: string } {
@@ -54,7 +65,7 @@ function StatusBadge({ score, size = 'lg' }: { score: number; size?: 'lg' | 'md'
       backgroundColor: s.bg, color: s.color,
     }}>
       <span style={{ fontSize: sz.iconSize, fontWeight: 700, lineHeight: 1 }}>
-        {score >= 75 ? '\u2713' : score >= 50 ? '!' : '\u26A0'}
+        {score >= 70 ? '\u2713' : score >= 40 ? '!' : '\u26A0'}
       </span>
       <span style={{ fontSize: sz.fontSize, fontWeight: 700 }}>{s.label}</span>
     </div>
@@ -159,7 +170,7 @@ function CategoryCard({ name, data, defaultOpen, onDismiss, onRestore }: { name:
                           <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-text)', flex: 1 }}>{rec.text}</span>
                           {rec.rec_key && onDismiss && (
                             <button
-                              onClick={() => onDismiss(rec.rec_key!)}
+                              onClick={(e) => { e.stopPropagation(); onDismiss(rec.rec_key!); }}
                               title="Not relevant to me"
                               style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 11, color: 'var(--color-text-muted)', padding: '2px 6px', borderRadius: 4, flexShrink: 0 }}
                             >
@@ -182,7 +193,7 @@ function CategoryCard({ name, data, defaultOpen, onDismiss, onRestore }: { name:
                         <span style={{ fontSize: 12, color: 'var(--color-text-muted)', flex: 1, textDecoration: 'line-through' }}>{rec.text}</span>
                         {rec.rec_key && onRestore && (
                           <button
-                            onClick={() => onRestore(rec.rec_key!)}
+                            onClick={(e) => { e.stopPropagation(); onRestore(rec.rec_key!); }}
                             style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 11, color: 'var(--color-primary)', padding: '2px 6px', flexShrink: 0 }}
                           >
                             Restore
@@ -201,19 +212,41 @@ function CategoryCard({ name, data, defaultOpen, onDismiss, onRestore }: { name:
   );
 }
 
-export default function ScorePage() {
+function ScorePageInner() {
   const { token, logout } = useAuth();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const scope = searchParams.get('scope') === 'business' ? 'business' : 'personal';
   const [data, setData] = useState<CoverageScoresResult | null>(null);
   const [loading, setLoading] = useState(true);
   const [recalculating, setRecalculating] = useState(false);
   const [error, setError] = useState('');
 
+  const categoryKeys = scope === 'business' ? BUSINESS_CATEGORIES : PERSONAL_CATEGORIES;
+  const scopeLabel = scope === 'business' ? 'Business Coverage' : 'Personal Coverage';
+
+  const fetchData = async () => {
+    try {
+      const result = await scoresApi.byScope();
+      const scopeData = scope === 'business' ? result.business : result.personal;
+      if (scopeData) {
+        setData(scopeData);
+      } else {
+        setData(null);
+        setError(`No ${scope} policies found. Upload a ${scope} policy to see your coverage overview.`);
+      }
+    } catch (err: any) {
+      if (err.status === 401) { logout(); router.replace('/login'); return; }
+      setError(err.message || 'Failed to load coverage overview');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleDismiss = async (recKey: string) => {
     try {
       await scoresApi.dismiss(recKey);
-      // Recalculate to update scores (dismissed items affect the score)
-      const result = await scoresApi.recalculate();
+      const result = await scoresApi.recalculateScope(scope);
       setData(result);
     } catch { /* ignore */ }
   };
@@ -221,27 +254,23 @@ export default function ScorePage() {
   const handleRestore = async (recKey: string) => {
     try {
       await scoresApi.restore(recKey);
-      // Recalculate to update scores
-      const result = await scoresApi.recalculate();
+      const result = await scoresApi.recalculateScope(scope);
       setData(result);
     } catch { /* ignore */ }
   };
 
   useEffect(() => {
     if (!token) { router.replace('/login'); return; }
-    scoresApi.get()
-      .then(setData)
-      .catch(err => {
-        if (err.status === 401) { logout(); router.replace('/login'); return; }
-        setError(err.message || 'Failed to load coverage health');
-      })
-      .finally(() => setLoading(false));
-  }, [token]);
+    setLoading(true);
+    setError('');
+    setData(null);
+    fetchData();
+  }, [token, scope]);
 
   const handleRecalculate = async () => {
     setRecalculating(true);
     try {
-      const result = await scoresApi.recalculate();
+      const result = await scoresApi.recalculateScope(scope);
       setData(result);
     } catch (err: any) {
       setError(err.message || 'Failed to recalculate');
@@ -253,19 +282,19 @@ export default function ScorePage() {
   // Aggregate active (non-dismissed) recommendations sorted by priority
   const allRecs: (ScoreRecommendation & { category: string })[] = [];
   if (data) {
-    const order = { high: 0, medium: 1, low: 2 };
+    const order: Record<string, number> = { high: 0, medium: 1, low: 2 };
     for (const [cat, result] of Object.entries(data.categories)) {
       for (const rec of result.recommendations) {
         if (!rec.dismissed) allRecs.push({ ...rec, category: cat });
       }
     }
-    allRecs.sort((a, b) => order[a.priority] - order[b.priority]);
+    allRecs.sort((a, b) => (order[a.priority] ?? 2) - (order[b.priority] ?? 2));
   }
 
   if (loading) {
     return (
       <div style={{ maxWidth: 800, margin: '0 auto', padding: '60px 24px', textAlign: 'center' }}>
-        <div style={{ fontSize: 16, color: 'var(--color-text-muted)' }}>Checking your coverage health...</div>
+        <div style={{ fontSize: 16, color: 'var(--color-text-muted)' }}>Loading {scopeLabel.toLowerCase()}...</div>
       </div>
     );
   }
@@ -273,7 +302,7 @@ export default function ScorePage() {
   if (error || !data) {
     return (
       <div style={{ maxWidth: 800, margin: '0 auto', padding: '60px 24px', textAlign: 'center' }}>
-        <div style={{ fontSize: 16, color: '#ef4444', marginBottom: 16 }}>{error || 'Unable to load coverage health data'}</div>
+        <div style={{ fontSize: 16, color: '#ef4444', marginBottom: 16 }}>{error || 'Unable to load coverage data'}</div>
         <button onClick={() => router.push('/policies')} style={{ padding: '12px 24px', borderRadius: 8, border: '1px solid var(--color-border)', background: '#fff', cursor: 'pointer', fontSize: 14 }}>
           Back to Policies
         </button>
@@ -281,11 +310,28 @@ export default function ScorePage() {
     );
   }
 
-  const status = overallStatus(data.overall_score);
-
   return (
     <div style={{ maxWidth: 800, margin: '0 auto', padding: '32px 24px 80px' }}>
-      <BackButton href="/policies" label="Coverage Health" parentLabel="Policies" />
+      <BackButton href="/policies" label={scopeLabel} parentLabel="Policies" />
+
+      {/* Scope toggle */}
+      <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
+        {(['personal', 'business'] as const).map(s => (
+          <button
+            key={s}
+            onClick={() => router.replace(`/score?scope=${s}`)}
+            style={{
+              padding: '6px 16px', fontSize: 13, fontWeight: 600,
+              borderRadius: 6, border: '1px solid var(--color-border)',
+              backgroundColor: scope === s ? 'var(--color-text)' : '#fff',
+              color: scope === s ? '#fff' : 'var(--color-text-secondary)',
+              cursor: 'pointer',
+            }}
+          >
+            {s === 'personal' ? 'Personal' : 'Business'}
+          </button>
+        ))}
+      </div>
 
       {/* Disclaimer banner */}
       <div style={{
@@ -293,7 +339,7 @@ export default function ScorePage() {
         backgroundColor: '#f0f9ff', border: '1px solid #bae6fd',
         borderRadius: 'var(--radius-md)', fontSize: 12, color: '#0369a1', lineHeight: 1.5,
       }}>
-        This overview summarizes coverage found in your uploaded policies and profile information.
+        This overview summarizes {scope} coverage found in your uploaded policies and profile information.
         It helps highlight areas that may warrant review with your insurance professional.
       </div>
 
@@ -306,11 +352,10 @@ export default function ScorePage() {
         <StatusBadge score={data.overall_score} size="lg" />
         <div style={{ flex: '1 1 240px', minWidth: 0 }}>
           <h1 style={{ fontSize: 22, fontWeight: 700, margin: '0 0 6px', color: 'var(--color-text)' }}>
-            Coverage Health Overview
+            {scopeLabel} Overview
           </h1>
           <div style={{ fontSize: 13, color: 'var(--color-text-secondary)', marginBottom: 12 }}>
             Based on {data.policies_analyzed} {data.policies_analyzed === 1 ? 'policy' : 'policies'} &middot; {data.confidence} confidence
-            {data.exposure_band !== 'unknown' && ` \u00b7 ${data.exposure_band.replace('_', ' ')} exposure`}
           </div>
           <button
             onClick={handleRecalculate}
@@ -328,15 +373,28 @@ export default function ScorePage() {
       </div>
 
       {/* Category cards */}
-      <h2 style={{ fontSize: 16, fontWeight: 700, color: 'var(--color-text)', marginBottom: 12 }}>Protection Categories</h2>
+      <h2 style={{ fontSize: 16, fontWeight: 700, color: 'var(--color-text)', marginBottom: 12 }}>
+        {scope === 'business' ? 'Business Categories' : 'Protection Categories'}
+      </h2>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 32 }}>
-        {(['liability', 'property', 'income', 'catastrophic'] as const).map(cat => (
-          <CategoryCard key={cat} name={cat} data={data.categories[cat]} defaultOpen={data.categories[cat].score < 50} onDismiss={handleDismiss} onRestore={handleRestore} />
-        ))}
+        {categoryKeys.map(cat => {
+          const catData = data.categories[cat];
+          if (!catData) return null;
+          return (
+            <CategoryCard
+              key={cat}
+              name={cat}
+              data={catData}
+              defaultOpen={catData.score < 50}
+              onDismiss={handleDismiss}
+              onRestore={handleRestore}
+            />
+          );
+        })}
       </div>
 
       {/* Not yet visible */}
-      {data.not_visible.length > 0 && (
+      {data.not_visible && data.not_visible.length > 0 && (
         <div style={{
           padding: '16px 20px', marginBottom: 32,
           backgroundColor: '#fffbeb', border: '1px solid #fde68a',
@@ -406,10 +464,10 @@ export default function ScorePage() {
         </div>
       )}
 
-      {/* Policy health */}
-      {(data.policy_health.expiring_soon.length > 0 || data.policy_health.missing_documents.length > 0) && (
+      {/* Policy health - only for personal scope which returns it */}
+      {data.policy_health && (data.policy_health.expiring_soon.length > 0 || data.policy_health.missing_documents.length > 0) && (
         <div style={{ marginBottom: 32 }}>
-          <h2 style={{ fontSize: 16, fontWeight: 700, color: 'var(--color-text)', marginBottom: 12 }}>Policy Health</h2>
+          <h2 style={{ fontSize: 16, fontWeight: 700, color: 'var(--color-text)', marginBottom: 12 }}>Policy Status</h2>
           <div style={{
             padding: '16px 20px', backgroundColor: '#fff',
             border: '1px solid var(--color-border)', borderRadius: 'var(--radius-lg)',
@@ -447,7 +505,7 @@ export default function ScorePage() {
                       borderBottom: i < data.policy_health.missing_documents.length - 1 ? '1px solid #f1f5f9' : 'none',
                     }}
                   >
-                    {item.carrier} ({item.type}) — no document uploaded
+                    {item.carrier} ({item.type}) -- no document uploaded
                   </div>
                 ))}
               </div>
@@ -475,9 +533,21 @@ export default function ScorePage() {
             color: 'var(--color-text-secondary)', cursor: 'pointer',
           }}
         >
-          &larr; Back to Policies
+          Back to Policies
         </button>
       </div>
     </div>
+  );
+}
+
+export default function ScorePage() {
+  return (
+    <Suspense fallback={
+      <div style={{ maxWidth: 800, margin: '0 auto', padding: '60px 24px', textAlign: 'center' }}>
+        <div style={{ fontSize: 16, color: 'var(--color-text-muted)' }}>Loading coverage overview...</div>
+      </div>
+    }>
+      <ScorePageInner />
+    </Suspense>
   );
 }

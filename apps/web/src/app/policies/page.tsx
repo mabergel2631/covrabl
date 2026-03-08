@@ -785,7 +785,7 @@ function PoliciesPageInner() {
             )}
           </div>
 
-          {/* ── Coverage Health Tiles (scope-specific) ── */}
+          {/* ── Coverage Overview Tiles (scope-specific) ── */}
           {!loading && scopedPolicies.length > 0 && (personalScore || businessScore) && (
             <div className="mobile-grid-1" style={{ display: 'grid', gridTemplateColumns: personalScore && businessScore ? '1fr 1fr' : '1fr', gap: 12, marginBottom: 16 }}>
               {[
@@ -810,7 +810,7 @@ function PoliciesPageInner() {
                 return (
                   <div
                     key={tile.label}
-                    onClick={() => router.push('/score')}
+                    onClick={() => router.push(`/score?scope=${tile.label === 'Personal Coverage' ? 'personal' : 'business'}`)}
                     style={{
                       display: 'flex', alignItems: 'center', gap: 20,
                       padding: '18px 22px',

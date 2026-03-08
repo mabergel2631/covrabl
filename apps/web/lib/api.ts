@@ -1202,6 +1202,9 @@ export const scoresApi = {
       body: JSON.stringify({ rec_key: recKey }),
     });
   },
+  recalculateScope(scope: string): Promise<CoverageScoresResult> {
+    return request<CoverageScoresResult>(`/coverage-scores/recalculate/${scope}`, { method: "POST" });
+  },
 };
 
 // ── Email Ingestion API ─────────────────────────────────────

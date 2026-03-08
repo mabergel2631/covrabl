@@ -1159,6 +1159,27 @@ def get_scores_by_scope(
     return {"personal": personal, "business": business}
 
 
+@router.post("/recalculate/{scope}")
+def recalculate_scope_scores(
+    scope: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Force recalculation of coverage scores for a specific scope."""
+    if scope not in ("personal", "business"):
+        raise HTTPException(status_code=400, detail="scope must be 'personal' or 'business'")
+    db.execute(sa_delete(CoverageScore).where(CoverageScore.user_id == user.id))
+    db.commit()
+    result = _compute_scores_for_scope(db, user, scope)
+    db.commit()
+    if result is None:
+        return {
+            "overall_score": 0, "confidence": "low", "policies_analyzed": 0,
+            "not_visible": [], "categories": {},
+        }
+    return result
+
+
 # ── Recommendation Dismiss/Restore ─────────────────────────────
 
 def _rec_key(category: str, text: str) -> str:
