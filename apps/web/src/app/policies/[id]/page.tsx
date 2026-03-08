@@ -1998,9 +1998,15 @@ export default function PolicyDetailPage() {
         async function handleLeaseSaveAndCheck() {
           if (!leaseFormLabel.trim()) { toast('Please enter a label', 'error'); return; }
           if (leaseEditableReqs.length === 0) { toast('Add at least one requirement', 'error'); return; }
+
+          // Validate that requirements have meaningful labels
+          const emptyReqs = leaseEditableReqs.filter(r => !r.label.trim());
+          if (emptyReqs.length > 0) { toast('All requirements need a label', 'error'); return; }
+
           setLeaseSaving(true);
+          let created: LeaseRequirement | null = null;
           try {
-            const created = await leaseComplianceApi.create({
+            created = await leaseComplianceApi.create({
               label: leaseFormLabel,
               role: leaseFormRole,
               policy_id: policyId,
@@ -2011,44 +2017,51 @@ export default function PolicyDetailPage() {
               requirements_json: JSON.stringify(leaseEditableReqs),
             });
             toast('Requirements saved');
-
-            // Immediately add to local list so results view has access
-            setLeaseReqs(prev => [created, ...prev]);
-            setLeaseActiveReqId(created.id);
-
-            if (leaseFormRole === 'tenant') {
-              // Tenant flow: auto-run check against own policy
-              setLeaseCheckedAgainst(`${policy!.carrier ? policy!.carrier + ' ' : ''}${policy!.policy_type.replace(/_/g, ' ')} policy`);
-              setLeaseChecking(true);
-              try {
-                const check = await leaseComplianceApi.runCheck(created.id, 'policy', { policyId });
-                setLeaseResults(check.results || []);
-                setLeaseCheckCounts({ pass: check.pass_count, fail: check.fail_count, unclear: check.unclear_count });
-              } catch {
-                toast('Compliance check failed — you can re-check later', 'error');
-              } finally {
-                setLeaseChecking(false);
-              }
-            } else {
-              // Landlord flow: skip auto-check, go to results/next-steps
-              setLeaseResults([]);
-              setLeaseCheckCounts({ pass: 0, fail: 0, unclear: 0 });
-              setLeaseCheckedAgainst('');
-            }
-
-            setLeaseView('results');
-            // Reload lease reqs
-            leaseComplianceApi.list(undefined, policyId).then(setLeaseReqs).catch(() => {});
-
-            // Auto-open share modal if landlord clicked "Save & Share"
-            if (leaseAutoShareRef.current && leaseFormRole === 'landlord') {
-              leaseAutoShareRef.current = false;
-              handleLeaseShare(created);
-            }
           } catch (err: any) {
-            toast(err.message || 'Failed to save', 'error');
-          } finally {
+            toast(err.message || 'Failed to save requirements', 'error');
             setLeaseSaving(false);
+            return;
+          }
+
+          // Immediately add to local list so results view has access
+          setLeaseReqs(prev => [created!, ...prev]);
+          setLeaseActiveReqId(created.id);
+
+          if (leaseFormRole === 'tenant') {
+            // Tenant flow: auto-run check against own policy
+            setLeaseCheckedAgainst(`${policy!.carrier ? policy!.carrier + ' ' : ''}${policy!.policy_type.replace(/_/g, ' ')} policy`);
+            setLeaseChecking(true);
+            try {
+              const check = await leaseComplianceApi.runCheck(created.id, 'policy', { policyId });
+              setLeaseResults(check.results || []);
+              setLeaseCheckCounts({ pass: check.pass_count, fail: check.fail_count, unclear: check.unclear_count });
+            } catch {
+              toast('Compliance check failed — you can re-check from the list', 'error');
+              setLeaseChecking(false);
+              setLeaseSaving(false);
+              // Go back to list so user can retry, not stuck on empty results
+              leaseComplianceApi.list(undefined, policyId).then(setLeaseReqs).catch(() => {});
+              setLeaseView('list');
+              return;
+            } finally {
+              setLeaseChecking(false);
+            }
+          } else {
+            // Landlord flow: skip auto-check, go to results/next-steps
+            setLeaseResults([]);
+            setLeaseCheckCounts({ pass: 0, fail: 0, unclear: 0 });
+            setLeaseCheckedAgainst('');
+          }
+
+          setLeaseView('results');
+          setLeaseSaving(false);
+          // Reload lease reqs
+          leaseComplianceApi.list(undefined, policyId).then(setLeaseReqs).catch(() => {});
+
+          // Auto-open share modal if landlord clicked "Save & Share"
+          if (leaseAutoShareRef.current && leaseFormRole === 'landlord') {
+            leaseAutoShareRef.current = false;
+            handleLeaseShare(created);
           }
         }
 
@@ -2146,6 +2159,11 @@ export default function PolicyDetailPage() {
           setLeaseFormPropertyAddress('');
           setLeaseFormCounterpartyName('');
           setLeaseFormCounterpartyEmail('');
+          setLeaseFormRole('tenant');
+          setLeaseResults([]);
+          setLeaseCheckCounts({ pass: 0, fail: 0, unclear: 0 });
+          setLeaseCheckedAgainst('');
+          setLeaseActiveReqId(null);
         }
 
         return (
