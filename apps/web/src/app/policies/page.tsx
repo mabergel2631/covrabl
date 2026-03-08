@@ -797,11 +797,16 @@ function PoliciesPageInner() {
                   liability: 'Liability', property: 'Property', income: 'Income', catastrophic: 'Catastrophic',
                   core_liability: 'Core Liability', property_fleet: 'Property & Fleet', workforce: 'Workforce', specialty: 'Specialty',
                 };
-                const tileStatus = d.overall_score >= 75
+                // Count active (non-dismissed) recommendations across all categories
+                const allActiveRecs = Object.values(d.categories).flatMap(
+                  (c: any) => (c.recommendations || []).filter((r: any) => !r.dismissed)
+                );
+                const hasHighRecs = allActiveRecs.some((r: any) => r.priority === 'high');
+                const tileStatus = allActiveRecs.length === 0
                   ? { label: 'Good Standing', color: '#166534', bg: '#dcfce7', icon: '\u2713' }
-                  : d.overall_score >= 50
-                  ? { label: 'Needs Review', color: '#92400e', bg: '#fef3c7', icon: '!' }
-                  : { label: 'Action Needed', color: '#991b1b', bg: '#fee2e2', icon: '\u26A0' };
+                  : hasHighRecs
+                  ? { label: 'Action Needed', color: '#991b1b', bg: '#fee2e2', icon: '\u26A0' }
+                  : { label: 'Needs Review', color: '#92400e', bg: '#fef3c7', icon: '!' };
                 return (
                   <div
                     key={tile.label}
@@ -846,7 +851,10 @@ function PoliciesPageInner() {
                         {tile.cats.map(cat => {
                           const c = d.categories[cat];
                           if (!c) return null;
-                          const dotColor = c.score >= 75 ? '#22c55e' : c.score >= 50 ? '#f59e0b' : '#ef4444';
+                          const activeRecs = (c.recommendations || []).filter((r: any) => !r.dismissed);
+                          // Green if no active recs, orange if low-priority only, red if high-priority recs
+                          const hasHighRec = activeRecs.some((r: any) => r.priority === 'high');
+                          const dotColor = activeRecs.length === 0 ? '#22c55e' : hasHighRec ? '#ef4444' : '#f59e0b';
                           return (
                             <div key={cat} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                               <span style={{
@@ -863,7 +871,7 @@ function PoliciesPageInner() {
                     </div>
 
                     {/* Arrow */}
-                    <div style={{ color: 'var(--color-text-muted)', fontSize: 16, flexShrink: 0 }}>&rarr;</div>
+                    <span style={{ color: 'var(--color-text-muted)', fontSize: 13, fontWeight: 600, flexShrink: 0 }}>View</span>
                   </div>
                 );
               })}

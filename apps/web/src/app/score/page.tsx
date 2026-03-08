@@ -21,14 +21,14 @@ const CATEGORY_DESCRIPTIONS: Record<string, string> = {
 };
 
 function overallStatus(score: number): { label: string; color: string; bg: string } {
-  if (score >= 75) return { label: 'Good Standing', color: '#166534', bg: '#dcfce7' };
-  if (score >= 50) return { label: 'Needs Review', color: '#92400e', bg: '#fef3c7' };
+  if (score >= 70) return { label: 'Good Standing', color: '#166534', bg: '#dcfce7' };
+  if (score >= 40) return { label: 'Needs Review', color: '#92400e', bg: '#fef3c7' };
   return { label: 'Action Needed', color: '#991b1b', bg: '#fee2e2' };
 }
 
 function categoryStatus(score: number): { label: string; icon: string; color: string; bg: string } {
-  if (score >= 75) return { label: 'Verified', icon: '\u2713', color: '#166534', bg: '#dcfce7' };
-  if (score >= 50) return { label: 'Needs Review', icon: '!', color: '#92400e', bg: '#fef3c7' };
+  if (score >= 70) return { label: 'Verified', icon: '\u2713', color: '#166534', bg: '#dcfce7' };
+  if (score >= 40) return { label: 'Needs Review', icon: '!', color: '#92400e', bg: '#fef3c7' };
   return { label: 'Action Needed', icon: '\u2717', color: '#991b1b', bg: '#fee2e2' };
 }
 
@@ -299,16 +299,16 @@ export default function ScorePage() {
 
       {/* Overall status */}
       <div style={{
-        display: 'flex', alignItems: 'center', gap: 32, marginBottom: 32,
-        padding: '28px 32px', backgroundColor: '#fff',
+        display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 20, marginBottom: 32,
+        padding: '24px 20px', backgroundColor: '#fff',
         border: '1px solid var(--color-border)', borderRadius: 'var(--radius-lg)',
       }}>
         <StatusBadge score={data.overall_score} size="lg" />
-        <div style={{ flex: 1 }}>
-          <h1 style={{ fontSize: 24, fontWeight: 700, margin: '0 0 6px', color: 'var(--color-text)' }}>
+        <div style={{ flex: '1 1 240px', minWidth: 0 }}>
+          <h1 style={{ fontSize: 22, fontWeight: 700, margin: '0 0 6px', color: 'var(--color-text)' }}>
             Coverage Health Overview
           </h1>
-          <div style={{ fontSize: 14, color: 'var(--color-text-secondary)', marginBottom: 12 }}>
+          <div style={{ fontSize: 13, color: 'var(--color-text-secondary)', marginBottom: 12 }}>
             Based on {data.policies_analyzed} {data.policies_analyzed === 1 ? 'policy' : 'policies'} &middot; {data.confidence} confidence
             {data.exposure_band !== 'unknown' && ` \u00b7 ${data.exposure_band.replace('_', ' ')} exposure`}
           </div>
