@@ -793,6 +793,81 @@ def _build_policy_health(policies: list[dict], db: Session, user_id: int) -> dic
 
 
 # ═══════════════════════════════════════════════════════════════
+# Dismissed-recommendation score adjustment
+# ═══════════════════════════════════════════════════════════════
+
+# Maps recommendation text fragments to the component names they correspond to.
+# When a rec is dismissed, we grant full points for the related component.
+_REC_TO_COMPONENT: list[tuple[str, str]] = [
+    # Liability
+    ("upload your auto policy", "Auto liability"),
+    ("upload your homeowners policy", "Property liability"),
+    ("upload your renters policy", "Property liability"),
+    ("umbrella liability coverage", "Umbrella coverage"),
+    ("upload your business liability", "Business general liability"),
+    # Property
+    ("upload your homeowners", "Homeowners policy"),
+    ("upload your renters", "Renters policy"),
+    ("upload your auto policy to include physical", "Auto physical damage"),
+    # Income
+    ("disability income protection", "Disability insurance"),
+    ("upload your life insurance", "Life insurance coverage"),
+    # Catastrophic
+    ("umbrella coverage", "Umbrella / excess liability"),
+    ("flood risk", "Flood coverage"),
+    # Business categories
+    ("upload your general liability", "General Liability / BOP"),
+    ("professional liability", "Professional Liability (E&O)"),
+    ("commercial property insurance", "Commercial Property"),
+    ("workers' compensation", "Workers' Compensation"),
+    ("cyber liability", "Cyber Liability"),
+]
+
+
+def _adjust_score_for_dismissed(cat_data: dict, dismissed_keys: set[str]) -> None:
+    """
+    When a user dismisses a recommendation, grant full points for the
+    related component so the category score reflects the acknowledgment.
+    Mutates cat_data in place.
+    """
+    dismissed_recs = [r for r in cat_data.get("recommendations", []) if r.get("dismissed")]
+    if not dismissed_recs:
+        return
+
+    # Build set of component names to boost
+    boost_components: set[str] = set()
+    for rec in dismissed_recs:
+        text_lower = rec["text"].lower()
+        for fragment, comp_name in _REC_TO_COMPONENT:
+            if fragment in text_lower:
+                boost_components.add(comp_name)
+                break
+        else:
+            # No specific mapping — boost any zero-score component in this category
+            for comp in cat_data.get("components", []):
+                if comp["score"] == 0:
+                    boost_components.add(comp["name"])
+                    break
+
+    if not boost_components:
+        return
+
+    # Grant full points for boosted components
+    total_max = 0
+    total_earned = 0
+    for comp in cat_data.get("components", []):
+        if comp["name"] in boost_components and comp["score"] < comp["max"]:
+            comp["score"] = comp["max"]
+            comp["detail"] = comp["detail"] + " (acknowledged)"
+        total_max += comp["max"]
+        total_earned += comp["score"]
+
+    # Recalculate category score
+    if total_max > 0:
+        cat_data["score"] = min(100, max(0, round((total_earned / total_max) * 100)))
+
+
+# ═══════════════════════════════════════════════════════════════
 # Core computation
 # ═══════════════════════════════════════════════════════════════
 
@@ -850,6 +925,8 @@ def _compute_scores(db: Session, user: User) -> dict:
         for rec in cat_data.get("recommendations", []):
             rec["rec_key"] = _rec_key(cat_name, rec["text"])
             rec["dismissed"] = rec["rec_key"] in dismissed_keys
+        # Adjust score: dismissed recs remove their scoring penalty
+        _adjust_score_for_dismissed(cat_data, dismissed_keys)
 
     # Weighted overall score
     weighted_sum = sum(
@@ -958,6 +1035,12 @@ def _compute_scores_for_scope(db: Session, user: User, scope: str):
         ).scalars().all()
         all_details[p.id] = {d.field_name.lower(): d.field_value for d in rows}
 
+    # Load user's dismissed recommendations
+    dismissed_rows = db.execute(
+        select(DismissedRecommendation).where(DismissedRecommendation.user_id == user.id)
+    ).scalars().all()
+    dismissed_keys = {r.rec_key for r in dismissed_rows}
+
     if scope == "personal":
         weights = _calculate_dynamic_weights(profile)
         categories = {
@@ -968,6 +1051,10 @@ def _compute_scores_for_scope(db: Session, user: User, scope: str):
         }
         for cat_name, cat_data in categories.items():
             cat_data["weight"] = weights[cat_name]
+            for rec in cat_data.get("recommendations", []):
+                rec["rec_key"] = _rec_key(cat_name, rec["text"])
+                rec["dismissed"] = rec["rec_key"] in dismissed_keys
+            _adjust_score_for_dismissed(cat_data, dismissed_keys)
         expected = [t for t in _expected_policy_types(profile)
                     if t not in ("general_liability",)]
     else:
@@ -980,6 +1067,10 @@ def _compute_scores_for_scope(db: Session, user: User, scope: str):
         }
         for cat_name, cat_data in categories.items():
             cat_data["weight"] = biz_weights[cat_name]
+            for rec in cat_data.get("recommendations", []):
+                rec["rec_key"] = _rec_key(cat_name, rec["text"])
+                rec["dismissed"] = rec["rec_key"] in dismissed_keys
+            _adjust_score_for_dismissed(cat_data, dismissed_keys)
         expected = ["general_liability", "workers_comp", "commercial_property", "cyber"]
 
     weighted_sum = sum(

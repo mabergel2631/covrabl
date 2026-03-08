@@ -212,39 +212,18 @@ export default function ScorePage() {
   const handleDismiss = async (recKey: string) => {
     try {
       await scoresApi.dismiss(recKey);
-      // Update local state to reflect dismissal
-      setData(prev => {
-        if (!prev) return prev;
-        const updated = { ...prev, categories: { ...prev.categories } };
-        for (const cat of Object.keys(updated.categories)) {
-          updated.categories[cat] = {
-            ...updated.categories[cat],
-            recommendations: updated.categories[cat].recommendations.map(r =>
-              r.rec_key === recKey ? { ...r, dismissed: true } : r
-            ),
-          };
-        }
-        return updated;
-      });
+      // Recalculate to update scores (dismissed items affect the score)
+      const result = await scoresApi.recalculate();
+      setData(result);
     } catch { /* ignore */ }
   };
 
   const handleRestore = async (recKey: string) => {
     try {
       await scoresApi.restore(recKey);
-      setData(prev => {
-        if (!prev) return prev;
-        const updated = { ...prev, categories: { ...prev.categories } };
-        for (const cat of Object.keys(updated.categories)) {
-          updated.categories[cat] = {
-            ...updated.categories[cat],
-            recommendations: updated.categories[cat].recommendations.map(r =>
-              r.rec_key === recKey ? { ...r, dismissed: false } : r
-            ),
-          };
-        }
-        return updated;
-      });
+      // Recalculate to update scores
+      const result = await scoresApi.recalculate();
+      setData(result);
     } catch { /* ignore */ }
   };
 
