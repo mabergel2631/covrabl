@@ -285,7 +285,14 @@ function RenewalSummaryOverlay({
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch {
-      // fallback: select all text
+      const ta = document.createElement('textarea');
+      ta.value = generatePlainText(data);
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
     }
   };
 

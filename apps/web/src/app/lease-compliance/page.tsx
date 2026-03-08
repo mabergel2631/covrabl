@@ -20,6 +20,7 @@ function LeaseComplianceContent() {
   const router = useRouter();
   const [requirements, setRequirements] = useState<LeaseRequirement[]>([]);
   const [loading, setLoading] = useState(true);
+  const [errorMsg, setErrorMsg] = useState('');
 
   useEffect(() => {
     if (!token) { router.replace('/login'); return; }
@@ -55,6 +56,8 @@ function LeaseComplianceContent() {
           Lease checks are now available directly on your business policy pages.
         </p>
       </div>
+
+      {errorMsg && <div style={{ padding: '10px 16px', backgroundColor: '#fee2e2', color: '#991b1b', borderRadius: 8, fontSize: 13, marginBottom: 12 }}>{errorMsg}</div>}
 
       {requirements.length > 0 ? (
         <>
@@ -106,7 +109,8 @@ function LeaseComplianceContent() {
                         await leaseComplianceApi.remove(req.id);
                         setRequirements(prev => prev.filter(r => r.id !== req.id));
                       } catch {
-                        alert('Failed to delete');
+                        setErrorMsg('Failed to delete. Please try again.');
+                        setTimeout(() => setErrorMsg(''), 3000);
                       }
                     }}
                     style={{

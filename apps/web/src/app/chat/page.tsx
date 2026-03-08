@@ -78,7 +78,9 @@ function ChatPageInner() {
       setMessages(msgs.map(m => ({ id: m.id, role: m.role, content: m.content })));
       setActiveConvoId(convoId);
       setSidebarOpen(false);
-    } catch { /* ignore */ }
+    } catch {
+      setMessages([{ role: 'assistant', content: 'Could not load this conversation. Please try again.' }]);
+    }
   }, []);
 
   const startNewChat = useCallback(() => {
@@ -98,7 +100,9 @@ function ChatPageInner() {
       if (activeConvoId === convoId) {
         startNewChat();
       }
-    } catch { /* ignore */ }
+    } catch {
+      setMessages(prev => [...prev, { role: 'assistant', content: 'Could not delete conversation. Please try again.' }]);
+    }
   }, [activeConvoId, startNewChat]);
 
   const sendMessage = useCallback((text?: string) => {
@@ -131,7 +135,7 @@ function ChatPageInner() {
       },
       (err) => {
         setStreamingText('');
-        setMessages(prev => [...prev, { role: 'assistant', content: `Error: ${err}` }]);
+        setMessages(prev => [...prev, { role: 'assistant', content: 'Sorry, something went wrong analyzing your policy. Please try again.' }]);
         setIsStreaming(false);
       },
     );

@@ -61,7 +61,7 @@ function StatusBadge({ score, size = 'lg' }: { score: number; size?: 'lg' | 'md'
   );
 }
 
-function CategoryCard({ name, data, defaultOpen }: { name: string; data: CategoryResult; defaultOpen?: boolean }) {
+function CategoryCard({ name, data, defaultOpen, onDismiss, onRestore }: { name: string; data: CategoryResult; defaultOpen?: boolean; onDismiss?: (recKey: string) => void; onRestore?: (recKey: string) => void }) {
   const [open, setOpen] = useState(defaultOpen || false);
   const label = CATEGORY_LABELS[name] || name;
   const desc = CATEGORY_DESCRIPTIONS[name] || '';
@@ -139,25 +139,62 @@ function CategoryCard({ name, data, defaultOpen }: { name: string; data: Categor
           })}
 
           {/* Category recommendations */}
-          {data.recommendations.length > 0 && (
-            <div style={{ marginTop: 16, padding: '12px 16px', backgroundColor: '#f8fafc', borderRadius: 'var(--radius-md)', border: '1px solid #e2e8f0' }}>
-              <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 8 }}>
-                Questions for your agent
-              </div>
-              {data.recommendations.map((rec, i) => (
-                <div key={i} style={{ marginBottom: i < data.recommendations.length - 1 ? 10 : 0 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
-                    <span style={{
-                      display: 'inline-block', width: 8, height: 8, borderRadius: '50%', flexShrink: 0,
-                      backgroundColor: rec.priority === 'high' ? '#ef4444' : rec.priority === 'medium' ? '#f59e0b' : '#22c55e',
-                    }} />
-                    <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-text)' }}>{rec.text}</span>
+          {(() => {
+            const activeRecs = data.recommendations.filter(r => !r.dismissed);
+            const dismissedRecs = data.recommendations.filter(r => r.dismissed);
+            return (
+              <>
+                {activeRecs.length > 0 && (
+                  <div style={{ marginTop: 16, padding: '12px 16px', backgroundColor: '#f8fafc', borderRadius: 'var(--radius-md)', border: '1px solid #e2e8f0' }}>
+                    <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 8 }}>
+                      Questions for your agent
+                    </div>
+                    {activeRecs.map((rec, i) => (
+                      <div key={rec.rec_key || i} style={{ marginBottom: i < activeRecs.length - 1 ? 10 : 0 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
+                          <span style={{
+                            display: 'inline-block', width: 8, height: 8, borderRadius: '50%', flexShrink: 0,
+                            backgroundColor: rec.priority === 'high' ? '#ef4444' : rec.priority === 'medium' ? '#f59e0b' : '#22c55e',
+                          }} />
+                          <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-text)', flex: 1 }}>{rec.text}</span>
+                          {rec.rec_key && onDismiss && (
+                            <button
+                              onClick={() => onDismiss(rec.rec_key!)}
+                              title="Not relevant to me"
+                              style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 11, color: 'var(--color-text-muted)', padding: '2px 6px', borderRadius: 4, flexShrink: 0 }}
+                            >
+                              Dismiss
+                            </button>
+                          )}
+                        </div>
+                        <div style={{ fontSize: 12, color: 'var(--color-text-muted)', paddingLeft: 14, lineHeight: 1.4 }}>{rec.detail}</div>
+                      </div>
+                    ))}
                   </div>
-                  <div style={{ fontSize: 12, color: 'var(--color-text-muted)', paddingLeft: 14, lineHeight: 1.4 }}>{rec.detail}</div>
-                </div>
-              ))}
-            </div>
-          )}
+                )}
+                {dismissedRecs.length > 0 && (
+                  <div style={{ marginTop: 8, padding: '8px 16px', backgroundColor: '#f9fafb', borderRadius: 'var(--radius-sm)', border: '1px dashed #e5e7eb' }}>
+                    <div style={{ fontSize: 11, color: 'var(--color-text-muted)', marginBottom: 4 }}>
+                      {dismissedRecs.length} dismissed
+                    </div>
+                    {dismissedRecs.map(rec => (
+                      <div key={rec.rec_key} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '2px 0' }}>
+                        <span style={{ fontSize: 12, color: 'var(--color-text-muted)', flex: 1, textDecoration: 'line-through' }}>{rec.text}</span>
+                        {rec.rec_key && onRestore && (
+                          <button
+                            onClick={() => onRestore(rec.rec_key!)}
+                            style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 11, color: 'var(--color-primary)', padding: '2px 6px', flexShrink: 0 }}
+                          >
+                            Restore
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </>
+            );
+          })()}
         </div>
       )}
     </div>
@@ -171,6 +208,45 @@ export default function ScorePage() {
   const [loading, setLoading] = useState(true);
   const [recalculating, setRecalculating] = useState(false);
   const [error, setError] = useState('');
+
+  const handleDismiss = async (recKey: string) => {
+    try {
+      await scoresApi.dismiss(recKey);
+      // Update local state to reflect dismissal
+      setData(prev => {
+        if (!prev) return prev;
+        const updated = { ...prev, categories: { ...prev.categories } };
+        for (const cat of Object.keys(updated.categories)) {
+          updated.categories[cat] = {
+            ...updated.categories[cat],
+            recommendations: updated.categories[cat].recommendations.map(r =>
+              r.rec_key === recKey ? { ...r, dismissed: true } : r
+            ),
+          };
+        }
+        return updated;
+      });
+    } catch { /* ignore */ }
+  };
+
+  const handleRestore = async (recKey: string) => {
+    try {
+      await scoresApi.restore(recKey);
+      setData(prev => {
+        if (!prev) return prev;
+        const updated = { ...prev, categories: { ...prev.categories } };
+        for (const cat of Object.keys(updated.categories)) {
+          updated.categories[cat] = {
+            ...updated.categories[cat],
+            recommendations: updated.categories[cat].recommendations.map(r =>
+              r.rec_key === recKey ? { ...r, dismissed: false } : r
+            ),
+          };
+        }
+        return updated;
+      });
+    } catch { /* ignore */ }
+  };
 
   useEffect(() => {
     if (!token) { router.replace('/login'); return; }
@@ -195,13 +271,13 @@ export default function ScorePage() {
     }
   };
 
-  // Aggregate all recommendations sorted by priority
+  // Aggregate active (non-dismissed) recommendations sorted by priority
   const allRecs: (ScoreRecommendation & { category: string })[] = [];
   if (data) {
     const order = { high: 0, medium: 1, low: 2 };
     for (const [cat, result] of Object.entries(data.categories)) {
       for (const rec of result.recommendations) {
-        allRecs.push({ ...rec, category: cat });
+        if (!rec.dismissed) allRecs.push({ ...rec, category: cat });
       }
     }
     allRecs.sort((a, b) => order[a.priority] - order[b.priority]);
@@ -219,7 +295,7 @@ export default function ScorePage() {
     return (
       <div style={{ maxWidth: 800, margin: '0 auto', padding: '60px 24px', textAlign: 'center' }}>
         <div style={{ fontSize: 16, color: '#ef4444', marginBottom: 16 }}>{error || 'Unable to load coverage health data'}</div>
-        <button onClick={() => router.push('/policies')} style={{ padding: '8px 20px', borderRadius: 8, border: '1px solid var(--color-border)', background: '#fff', cursor: 'pointer' }}>
+        <button onClick={() => router.push('/policies')} style={{ padding: '12px 24px', borderRadius: 8, border: '1px solid var(--color-border)', background: '#fff', cursor: 'pointer', fontSize: 14 }}>
           Back to Policies
         </button>
       </div>
@@ -276,7 +352,7 @@ export default function ScorePage() {
       <h2 style={{ fontSize: 16, fontWeight: 700, color: 'var(--color-text)', marginBottom: 12 }}>Protection Categories</h2>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 32 }}>
         {(['liability', 'property', 'income', 'catastrophic'] as const).map(cat => (
-          <CategoryCard key={cat} name={cat} data={data.categories[cat]} defaultOpen={data.categories[cat].score < 50} />
+          <CategoryCard key={cat} name={cat} data={data.categories[cat]} defaultOpen={data.categories[cat].score < 50} onDismiss={handleDismiss} onRestore={handleRestore} />
         ))}
       </div>
 
@@ -318,7 +394,7 @@ export default function ScorePage() {
             border: '1px solid var(--color-border)', borderRadius: 'var(--radius-lg)',
           }}>
             {allRecs.map((rec, i) => (
-              <div key={i} style={{
+              <div key={rec.rec_key || i} style={{
                 padding: '12px 0',
                 borderBottom: i < allRecs.length - 1 ? '1px solid var(--color-border)' : 'none',
               }}>
@@ -331,9 +407,17 @@ export default function ScorePage() {
                   }}>
                     {rec.priority}
                   </span>
-                  <span style={{ fontSize: 11, color: 'var(--color-text-muted)', textTransform: 'capitalize' }}>
+                  <span style={{ fontSize: 11, color: 'var(--color-text-muted)', textTransform: 'capitalize', flex: 1 }}>
                     {CATEGORY_LABELS[rec.category] || rec.category}
                   </span>
+                  {rec.rec_key && (
+                    <button
+                      onClick={() => handleDismiss(rec.rec_key!)}
+                      style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 11, color: 'var(--color-text-muted)', padding: '2px 8px', borderRadius: 4, flexShrink: 0 }}
+                    >
+                      Dismiss
+                    </button>
+                  )}
                 </div>
                 <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--color-text)', marginBottom: 2 }}>{rec.text}</div>
                 <div style={{ fontSize: 12, color: 'var(--color-text-muted)', lineHeight: 1.4 }}>{rec.detail}</div>

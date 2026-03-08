@@ -156,6 +156,11 @@ def on_startup():
             if "policy_id" not in lr_cols:
                 conn.execute(text("ALTER TABLE lease_requirements ADD COLUMN policy_id INTEGER REFERENCES policies(id) ON DELETE SET NULL"))
                 conn.execute(text("CREATE INDEX ix_lease_requirements_policy_id ON lease_requirements (policy_id)"))
+    if "compliance_checks" in insp.get_table_names():
+        cc_cols = [c["name"] for c in insp.get_columns("compliance_checks")]
+        with engine.begin() as conn:
+            if "coi_file_key" not in cc_cols:
+                conn.execute(text("ALTER TABLE compliance_checks ADD COLUMN coi_file_key VARCHAR(500)"))
     # One-time migration: normalize all emails to lowercase
     with engine.begin() as conn:
         conn.execute(text("UPDATE users SET email = lower(email) WHERE email != lower(email)"))

@@ -185,10 +185,10 @@ export default function PolicyDetailPage() {
       },
       (id) => setAiConversationId(id),
       () => setAiStreaming(false),
-      (err) => {
+      () => {
         setAiMessages(prev => {
           const updated = [...prev];
-          updated[updated.length - 1] = { role: 'assistant', content: `Error: ${err}` };
+          updated[updated.length - 1] = { role: 'assistant', content: 'Sorry, something went wrong analyzing your policy. Please try again.' };
           return updated;
         });
         setAiStreaming(false);
@@ -576,7 +576,7 @@ export default function PolicyDetailPage() {
       {/* Extraction Review Modal */}
       {reviewData && (
         <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
-          <div style={{ backgroundColor: 'var(--color-surface)', borderRadius: 'var(--radius-lg)', padding: 32, width: 640, maxHeight: '90vh', overflow: 'auto', boxShadow: 'var(--shadow-lg)' }}>
+          <div style={{ backgroundColor: 'var(--color-surface)', borderRadius: 'var(--radius-lg)', padding: 32, width: '100%', maxWidth: 640, maxHeight: '90vh', overflow: 'auto', boxShadow: 'var(--shadow-lg)', margin: '0 16px' }}>
             <h2 style={{ margin: '0 0 8px', fontSize: 20, fontWeight: 700 }}>Review Extracted Data</h2>
             <p style={{ margin: '0 0 20px', color: 'var(--color-text-secondary)', fontSize: 14 }}>Verify and edit the fields below before saving to the policy.</p>
 
@@ -2104,6 +2104,7 @@ export default function PolicyDetailPage() {
                 }
               }
             } catch {
+              toast('Could not load check results', 'error');
               setLeaseResults([]);
               setLeaseCheckCounts({ pass: 0, fail: 0, unclear: 0 });
               setLeaseCheckedAgainst('');
@@ -2344,15 +2345,15 @@ export default function PolicyDetailPage() {
                           : "Paste the insurance requirements you need from your tenant. We'll extract them so you can share and track compliance."}
                       />
                     </div>
-                    <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-                      <button onClick={handleLeaseExtractText} disabled={leaseExtracting || !leaseClauseText.trim()} style={{ padding: '8px 20px', backgroundColor: 'var(--color-primary)', color: '#fff', border: 'none', borderRadius: 'var(--radius-sm)', fontWeight: 600, fontSize: 13, cursor: leaseExtracting ? 'wait' : 'pointer', opacity: leaseExtracting ? 0.7 : 1 }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                      <button onClick={handleLeaseExtractText} disabled={leaseExtracting || !leaseClauseText.trim()} style={{ padding: '8px 20px', backgroundColor: 'var(--color-primary)', color: '#fff', border: 'none', borderRadius: 'var(--radius-sm)', fontWeight: 600, fontSize: 13, cursor: leaseExtracting ? 'wait' : 'pointer', opacity: leaseExtracting ? 0.7 : 1, alignSelf: 'flex-start' }}>
                         {leaseExtracting ? 'Extracting...' : 'Extract Requirements'}
                       </button>
-                      <span style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>or</span>
-                      <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                        <input ref={leasePdfRef} type="file" accept=".pdf" style={{ fontSize: 12 }} />
-                        <button onClick={handleLeaseExtractPdf} disabled={leaseExtracting} style={{ padding: '8px 14px', backgroundColor: '#2563eb', color: '#fff', border: 'none', borderRadius: 'var(--radius-sm)', fontWeight: 600, fontSize: 12, cursor: leaseExtracting ? 'wait' : 'pointer', opacity: leaseExtracting ? 0.7 : 1, whiteSpace: 'nowrap' }}>
-                          Upload PDF
+                      <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                        <span style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>or upload PDF:</span>
+                        <input ref={leasePdfRef} type="file" accept=".pdf" style={{ fontSize: 12, minWidth: 0, maxWidth: '100%' }} />
+                        <button onClick={handleLeaseExtractPdf} disabled={leaseExtracting} style={{ padding: '8px 14px', backgroundColor: '#2563eb', color: '#fff', border: 'none', borderRadius: 'var(--radius-sm)', fontWeight: 600, fontSize: 12, cursor: leaseExtracting ? 'wait' : 'pointer', opacity: leaseExtracting ? 0.7 : 1 }}>
+                          Upload
                         </button>
                       </div>
                     </div>
@@ -2415,14 +2416,14 @@ export default function PolicyDetailPage() {
                       </div>
                     </div>
 
-                    <div style={{ display: 'flex', gap: 8 }}>
+                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                       <button onClick={() => setLeaseCreateStep(1)} style={{ padding: '8px 16px', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)', backgroundColor: '#fff', cursor: 'pointer', fontSize: 13 }}>Back</button>
-                      <button onClick={() => { leaseAutoShareRef.current = false; handleLeaseSaveAndCheck(); }} disabled={leaseSaving} style={{ padding: '8px 20px', backgroundColor: leaseFormRole === 'landlord' ? '#fff' : 'var(--color-primary)', color: leaseFormRole === 'landlord' ? 'var(--color-text)' : '#fff', border: leaseFormRole === 'landlord' ? '1px solid var(--color-border)' : 'none', borderRadius: 'var(--radius-sm)', fontWeight: 600, fontSize: 13, cursor: leaseSaving ? 'wait' : 'pointer', opacity: leaseSaving ? 0.7 : 1 }}>
-                        {leaseSaving ? 'Saving...' : leaseFormRole === 'tenant' ? 'Save & Check My Policy' : 'Save'}
+                      <button onClick={() => { leaseAutoShareRef.current = false; handleLeaseSaveAndCheck(); }} disabled={leaseSaving} style={{ padding: '8px 16px', backgroundColor: leaseFormRole === 'landlord' ? '#fff' : 'var(--color-primary)', color: leaseFormRole === 'landlord' ? 'var(--color-text)' : '#fff', border: leaseFormRole === 'landlord' ? '1px solid var(--color-border)' : 'none', borderRadius: 'var(--radius-sm)', fontWeight: 600, fontSize: 13, cursor: leaseSaving ? 'wait' : 'pointer', opacity: leaseSaving ? 0.7 : 1 }}>
+                        {leaseSaving ? 'Saving...' : leaseFormRole === 'tenant' ? 'Save & Check' : 'Save'}
                       </button>
                       {leaseFormRole === 'landlord' && (
-                        <button onClick={() => { leaseAutoShareRef.current = true; handleLeaseSaveAndCheck(); }} disabled={leaseSaving} style={{ padding: '8px 20px', backgroundColor: 'var(--color-primary)', color: '#fff', border: 'none', borderRadius: 'var(--radius-sm)', fontWeight: 600, fontSize: 13, cursor: leaseSaving ? 'wait' : 'pointer', opacity: leaseSaving ? 0.7 : 1 }}>
-                          {leaseSaving ? 'Saving...' : 'Save & Share with Tenant'}
+                        <button onClick={() => { leaseAutoShareRef.current = true; handleLeaseSaveAndCheck(); }} disabled={leaseSaving} style={{ padding: '8px 16px', backgroundColor: 'var(--color-primary)', color: '#fff', border: 'none', borderRadius: 'var(--radius-sm)', fontWeight: 600, fontSize: 13, cursor: leaseSaving ? 'wait' : 'pointer', opacity: leaseSaving ? 0.7 : 1 }}>
+                          {leaseSaving ? 'Saving...' : 'Save & Share'}
                         </button>
                       )}
                     </div>
@@ -2866,7 +2867,7 @@ export default function PolicyDetailPage() {
       {/* Deficiency Notice Modal */}
       {leaseDeficiencyModal && leaseActiveReqId && (
         <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
-          <div style={{ backgroundColor: 'var(--color-surface)', borderRadius: 'var(--radius-lg)', padding: 28, width: 480, maxHeight: '80vh', overflow: 'auto', boxShadow: 'var(--shadow-lg)' }}>
+          <div style={{ backgroundColor: 'var(--color-surface)', borderRadius: 'var(--radius-lg)', padding: 28, width: '100%', maxWidth: 480, maxHeight: '80vh', overflow: 'auto', boxShadow: 'var(--shadow-lg)' }}>
             <h3 style={{ margin: '0 0 4px', fontSize: 17, fontWeight: 700 }}>Send Deficiency Notice</h3>
             <p style={{ margin: '0 0 16px', fontSize: 13, color: 'var(--color-text-secondary)' }}>Notify the tenant about failed requirements and ask them to resubmit.</p>
 

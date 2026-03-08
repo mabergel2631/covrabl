@@ -1143,6 +1143,8 @@ export type ScoreRecommendation = {
   priority: "high" | "medium" | "low";
   text: string;
   detail: string;
+  rec_key?: string;
+  dismissed?: boolean;
 };
 
 export type CategoryResult = {
@@ -1185,6 +1187,20 @@ export const scoresApi = {
   },
   byScope(): Promise<{ personal: CoverageScoresResult | null; business: CoverageScoresResult | null }> {
     return request<{ personal: CoverageScoresResult | null; business: CoverageScoresResult | null }>("/coverage-scores/by-scope");
+  },
+  dismiss(recKey: string): Promise<{ ok: boolean }> {
+    return request<{ ok: boolean }>("/coverage-scores/dismiss", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ rec_key: recKey }),
+    });
+  },
+  restore(recKey: string): Promise<{ ok: boolean }> {
+    return request<{ ok: boolean }>("/coverage-scores/restore", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ rec_key: recKey }),
+    });
   },
 };
 

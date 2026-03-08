@@ -3,19 +3,21 @@ Coverage Health Score API routes.
 Scores user protection across 4 categories with profile-adjusted dynamic weights.
 """
 
+import hashlib
 import json
 import logging
 from datetime import datetime, timedelta, timezone
 
-from fastapi import APIRouter, Depends
-from sqlalchemy import select
+from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel
+from sqlalchemy import select, delete as sa_delete
 from sqlalchemy.orm import Session
 
 from .auth import get_current_user
 from .db import get_db
 from .models import Policy, PolicyDetail, User
 from .models_documents import Document
-from .models_features import CoverageScore
+from .models_features import CoverageScore, DismissedRecommendation
 from .models_profile import UserProfile
 
 logger = logging.getLogger(__name__)
@@ -836,8 +838,18 @@ def _compute_scores(db: Session, user: User) -> dict:
         "catastrophic": _score_catastrophic(policies, profile, all_details),
     }
 
+    # Load user's dismissed recommendations
+    dismissed_rows = db.execute(
+        select(DismissedRecommendation).where(DismissedRecommendation.user_id == user.id)
+    ).scalars().all()
+    dismissed_keys = {r.rec_key for r in dismissed_rows}
+
     for cat_name, cat_data in categories.items():
         cat_data["weight"] = weights[cat_name]
+        # Add rec_key and dismissed flag to each recommendation
+        for rec in cat_data.get("recommendations", []):
+            rec["rec_key"] = _rec_key(cat_name, rec["text"])
+            rec["dismissed"] = rec["rec_key"] in dismissed_keys
 
     # Weighted overall score
     weighted_sum = sum(
@@ -1054,3 +1066,65 @@ def get_scores_by_scope(
     business = _compute_scores_for_scope(db, user, "business")
     db.commit()
     return {"personal": personal, "business": business}
+
+
+# ── Recommendation Dismiss/Restore ─────────────────────────────
+
+def _rec_key(category: str, text: str) -> str:
+    """Generate a stable key for a recommendation from its category + text."""
+    raw = f"{category}:{text}".lower().strip()
+    return hashlib.md5(raw.encode()).hexdigest()[:16]
+
+
+class DismissRequest(BaseModel):
+    rec_key: str
+
+
+@router.get("/dismissed")
+def list_dismissed(
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """List all dismissed recommendation keys for the current user."""
+    rows = db.execute(
+        select(DismissedRecommendation).where(DismissedRecommendation.user_id == user.id)
+    ).scalars().all()
+    return [{"rec_key": r.rec_key, "dismissed_at": r.dismissed_at.isoformat() if r.dismissed_at else None} for r in rows]
+
+
+@router.post("/dismiss")
+def dismiss_recommendation(
+    body: DismissRequest,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Dismiss a recommendation so it no longer affects the score display."""
+    existing = db.execute(
+        select(DismissedRecommendation).where(
+            DismissedRecommendation.user_id == user.id,
+            DismissedRecommendation.rec_key == body.rec_key,
+        )
+    ).scalar_one_or_none()
+    if existing:
+        return {"ok": True, "already_dismissed": True}
+    rec = DismissedRecommendation(user_id=user.id, rec_key=body.rec_key)
+    db.add(rec)
+    db.commit()
+    return {"ok": True}
+
+
+@router.post("/restore")
+def restore_recommendation(
+    body: DismissRequest,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Restore a previously dismissed recommendation."""
+    db.execute(
+        sa_delete(DismissedRecommendation).where(
+            DismissedRecommendation.user_id == user.id,
+            DismissedRecommendation.rec_key == body.rec_key,
+        )
+    )
+    db.commit()
+    return {"ok": True}

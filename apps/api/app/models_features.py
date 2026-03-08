@@ -263,3 +263,13 @@ class ComplianceCheck(Base):
     coi_file_key: Mapped[str | None] = mapped_column(String(500), nullable=True)
     submitted_at: Mapped[DateTime | None] = mapped_column(DateTime, nullable=True)
     created_at: Mapped[DateTime] = mapped_column(DateTime, server_default=func.now())
+
+
+class DismissedRecommendation(Base):
+    """Tracks recommendations a user has dismissed from Coverage Health."""
+    __tablename__ = "dismissed_recommendations"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    rec_key: Mapped[str] = mapped_column(String(200))  # unique key for the recommendation
+    dismissed_at: Mapped[DateTime] = mapped_column(DateTime, server_default=func.now())

@@ -220,10 +220,22 @@ export default function EmergencyPage() {
     }
   };
 
-  const copyToClipboard = (text: string, label: string) => {
-    navigator.clipboard.writeText(text);
-    setCopied(label);
-    setTimeout(() => setCopied(null), 2000);
+  const copyToClipboard = async (text: string, label: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(label);
+      setTimeout(() => setCopied(null), 2000);
+    } catch {
+      // Fallback: select text from a temporary textarea
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
+      setCopied(label);
+      setTimeout(() => setCopied(null), 2000);
+    }
   };
 
   const getClaimsContact = (contacts: Contact[]) =>
@@ -242,7 +254,9 @@ export default function EmergencyPage() {
     try {
       const { download_url } = await documentsApi.download(docId);
       window.open(download_url, '_blank');
-    } catch {}
+    } catch {
+      alert('Could not download document. Please try again.');
+    }
   };
 
   // ICE Card handlers

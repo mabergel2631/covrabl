@@ -72,8 +72,8 @@ export default function LeaseCompliancePublicPage() {
 
   async function handleSubmitCoi() {
     const file = fileRef.current?.files?.[0];
-    if (!file) { return; }
-    if (!file.name.toLowerCase().endsWith('.pdf')) { return; }
+    if (!file) { setError('Please select a PDF file to upload.'); return; }
+    if (!file.name.toLowerCase().endsWith('.pdf')) { setError('Only PDF files are accepted.'); return; }
     setSubmitting(true);
     try {
       const result = await leaseComplianceApi.submitCoiPublic(code, file, tenantName, tenantEmail, tenantNotes || undefined);

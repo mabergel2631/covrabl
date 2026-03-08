@@ -1142,7 +1142,7 @@ function PoliciesPageInner() {
                     aria-label="Search policies"
                     value={search}
                     onChange={e => setSearch(e.target.value)}
-                    style={{ width: 200, padding: '8px 12px', fontSize: 14 }}
+                    style={{ width: '100%', maxWidth: 200, padding: '8px 12px', fontSize: 14, minWidth: 0 }}
                   />
                   <select
                     value={sortBy}
@@ -1306,7 +1306,7 @@ function PoliciesPageInner() {
                               margin: 0, fontSize: 13, fontWeight: 600, color: 'var(--color-text-secondary)',
                               textTransform: 'uppercase', letterSpacing: '0.05em',
                               border: '1px solid var(--color-primary)', borderRadius: 'var(--radius-sm)',
-                              padding: '4px 8px', outline: 'none', backgroundColor: '#fff', width: 200,
+                              padding: '4px 8px', outline: 'none', backgroundColor: '#fff', width: '100%', maxWidth: 200, minWidth: 0,
                             }}
                           />
                         ) : (

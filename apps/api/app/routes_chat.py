@@ -620,9 +620,11 @@ def chat_send(body: ChatSendRequest, user: User = Depends(get_current_user), db:
 
     # Build system prompt with context
     context = _build_chat_context(user, db, policy_id=body.policy_id, compare_policy_ids=body.compare_policy_ids)
+    # Escape curly braces in context so .format() doesn't choke on policy text like "{parts, labor}"
+    safe_context = context.replace("{", "{{").replace("}", "}}")
     system_prompt = SYSTEM_PROMPT_TEMPLATE.format(
         today=datetime.now().strftime("%Y-%m-%d"),
-        context=context,
+        context=safe_context,
     )
 
     conv_id = conversation.id

@@ -76,7 +76,7 @@ export default function LoginPage() {
       </div>
 
       {/* Right panel — form */}
-      <div className="login-form" style={{ width: 480, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 48, backgroundColor: 'var(--color-surface)' }}>
+      <div className="login-form" style={{ width: '100%', maxWidth: 480, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 48, backgroundColor: 'var(--color-surface)' }}>
         <div style={{ width: '100%', maxWidth: 360 }}>
           <h1 style={{ margin: '0 0 4px', fontSize: 22, fontWeight: 700, color: 'var(--color-text)' }}>
             {mode === 'login' ? 'Welcome back' : 'Create account'}
