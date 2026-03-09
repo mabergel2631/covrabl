@@ -39,7 +39,8 @@ export default function LoginPage() {
       const fn = mode === 'login' ? authApi.login : authApi.register;
       const res = await fn(trimmedEmail, password);
       login(res.access_token);
-      router.push('/policies');
+      const returnTo = new URLSearchParams(window.location.search).get('returnTo');
+      router.push(returnTo || '/policies');
     } catch (err: any) {
       setError(err.message || 'Something went wrong');
     } finally {

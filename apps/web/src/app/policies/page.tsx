@@ -76,7 +76,7 @@ function PoliciesPageInner() {
   const { toast } = useToast();
 
   useEffect(() => {
-    if (!token) { router.replace('/login'); return; }
+    if (!token) { const ret = typeof window !== 'undefined' ? window.location.pathname + window.location.search : ''; router.replace('/login?returnTo=' + encodeURIComponent(ret)); return; }
     loadAll();
   }, [token]);
 

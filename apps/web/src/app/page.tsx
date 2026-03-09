@@ -487,6 +487,27 @@ function Dashboard() {
   const renewalPolicies = renewals?.policies?.slice(0, 3) ?? [];
   const activeCount = policies.filter(p => p.status !== 'archived').length;
   const activePolicies = policies.filter(p => p.status !== 'archived' && p.status !== 'expired');
+
+  // Categorize and sort policies
+  const sortByAttention = (a: Policy, b: Policy) => {
+    const daysA = a.renewal_date ? Math.ceil((new Date(a.renewal_date).getTime() - Date.now()) / (1000 * 60 * 60 * 24)) : 999;
+    const daysB = b.renewal_date ? Math.ceil((new Date(b.renewal_date).getTime() - Date.now()) / (1000 * 60 * 60 * 24)) : 999;
+    const urgentA = daysA <= 60 ? 0 : 1;
+    const urgentB = daysB <= 60 ? 0 : 1;
+    if (urgentA !== urgentB) return urgentA - urgentB;
+    if (urgentA === 0 && urgentB === 0) return daysA - daysB;
+    return (b.id || 0) - (a.id || 0);
+  };
+  const personalPolicies = activePolicies.filter(p => p.scope !== 'business').sort(sortByAttention);
+  const businessPolicies = activePolicies.filter(p => p.scope === 'business').sort(sortByAttention);
+  const businessGroups: { name: string; policies: Policy[] }[] = [];
+  const groupMap = new Map<string, Policy[]>();
+  businessPolicies.forEach(p => {
+    const key = p.business_name || 'Other Business';
+    if (!groupMap.has(key)) groupMap.set(key, []);
+    groupMap.get(key)!.push(p);
+  });
+  groupMap.forEach((pols, name) => businessGroups.push({ name, policies: pols }));
   const urgentRenewals = (renewals?.policies ?? []).filter(r => r.days_until_renewal <= 30 && r.days_until_renewal >= 0);
   const hasAttention = unackCount > 0 || urgentRenewals.length > 0;
 
@@ -594,104 +615,145 @@ function Dashboard() {
             </div>
           )}
 
-          {/* ── Section 3: Your Policies (main section) ── */}
-          <div style={{ marginBottom: 20 }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
-              <h2 style={{ margin: 0, fontSize: 17, fontWeight: 700, color: 'var(--color-text)' }}>Your Policies</h2>
-              {activePolicies.length > 0 && (
-                <span onClick={() => router.push('/policies')} style={{ fontSize: 12, color: 'var(--color-primary)', fontWeight: 600, cursor: 'pointer' }}>
-                  Manage all &rarr;
-                </span>
-              )}
-            </div>
+          {/* ── Section 3: Your Policies (categorized) ── */}
+          {(() => {
+            const renderPolicyCard = (p: Policy) => {
+              const cfg = POLICY_TYPE_CONFIG[p.policy_type] || { icon: '\ud83d\udccb', label: p.policy_type };
+              const renewalInfo = p.renewal_date ? (() => {
+                const days = Math.ceil((new Date(p.renewal_date).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+                if (days < 0) return { label: 'Overdue', color: 'var(--color-danger)' };
+                if (days <= 14) return { label: `${days}d left`, color: 'var(--color-danger)' };
+                if (days <= 30) return { label: `${days}d left`, color: 'var(--color-warning-dark)' };
+                return { label: new Date(p.renewal_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }), color: 'var(--color-text-muted)' };
+              })() : null;
 
-            {activePolicies.length === 0 ? (
-              <div className="card" style={{ padding: 48, textAlign: 'center' }}>
-                <div style={{ fontSize: 40, marginBottom: 12 }}>📄</div>
-                <div style={{ fontSize: 16, fontWeight: 600, color: 'var(--color-text)', marginBottom: 8 }}>No policies yet</div>
-                <div style={{ fontSize: 14, color: 'var(--color-text-muted)', marginBottom: 20 }}>Upload your first policy to get started with coverage analysis.</div>
-                <button onClick={() => router.push('/policies?action=upload')} className="btn btn-primary" style={{ padding: '10px 24px', fontSize: 14 }}>
-                  Upload Your First Policy
-                </button>
-              </div>
-            ) : (
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 16 }}>
-                {activePolicies.map(p => {
-                  const cfg = POLICY_TYPE_CONFIG[p.policy_type] || { icon: '📋', label: p.policy_type };
-                  const renewalInfo = p.renewal_date ? (() => {
-                    const days = Math.ceil((new Date(p.renewal_date).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
-                    if (days < 0) return { label: 'Overdue', color: 'var(--color-danger)' };
-                    if (days <= 14) return { label: `${days}d left`, color: 'var(--color-danger)' };
-                    if (days <= 30) return { label: `${days}d left`, color: 'var(--color-warning-dark)' };
-                    return { label: new Date(p.renewal_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }), color: 'var(--color-text-muted)' };
-                  })() : null;
-
-                  return (
-                    <div
-                      key={p.id}
-                      role="button"
-                      tabIndex={0}
-                      onClick={() => router.push(`/policies/${p.id}`)}
-                      onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); router.push(`/policies/${p.id}`); } }}
-                      style={{
-                        backgroundColor: '#fff', border: '1px solid var(--color-border)',
-                        borderRadius: 'var(--radius-lg)', cursor: 'pointer',
-                        padding: 20, display: 'flex', flexDirection: 'column', gap: 10,
-                        transition: 'border-color 0.15s, box-shadow 0.15s',
-                      }}
-                      onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--color-primary)'; e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.06)'; }}
-                      onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--color-border)'; e.currentTarget.style.boxShadow = 'none'; }}
-                    >
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                        <span style={{ fontSize: 24 }}>{cfg.icon}</span>
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--color-text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                            {p.nickname || p.carrier}
-                          </div>
-                          <div style={{ fontSize: 12, color: 'var(--color-text-muted)', marginTop: 1 }}>
-                            {cfg.label}{p.business_name ? ` \u00b7 ${p.business_name}` : ''}
-                          </div>
-                        </div>
-                      </div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8 }}>
-                        <div>
-                          <div style={{ fontSize: 11, color: 'var(--color-text-muted)', fontWeight: 500 }}>Premium</div>
-                          <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--color-text)' }}>
-                            {p.premium_amount ? `$${p.premium_amount.toLocaleString()}` : '\u2014'}
-                          </div>
-                        </div>
-                        <div style={{ textAlign: 'right' }}>
-                          <div style={{ fontSize: 11, color: 'var(--color-text-muted)', fontWeight: 500 }}>Expiration</div>
-                          <div style={{ fontSize: 13, fontWeight: 600, color: renewalInfo?.color || 'var(--color-text)' }}>
-                            {renewalInfo ? renewalInfo.label : '\u2014'}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-
-                {/* + Add Policy card */}
+              return (
                 <div
+                  key={p.id}
                   role="button"
                   tabIndex={0}
-                  onClick={() => router.push('/policies?action=upload')}
-                  onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); router.push('/policies?action=upload'); } }}
+                  onClick={() => router.push(`/policies/${p.id}`)}
+                  onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); router.push(`/policies/${p.id}`); } }}
                   style={{
-                    border: '2px dashed var(--color-border)', borderRadius: 'var(--radius-lg)',
-                    cursor: 'pointer', padding: 20, display: 'flex', flexDirection: 'column',
-                    alignItems: 'center', justifyContent: 'center', gap: 8, minHeight: 120,
-                    transition: 'border-color 0.15s, background-color 0.15s',
+                    backgroundColor: '#fff', border: '1px solid var(--color-border)',
+                    borderRadius: 'var(--radius-lg)', cursor: 'pointer',
+                    padding: 20, display: 'flex', flexDirection: 'column', gap: 10,
+                    transition: 'border-color 0.15s, box-shadow 0.15s',
                   }}
-                  onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--color-primary)'; e.currentTarget.style.backgroundColor = 'rgba(13,148,136,0.03)'; }}
-                  onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--color-border)'; e.currentTarget.style.backgroundColor = 'transparent'; }}
+                  onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--color-primary)'; e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.06)'; }}
+                  onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--color-border)'; e.currentTarget.style.boxShadow = 'none'; }}
                 >
-                  <span style={{ fontSize: 28, color: 'var(--color-text-muted)' }}>+</span>
-                  <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-text-muted)' }}>Add Policy</span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <span style={{ fontSize: 24 }}>{cfg.icon}</span>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--color-text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {p.nickname || p.carrier}
+                      </div>
+                      <div style={{ fontSize: 12, color: 'var(--color-text-muted)', marginTop: 1 }}>
+                        {cfg.label}
+                      </div>
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8 }}>
+                    <div>
+                      <div style={{ fontSize: 11, color: 'var(--color-text-muted)', fontWeight: 500 }}>Premium</div>
+                      <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--color-text)' }}>
+                        {p.premium_amount ? `$${p.premium_amount.toLocaleString()}` : '\u2014'}
+                      </div>
+                    </div>
+                    <div style={{ textAlign: 'right' }}>
+                      <div style={{ fontSize: 11, color: 'var(--color-text-muted)', fontWeight: 500 }}>Expiration</div>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: renewalInfo?.color || 'var(--color-text)' }}>
+                        {renewalInfo ? renewalInfo.label : '\u2014'}
+                      </div>
+                    </div>
+                  </div>
                 </div>
+              );
+            };
+
+            const addPolicyCard = (
+              <div
+                role="button"
+                tabIndex={0}
+                onClick={() => router.push('/policies?action=upload')}
+                onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); router.push('/policies?action=upload'); } }}
+                style={{
+                  border: '2px dashed var(--color-border)', borderRadius: 'var(--radius-lg)',
+                  cursor: 'pointer', padding: 20, display: 'flex', flexDirection: 'column',
+                  alignItems: 'center', justifyContent: 'center', gap: 8, minHeight: 120,
+                  transition: 'border-color 0.15s, background-color 0.15s',
+                }}
+                onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--color-primary)'; e.currentTarget.style.backgroundColor = 'rgba(13,148,136,0.03)'; }}
+                onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--color-border)'; e.currentTarget.style.backgroundColor = 'transparent'; }}
+              >
+                <span style={{ fontSize: 28, color: 'var(--color-text-muted)' }}>+</span>
+                <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-text-muted)' }}>Add Policy</span>
               </div>
-            )}
-          </div>
+            );
+
+            return (
+              <div style={{ marginBottom: 20 }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+                  <h2 style={{ margin: 0, fontSize: 17, fontWeight: 700, color: 'var(--color-text)' }}>Your Policies</h2>
+                  {activePolicies.length > 0 && (
+                    <span onClick={() => router.push('/policies')} style={{ fontSize: 12, color: 'var(--color-primary)', fontWeight: 600, cursor: 'pointer' }}>
+                      Manage all &rarr;
+                    </span>
+                  )}
+                </div>
+
+                {activePolicies.length === 0 ? (
+                  <div className="card" style={{ padding: 48, textAlign: 'center' }}>
+                    <div style={{ fontSize: 40, marginBottom: 12 }}>{'\ud83d\udcc4'}</div>
+                    <div style={{ fontSize: 16, fontWeight: 600, color: 'var(--color-text)', marginBottom: 8 }}>No policies yet</div>
+                    <div style={{ fontSize: 14, color: 'var(--color-text-muted)', marginBottom: 20 }}>Upload your first policy to get started with coverage analysis.</div>
+                    <button onClick={() => router.push('/policies?action=upload')} className="btn btn-primary" style={{ padding: '10px 24px', fontSize: 14 }}>
+                      Upload Your First Policy
+                    </button>
+                  </div>
+                ) : (
+                  <>
+                    {/* Personal Policies */}
+                    {personalPolicies.length > 0 && (
+                      <div style={{ marginBottom: businessGroups.length > 0 ? 24 : 0 }}>
+                        <h3 style={{ fontSize: 14, fontWeight: 600, color: 'var(--color-text-secondary)', margin: '0 0 10px', textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                          Personal Policies ({personalPolicies.length})
+                        </h3>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 16 }}>
+                          {personalPolicies.map(renderPolicyCard)}
+                          {businessGroups.length === 0 && addPolicyCard}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Business Policies — grouped by business name */}
+                    {businessGroups.length > 0 && (
+                      <div>
+                        <h3 style={{ fontSize: 14, fontWeight: 600, color: 'var(--color-text-secondary)', margin: '0 0 10px', textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                          Business Policies
+                        </h3>
+                        {businessGroups.map(group => (
+                          <div key={group.name} style={{ marginBottom: 16 }}>
+                            <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--color-text)', marginBottom: 8, paddingLeft: 2 }}>
+                              {group.name} ({group.policies.length})
+                            </div>
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 16 }}>
+                              {group.policies.map(renderPolicyCard)}
+                            </div>
+                          </div>
+                        ))}
+                        {addPolicyCard}
+                      </div>
+                    )}
+
+                    {/* If only personal, add policy card is inline; if no personal but has business, add is below business */}
+                    {personalPolicies.length === 0 && businessGroups.length === 0 && addPolicyCard}
+                  </>
+                )}
+              </div>
+            );
+          })()}
 
           {/* ── Section 4: Coverage Insights (advisory) ── */}
           {topInsights.length > 0 && (

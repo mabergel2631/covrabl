@@ -364,6 +364,119 @@ def run_compliance_check(
     }
 
 
+@router.post("/requirements/{req_id}/check-document")
+async def check_document(
+    req_id: int,
+    file: UploadFile = File(...),
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Tenant uploads a COI/dec page PDF for comparison against lease requirements."""
+    check_feature(user, "lease_compliance")
+    req = db.execute(
+        select(LeaseRequirement).where(
+            LeaseRequirement.id == req_id,
+            LeaseRequirement.user_id == user.id,
+        )
+    ).scalar_one_or_none()
+    if not req:
+        raise HTTPException(status_code=404, detail="Lease requirement not found")
+
+    if not file.filename or not file.filename.lower().endswith(".pdf"):
+        raise HTTPException(status_code=400, detail="Only PDF files are supported")
+
+    content = await file.read()
+    if len(content) > 20 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="File too large (max 20MB)")
+
+    # Save PDF
+    upload_dir = Path(__file__).resolve().parent.parent / "uploads"
+    coi_file_key = f"coi/{req.id}/{uuid.uuid4()}-{file.filename or 'certificate.pdf'}"
+    coi_dest = upload_dir / coi_file_key
+    coi_dest.parent.mkdir(parents=True, exist_ok=True)
+    coi_dest.write_bytes(content)
+
+    # PDF -> images
+    try:
+        import fitz
+        doc = fitz.open(stream=content, filetype="pdf")
+        images = []
+        for page_num in range(min(len(doc), 20)):
+            page = doc[page_num]
+            pix = page.get_pixmap(dpi=200)
+            images.append(pix.tobytes("png"))
+        doc.close()
+    except Exception as e:
+        logger.exception("PDF conversion failed")
+        raise HTTPException(status_code=400, detail=f"Could not process PDF: {str(e)}")
+
+    # Extract COI data
+    extractor = get_extractor()
+    try:
+        coi_result = extractor.extract_coi_images(images)
+    except Exception as e:
+        logger.exception("COI extraction failed")
+        raise HTTPException(status_code=500, detail=f"Certificate extraction failed: {str(e)}")
+
+    # Build evidence (same logic as submit_coi_public)
+    evidence = []
+    for ct in (coi_result.coverage_types or []):
+        ct_lower = ct.lower()
+        type_map = {
+            "general liability": "general_liability",
+            "auto": "commercial_auto",
+            "commercial auto": "commercial_auto",
+            "workers comp": "workers_comp",
+            "workers compensation": "workers_comp",
+            "umbrella": "umbrella",
+            "professional liability": "professional_liability",
+            "property": "property",
+        }
+        category = type_map.get(ct_lower, "other")
+        entry: dict = {"category": category, "carrier": coi_result.carrier}
+        if coi_result.primary_coverage_amount:
+            entry["coverage_amount"] = coi_result.primary_coverage_amount
+        evidence.append(entry)
+        if coi_result.additional_insured:
+            evidence.append({"category": category, "endorsement": "additional_insured", "value": True})
+        if coi_result.waiver_of_subrogation:
+            evidence.append({"category": category, "endorsement": "waiver_of_subrogation", "value": True})
+
+    # Compare
+    requirements = json.loads(req.requirements_json)
+    results = compare_requirements(requirements, evidence)
+
+    pass_count = sum(1 for r in results if r["status"] == "pass")
+    fail_count = sum(1 for r in results if r["status"] == "fail")
+    unclear_count = sum(1 for r in results if r["status"] == "unclear")
+
+    # Save check
+    check = ComplianceCheck(
+        user_id=user.id,
+        lease_requirement_id=req.id,
+        checked_against="document",
+        results_json=json.dumps(results),
+        pass_count=pass_count,
+        fail_count=fail_count,
+        unclear_count=unclear_count,
+        coi_file_key=coi_file_key,
+        submitted_at=datetime.now(timezone.utc),
+    )
+    db.add(check)
+    db.commit()
+    db.refresh(check)
+
+    return {
+        "id": check.id,
+        "ok": True,
+        "results": results,
+        "pass_count": pass_count,
+        "fail_count": fail_count,
+        "unclear_count": unclear_count,
+        "checked_against": "document",
+    }
+
+
 @router.get("/requirements/{req_id}/checks")
 def list_compliance_checks(
     req_id: int,
@@ -562,6 +675,72 @@ async def send_to_tenant(
     db.commit()
 
     return {"ok": True, "public_url": public_url}
+
+
+class SendToLandlordRequest(BaseModel):
+    landlord_email: str
+    landlord_name: Optional[str] = None
+    notes: Optional[str] = None
+    from_name: Optional[str] = None
+
+
+@router.post("/requirements/{req_id}/send-to-landlord")
+async def send_to_landlord(
+    req_id: int,
+    payload: SendToLandlordRequest,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Tenant sends compliance results to their landlord."""
+    check_feature(user, "lease_compliance")
+    req = db.execute(
+        select(LeaseRequirement).where(
+            LeaseRequirement.id == req_id,
+            LeaseRequirement.user_id == user.id,
+        )
+    ).scalar_one_or_none()
+    if not req:
+        raise HTTPException(status_code=404, detail="Lease requirement not found")
+
+    # Get latest check results
+    latest_check = db.execute(
+        select(ComplianceCheck).where(
+            ComplianceCheck.lease_requirement_id == req_id,
+            ComplianceCheck.user_id == user.id,
+        ).order_by(ComplianceCheck.created_at.desc())
+    ).scalars().first()
+
+    pass_count = latest_check.pass_count if latest_check else 0
+    fail_count = latest_check.fail_count if latest_check else 0
+    unclear_count = latest_check.unclear_count if latest_check else 0
+
+    # Get sender name
+    if payload.from_name and payload.from_name.strip():
+        from_name = payload.from_name.strip()
+    else:
+        from .models_profile import UserProfile
+        profile = db.execute(
+            select(UserProfile).where(UserProfile.user_id == user.id)
+        ).scalar_one_or_none()
+        from_name = profile.full_name if profile and profile.full_name else user.email
+
+    from .email import send_landlord_compliance_email
+    await send_landlord_compliance_email(
+        to_email=payload.landlord_email,
+        landlord_name=payload.landlord_name or "Landlord",
+        tenant_name=from_name,
+        property_address=req.property_address,
+        pass_count=pass_count,
+        fail_count=fail_count,
+        unclear_count=unclear_count,
+        notes=payload.notes,
+    )
+
+    from .email import log_email_send
+    log_email_send(db, payload.landlord_email, "landlord_compliance", "Compliance results sent to landlord", "sent")
+    db.commit()
+
+    return {"ok": True}
 
 
 class SendDeficiencyRequest(BaseModel):

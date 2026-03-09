@@ -150,6 +150,16 @@ export default function PolicyDetailPage() {
   const [leaseSenderName, setLeaseSenderName] = useState('');
   const leasePdfRef = useRef<HTMLInputElement>(null);
   const leaseAutoShareRef = useRef(false);
+  // Tenant document upload (Step 3)
+  const [leaseDocUploadFile, setLeaseDocUploadFile] = useState<File | null>(null);
+  const [leaseDocUploading, setLeaseDocUploading] = useState(false);
+  const leaseDocFileRef = useRef<HTMLInputElement>(null);
+  // Send to Landlord modal (tenant flow)
+  const [leaseLandlordModal, setLeaseLandlordModal] = useState(false);
+  const [leaseLandlordEmail, setLeaseLandlordEmail] = useState('');
+  const [leaseLandlordName, setLeaseLandlordName] = useState('');
+  const [leaseLandlordNotes, setLeaseLandlordNotes] = useState('');
+  const [leaseLandlordSending, setLeaseLandlordSending] = useState(false);
 
   // Version history
   const [versionHistory, setVersionHistory] = useState<PolicyVersionEntry[]>([]);
@@ -233,7 +243,7 @@ export default function PolicyDetailPage() {
   }, [showIdCard]);
 
   useEffect(() => {
-    if (!token) { router.replace('/login'); return; }
+    if (!token) { const ret = typeof window !== 'undefined' ? window.location.pathname + window.location.hash : ''; router.replace('/login?returnTo=' + encodeURIComponent(ret)); return; }
     loadAll().then(() => {
       // Check if there's extraction data from the upload-first flow
       const stored = sessionStorage.getItem(`pv_extract_${policyId}`);
@@ -251,6 +261,15 @@ export default function PolicyDetailPage() {
       }
     });
   }, [token, policyId]);
+
+  // Track whether we should auto-open lease section from #lease hash
+  const [leaseHashPending, setLeaseHashPending] = useState(false);
+  useEffect(() => {
+    if (typeof window !== 'undefined' && window.location.hash === '#lease') {
+      setLeaseHashPending(true);
+      window.history.replaceState(null, '', window.location.pathname);
+    }
+  }, []);
 
   const loadAll = async () => {
     try {
@@ -2034,24 +2053,10 @@ export default function PolicyDetailPage() {
           setLeaseActiveReqId(created.id);
 
           if (leaseFormRole === 'tenant') {
-            // Tenant flow: auto-run check against own policy
-            setLeaseCheckedAgainst(`${policy!.carrier ? policy!.carrier + ' ' : ''}${policy!.policy_type.replace(/_/g, ' ')} policy`);
-            setLeaseChecking(true);
-            try {
-              const check = await leaseComplianceApi.runCheck(created.id, 'policy', { policyId });
-              setLeaseResults(check.results || []);
-              setLeaseCheckCounts({ pass: check.pass_count, fail: check.fail_count, unclear: check.unclear_count });
-            } catch {
-              toast('Compliance check failed — you can re-check from the list', 'error');
-              setLeaseChecking(false);
-              setLeaseSaving(false);
-              // Go back to list so user can retry, not stuck on empty results
-              leaseComplianceApi.list(undefined, policyId).then(setLeaseReqs).catch(() => {});
-              setLeaseView('list');
-              return;
-            } finally {
-              setLeaseChecking(false);
-            }
+            // Tenant flow: go to Step 3 (upload proof of coverage document)
+            setLeaseCreateStep(3);
+            setLeaseSaving(false);
+            return;
           } else {
             // Landlord flow: skip auto-check, go to results/next-steps
             setLeaseResults([]);
@@ -2085,6 +2090,29 @@ export default function PolicyDetailPage() {
             toast(err.message || 'Check failed', 'error');
           } finally {
             setLeaseChecking(false);
+          }
+        }
+
+        async function handleLeaseDocumentCheck() {
+          if (!leaseDocUploadFile || !leaseActiveReqId) {
+            toast('Please select a PDF file', 'error');
+            return;
+          }
+          setLeaseDocUploading(true);
+          try {
+            const result = await leaseComplianceApi.checkDocument(leaseActiveReqId, leaseDocUploadFile);
+            setLeaseResults(result.results || []);
+            setLeaseCheckCounts({ pass: result.pass_count, fail: result.fail_count, unclear: result.unclear_count });
+            setLeaseCheckedAgainst('uploaded document');
+            setLeaseView('results');
+            toast('Document analyzed and compliance check complete');
+            leaseComplianceApi.list(undefined, policyId).then(setLeaseReqs).catch(() => {});
+          } catch (err: any) {
+            toast(err.message || 'Document check failed', 'error');
+          } finally {
+            setLeaseDocUploading(false);
+            setLeaseDocUploadFile(null);
+            if (leaseDocFileRef.current) leaseDocFileRef.current.value = '';
           }
         }
 
@@ -2179,13 +2207,34 @@ export default function PolicyDetailPage() {
           setLeaseFormCounterpartyEmail('');
           setLeaseFormRole('tenant');
           setLeaseResults([]);
+          setLeaseDocUploadFile(null);
+          setLeaseDocUploading(false);
+          if (leaseDocFileRef.current) leaseDocFileRef.current.value = '';
+          setLeaseLandlordModal(false);
+          setLeaseLandlordEmail('');
+          setLeaseLandlordName('');
+          setLeaseLandlordNotes('');
+          setLeaseLandlordSending(false);
           setLeaseCheckCounts({ pass: 0, fail: 0, unclear: 0 });
           setLeaseCheckedAgainst('');
           setLeaseActiveReqId(null);
         }
 
+        // Auto-open lease results when arriving via #lease hash (email notification link)
+        if (leaseHashPending && leaseView === 'list' && leaseReqs.length > 0) {
+          setLeaseHashPending(false);
+          const reqWithCheck = leaseReqs.find(r => r.latest_check);
+          if (reqWithCheck) {
+            handleLeaseViewResults(reqWithCheck);
+          }
+          setTimeout(() => {
+            const el = document.getElementById('lease-compliance');
+            if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          }, 300);
+        }
+
         return (
-          <div className="card" style={{ marginBottom: 32 }}>
+          <div id="lease-compliance" className="card" style={{ marginBottom: 32 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 12 }}>
               <div>
                 <h2 className="section-title" style={{ margin: 0 }}>Lease Check</h2>
@@ -2446,6 +2495,47 @@ export default function PolicyDetailPage() {
                     </div>
                   </>
                 )}
+
+                {/* ── Step 3: Upload Proof of Coverage (tenant only) ── */}
+                {leaseCreateStep === 3 && leaseFormRole === 'tenant' && (
+                  <div style={{ border: '1px solid #bfdbfe', borderRadius: 'var(--radius-md)', padding: 20, backgroundColor: '#f0f9ff' }}>
+                    <h4 style={{ fontSize: 15, fontWeight: 700, margin: '0 0 6px', color: '#1e40af' }}>Upload Your Proof of Coverage</h4>
+                    <p style={{ fontSize: 13, color: 'var(--color-text-secondary)', margin: '0 0 16px', lineHeight: 1.5 }}>
+                      Upload your Certificate of Insurance (COI), Declaration Page, or other proof of coverage so Covrabl can check it against the landlord requirements.
+                    </p>
+                    <div
+                      style={{ border: '2px dashed var(--color-border)', borderRadius: 'var(--radius-md)', padding: 24, textAlign: 'center', cursor: 'pointer', backgroundColor: leaseDocUploadFile ? '#dcfce7' : '#fff', transition: 'background-color 0.2s' }}
+                      onClick={() => leaseDocFileRef.current?.click()}
+                      onDragOver={e => { e.preventDefault(); e.stopPropagation(); }}
+                      onDrop={e => { e.preventDefault(); e.stopPropagation(); const f = e.dataTransfer.files[0]; if (f && f.type === 'application/pdf') setLeaseDocUploadFile(f); else toast('Please upload a PDF file', 'error'); }}
+                    >
+                      <input ref={leaseDocFileRef} type="file" accept=".pdf,application/pdf" style={{ display: 'none' }} onChange={e => { const f = e.target.files?.[0]; if (f) setLeaseDocUploadFile(f); }} />
+                      {leaseDocUploadFile ? (
+                        <div>
+                          <div style={{ fontSize: 24, marginBottom: 6 }}>&#128196;</div>
+                          <div style={{ fontSize: 14, fontWeight: 600, color: '#166534' }}>{leaseDocUploadFile.name}</div>
+                          <div style={{ fontSize: 12, color: 'var(--color-text-secondary)', marginTop: 4 }}>{(leaseDocUploadFile.size / 1024).toFixed(0)} KB &mdash; Click or drop to replace</div>
+                        </div>
+                      ) : (
+                        <div>
+                          <div style={{ fontSize: 24, marginBottom: 6, color: 'var(--color-text-muted)' }}>&#128451;</div>
+                          <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--color-text-secondary)' }}>Click or drag &amp; drop your PDF here</div>
+                          <div style={{ fontSize: 12, color: 'var(--color-text-muted)', marginTop: 4 }}>Accepted: COI, Declaration Page, Policy Summary</div>
+                        </div>
+                      )}
+                    </div>
+                    <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
+                      <button onClick={() => setLeaseCreateStep(2)} style={{ padding: '8px 16px', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)', backgroundColor: '#fff', cursor: 'pointer', fontSize: 13 }}>Back</button>
+                      <button
+                        onClick={handleLeaseDocumentCheck}
+                        disabled={!leaseDocUploadFile || leaseDocUploading}
+                        style={{ padding: '8px 16px', backgroundColor: 'var(--color-primary)', color: '#fff', border: 'none', borderRadius: 'var(--radius-sm)', fontWeight: 600, fontSize: 13, cursor: leaseDocUploading ? 'wait' : 'pointer', opacity: (!leaseDocUploadFile || leaseDocUploading) ? 0.5 : 1 }}
+                      >
+                        {leaseDocUploading ? 'Analyzing document...' : 'Upload & Check'}
+                      </button>
+                    </div>
+                  </div>
+                )}
               </>
             )}
 
@@ -2537,13 +2627,13 @@ export default function PolicyDetailPage() {
                   ) : (
                     <>
                       {/* Summary counts */}
-                      <div style={{ display: 'flex', gap: 10, marginBottom: 16, flexWrap: 'wrap' }}>
+                      <div style={{ display: 'flex', gap: 10, marginBottom: 16 }}>
                         {[
                           { label: 'Pass', count: leaseCheckCounts.pass, color: '#166534', bg: '#dcfce7' },
                           { label: 'Fail', count: leaseCheckCounts.fail, color: '#991b1b', bg: '#fee2e2' },
                           { label: 'Unclear', count: leaseCheckCounts.unclear, color: '#92400e', bg: '#fef3c7' },
                         ].map(s => (
-                          <div key={s.label} style={{ padding: '8px 16px', borderRadius: 'var(--radius-sm)', backgroundColor: s.bg, minWidth: 70, textAlign: 'center' }}>
+                          <div key={s.label} style={{ padding: '8px 16px', borderRadius: 'var(--radius-sm)', backgroundColor: s.bg, flex: '1 1 0', textAlign: 'center' }}>
                             <div style={{ fontSize: 20, fontWeight: 700, color: s.color }}>{s.count}</div>
                             <div style={{ fontSize: 11, fontWeight: 600, color: s.color }}>{s.label}</div>
                           </div>
@@ -2579,14 +2669,25 @@ export default function PolicyDetailPage() {
 
                       {/* Action buttons */}
                       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: hasResults ? 0 : 8 }}>
-                        {/* Re-check Policy — tenant only */}
+                        {/* Upload New Document — tenant only */}
                         {!isLandlord && (
-                          <button onClick={() => leaseActiveReqId && handleLeaseRecheck(leaseActiveReqId)} disabled={leaseChecking} style={{ padding: '6px 14px', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)', backgroundColor: '#fff', cursor: 'pointer', fontWeight: 600, fontSize: 12 }}>
-                            {hasResults ? 'Re-check Policy' : 'Check Policy'}
+                          <button onClick={() => { setLeaseCreateStep(3); setLeaseView('create'); }} style={{ padding: '6px 14px', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)', backgroundColor: '#fff', cursor: 'pointer', fontWeight: 600, fontSize: 12 }}>
+                            {hasResults ? 'Upload New Document' : 'Upload Document'}
                           </button>
                         )}
-                        {/* Check against certificate(s) */}
-                        {policyCertificates.map(cert => (
+                        {/* Send to Landlord — tenant only, when results exist */}
+                        {!isLandlord && hasResults && activeReq && (
+                          <button onClick={() => {
+                            setLeaseLandlordEmail(activeReq.counterparty_email || '');
+                            setLeaseLandlordName(activeReq.counterparty_name || '');
+                            setLeaseLandlordNotes('');
+                            setLeaseLandlordModal(true);
+                          }} style={{ padding: '6px 14px', backgroundColor: 'var(--color-primary)', color: '#fff', border: 'none', borderRadius: 'var(--radius-sm)', fontWeight: 600, cursor: 'pointer', fontSize: 12 }}>
+                            Send to Landlord
+                          </button>
+                        )}
+                        {/* Check against certificate(s) — landlord only */}
+                        {isLandlord && policyCertificates.map(cert => (
                           <button
                             key={cert.id}
                             onClick={async () => {
@@ -2627,7 +2728,32 @@ export default function PolicyDetailPage() {
                         {!isLandlord && hasResults && (
                           <button onClick={() => leaseActiveReqId && handleLeaseBrokerEmail(leaseActiveReqId)} style={{ padding: '6px 14px', backgroundColor: '#2563eb', color: '#fff', border: 'none', borderRadius: 'var(--radius-sm)', fontWeight: 600, cursor: 'pointer', fontSize: 12 }}>Send to Broker</button>
                         )}
-                        {activeReq && <button onClick={() => handleLeaseShare(activeReq)} style={{ padding: '6px 14px', backgroundColor: 'var(--color-primary)', color: '#fff', border: 'none', borderRadius: 'var(--radius-sm)', fontWeight: 600, cursor: 'pointer', fontSize: 12 }}>{isLandlord ? 'Share / Send to Tenant' : 'Share'}</button>}
+                        {/* View Document — landlord only, when tenant submitted COI */}
+                        {activeReq && (() => {
+                          const submittedTenant = activeReq.tenants?.find(t => t.submitted_at && t.has_document);
+                          if (isLandlord && submittedTenant) {
+                            return (
+                              <button onClick={async () => {
+                                try {
+                                  const blob = await leaseComplianceApi.downloadCoiDocument(submittedTenant.check_id);
+                                  const url = URL.createObjectURL(blob);
+                                  window.open(url, '_blank');
+                                } catch {
+                                  toast('Document not available', 'error');
+                                }
+                              }} style={{ padding: '6px 14px', backgroundColor: '#2563eb', color: '#fff', border: 'none', borderRadius: 'var(--radius-sm)', fontWeight: 600, cursor: 'pointer', fontSize: 12 }}>
+                                View Document
+                              </button>
+                            );
+                          }
+                          return null;
+                        })()}
+                        {/* Share — always available */}
+                        {activeReq && (
+                          <button onClick={() => handleLeaseShare(activeReq)} style={{ padding: '6px 14px', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)', backgroundColor: '#fff', cursor: 'pointer', fontWeight: 600, fontSize: 12 }}>
+                            Share
+                          </button>
+                        )}
                         {activeReq && (
                           <button onClick={() => { const url = getLeaseShareUrl(activeReq.access_code); window.open(url + '?print=1', '_blank'); }} style={{ padding: '6px 14px', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)', backgroundColor: '#fff', cursor: 'pointer', fontWeight: 600, fontSize: 12 }}>Print</button>
                         )}
@@ -2751,27 +2877,31 @@ export default function PolicyDetailPage() {
                     <p style={{ color: 'var(--color-text-secondary)', textAlign: 'center', padding: 20 }}>Generating email...</p>
                   ) : leaseBrokerEmail ? (
                     <>
-                      {leaseBrokerEmail.broker_name ? (
-                        <div style={{ marginBottom: 12 }}>
-                          <label style={labelStyle}>Broker (from policy contacts)</label>
-                          <p style={{ fontSize: 14, margin: 0 }}>{leaseBrokerEmail.broker_name} {leaseBrokerEmail.broker_email && `(${leaseBrokerEmail.broker_email})`}</p>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
+                        <div>
+                          <label style={labelStyle}>Broker Name</label>
+                          <input
+                            style={inputStyle}
+                            value={leaseBrokerEmail.broker_name || ''}
+                            onChange={e => setLeaseBrokerEmail({ ...leaseBrokerEmail!, broker_name: e.target.value })}
+                            placeholder="Broker name"
+                          />
                         </div>
-                      ) : (
-                        <div style={{ marginBottom: 12, padding: 12, backgroundColor: '#fef3c7', borderRadius: 'var(--radius-sm)', fontSize: 13, color: '#92400e' }}>
-                          No broker found on this policy. You can add a broker contact above in the Contacts section, or enter an email below.
-                        </div>
-                      )}
-
-                      {/* Manual broker email entry when no broker on file */}
-                      {!leaseBrokerEmail.broker_email && (
-                        <div style={{ marginBottom: 12 }}>
-                          <label style={labelStyle}>Broker Email</label>
+                        <div>
+                          <label style={labelStyle}>Broker Email *</label>
                           <input
                             style={inputStyle}
                             type="email"
+                            value={leaseBrokerEmail.broker_email || ''}
+                            onChange={e => setLeaseBrokerEmail({ ...leaseBrokerEmail!, broker_email: e.target.value })}
                             placeholder="broker@example.com"
                             id="lease-broker-email-input"
                           />
+                        </div>
+                      </div>
+                      {!leaseBrokerEmail.broker_email && !leaseBrokerEmail.broker_name && (
+                        <div style={{ marginBottom: 12, padding: 10, backgroundColor: '#fef3c7', borderRadius: 'var(--radius-sm)', fontSize: 12, color: '#92400e' }}>
+                          No broker found on this policy. Enter your broker&apos;s information above.
                         </div>
                       )}
 
@@ -2789,7 +2919,7 @@ export default function PolicyDetailPage() {
                           href="#"
                           onClick={(e) => {
                             e.preventDefault();
-                            const emailTo = leaseBrokerEmail!.broker_email || (document.getElementById('lease-broker-email-input') as HTMLInputElement | null)?.value || '';
+                            const emailTo = leaseBrokerEmail!.broker_email || '';
                             if (!emailTo) { toast('Enter a broker email address', 'error'); return; }
                             window.location.href = `mailto:${emailTo}?subject=${encodeURIComponent(leaseBrokerEmail!.subject)}&body=${encodeURIComponent(leaseBrokerEmail!.body)}`;
                           }}
@@ -2875,6 +3005,61 @@ export default function PolicyDetailPage() {
                       </button>
                     </>
                   )}
+                </div>
+              </div>
+            )}
+            {/* Send to Landlord Modal (tenant flow) */}
+            {leaseLandlordModal && leaseActiveReqId && (
+              <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+                <div style={{ backgroundColor: '#fff', borderRadius: 'var(--radius-lg)', padding: 28, maxWidth: 480, width: '100%' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+                    <h2 style={{ fontSize: 18, fontWeight: 700, margin: 0 }}>Send Results to Landlord</h2>
+                    <button onClick={() => setLeaseLandlordModal(false)} style={{ background: 'none', border: 'none', fontSize: 20, cursor: 'pointer', color: 'var(--color-text-muted)' }}>&times;</button>
+                  </div>
+                  <p style={{ fontSize: 13, color: 'var(--color-text-secondary)', margin: '0 0 16px', lineHeight: 1.5 }}>
+                    Send your compliance check results to your landlord or property manager.
+                  </p>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
+                    <div>
+                      <label style={labelStyle}>Landlord Name</label>
+                      <input style={inputStyle} value={leaseLandlordName} onChange={e => setLeaseLandlordName(e.target.value)} placeholder="Optional" />
+                    </div>
+                    <div>
+                      <label style={labelStyle}>Landlord Email *</label>
+                      <input style={inputStyle} type="email" value={leaseLandlordEmail} onChange={e => setLeaseLandlordEmail(e.target.value)} placeholder="landlord@example.com" />
+                    </div>
+                  </div>
+                  <div style={{ marginBottom: 12 }}>
+                    <label style={labelStyle}>Notes (included in email)</label>
+                    <textarea
+                      style={{ ...inputStyle, minHeight: 60, resize: 'vertical' }}
+                      value={leaseLandlordNotes}
+                      onChange={e => setLeaseLandlordNotes(e.target.value)}
+                      placeholder="e.g., Please review my updated certificate of insurance"
+                    />
+                  </div>
+                  <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+                    <button onClick={() => setLeaseLandlordModal(false)} style={{ padding: '8px 16px', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)', backgroundColor: '#fff', cursor: 'pointer', fontSize: 13 }}>Cancel</button>
+                    <button
+                      onClick={async () => {
+                        if (!leaseLandlordEmail.trim()) { toast('Landlord email is required', 'error'); return; }
+                        setLeaseLandlordSending(true);
+                        try {
+                          await leaseComplianceApi.sendToLandlord(leaseActiveReqId, leaseLandlordEmail, leaseLandlordName || undefined, leaseLandlordNotes || undefined, leaseSenderName || undefined);
+                          toast('Results sent to landlord');
+                          setLeaseLandlordModal(false);
+                        } catch (err: any) {
+                          toast(err.message || 'Failed to send', 'error');
+                        } finally {
+                          setLeaseLandlordSending(false);
+                        }
+                      }}
+                      disabled={leaseLandlordSending || !leaseLandlordEmail.trim()}
+                      style={{ padding: '8px 20px', backgroundColor: 'var(--color-primary)', color: '#fff', border: 'none', borderRadius: 'var(--radius-sm)', fontWeight: 600, fontSize: 13, cursor: leaseLandlordSending ? 'wait' : 'pointer', opacity: leaseLandlordSending ? 0.7 : 1 }}
+                    >
+                      {leaseLandlordSending ? 'Sending...' : 'Send to Landlord'}
+                    </button>
+                  </div>
                 </div>
               </div>
             )}

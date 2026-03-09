@@ -2198,6 +2198,25 @@ export const leaseComplianceApi = {
     if (!res.ok) throw new Error("Document not found");
     return res.blob();
   },
+  async checkDocument(reqId: number, file: File): Promise<ComplianceCheckResult & { ok: boolean; id: number }> {
+    const formData = new FormData();
+    formData.append("file", file);
+    const url = `${API_BASE}/lease-compliance/requirements/${reqId}/check-document`;
+    const token = getToken();
+    const headers: Record<string, string> = {};
+    if (token) headers["Authorization"] = `Bearer ${token}`;
+    const res = await fetch(url, { method: "POST", headers, body: formData });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || "Document check failed");
+    return data;
+  },
+  sendToLandlord(id: number, landlordEmail: string, landlordName?: string, notes?: string, fromName?: string): Promise<{ ok: boolean }> {
+    return request<{ ok: boolean }>(`/lease-compliance/requirements/${id}/send-to-landlord`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ landlord_email: landlordEmail, landlord_name: landlordName, notes, from_name: fromName }),
+    });
+  },
 };
 
 // ── Chat API ────────────────────────────────────────
