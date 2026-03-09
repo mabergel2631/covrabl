@@ -922,12 +922,19 @@ def _compute_scores(db: Session, user: User) -> dict:
 
     for cat_name, cat_data in categories.items():
         cat_data["weight"] = weights[cat_name]
+        cat_dismissed = f"cat:{cat_name}" in dismissed_keys
+        cat_data["category_dismissed"] = cat_dismissed
         # Add rec_key and dismissed flag to each recommendation
         for rec in cat_data.get("recommendations", []):
             rec["rec_key"] = _rec_key(cat_name, rec["text"])
-            rec["dismissed"] = rec["rec_key"] in dismissed_keys
-        # Adjust score: dismissed recs remove their scoring penalty
-        _adjust_score_for_dismissed(cat_data, dismissed_keys)
+            rec["dismissed"] = cat_dismissed or rec["rec_key"] in dismissed_keys
+        if cat_dismissed:
+            cat_data["score"] = 100
+            for comp in cat_data.get("components", []):
+                comp["score"] = comp["max"]
+        else:
+            # Adjust score: dismissed recs remove their scoring penalty
+            _adjust_score_for_dismissed(cat_data, dismissed_keys)
 
     # Weighted overall score
     weighted_sum = sum(
