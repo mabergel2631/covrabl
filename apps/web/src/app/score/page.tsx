@@ -72,54 +72,81 @@ function StatusBadge({ score, size = 'lg' }: { score: number; size?: 'lg' | 'md'
   );
 }
 
-function CategoryCard({ name, data, defaultOpen, onDismiss, onRestore }: { name: string; data: CategoryResult; defaultOpen?: boolean; onDismiss?: (recKey: string) => void; onRestore?: (recKey: string) => void }) {
+function CategoryCard({ name, data, defaultOpen, onDismiss, onRestore, onDismissCategory, onRestoreCategory }: { name: string; data: CategoryResult; defaultOpen?: boolean; onDismiss?: (recKey: string) => void; onRestore?: (recKey: string) => void; onDismissCategory?: (category: string) => void; onRestoreCategory?: (category: string) => void }) {
   const [open, setOpen] = useState(defaultOpen || false);
   const label = CATEGORY_LABELS[name] || name;
   const desc = CATEGORY_DESCRIPTIONS[name] || '';
-  const status = categoryStatus(data.score);
+  const isCategoryDismissed = data.category_dismissed;
+  const status = isCategoryDismissed
+    ? { label: 'Dismissed', icon: '-', color: '#6b7280', bg: '#f3f4f6' }
+    : categoryStatus(data.score);
 
   return (
     <div style={{
       backgroundColor: '#fff', border: '1px solid var(--color-border)',
       borderRadius: 'var(--radius-lg)', overflow: 'hidden',
+      opacity: isCategoryDismissed ? 0.7 : 1,
     }}>
-      <button
-        onClick={() => setOpen(!open)}
-        style={{
-          width: '100%', display: 'flex', alignItems: 'center', gap: 16,
-          padding: '16px 20px', background: 'none', border: 'none', cursor: 'pointer',
-          textAlign: 'left',
-        }}
-      >
-        {/* Status icon */}
-        <div style={{
-          width: 40, height: 40, borderRadius: '50%', flexShrink: 0,
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          backgroundColor: status.bg, color: status.color,
-          fontSize: 18, fontWeight: 700,
-        }}>
-          {status.icon}
-        </div>
-
-        <div style={{ flex: 1 }}>
-          <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--color-text)' }}>{label}</div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 2 }}>
-            <span style={{
-              fontSize: 11, fontWeight: 600, color: status.color,
-              padding: '1px 8px', borderRadius: 10, backgroundColor: status.bg,
-            }}>
-              {status.label}
-            </span>
-            <span style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>
-              {data.components.length} components
-            </span>
+      <div style={{ display: 'flex', alignItems: 'center' }}>
+        <button
+          onClick={() => setOpen(!open)}
+          style={{
+            flex: 1, display: 'flex', alignItems: 'center', gap: 16,
+            padding: '16px 20px', background: 'none', border: 'none', cursor: 'pointer',
+            textAlign: 'left',
+          }}
+        >
+          {/* Status icon */}
+          <div style={{
+            width: 40, height: 40, borderRadius: '50%', flexShrink: 0,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            backgroundColor: status.bg, color: status.color,
+            fontSize: 18, fontWeight: 700,
+          }}>
+            {status.icon}
           </div>
-        </div>
 
-        <span style={{ fontSize: 16, color: 'var(--color-text-muted)', transition: 'transform 0.2s', transform: open ? 'rotate(180deg)' : 'none' }}>
-          &#9662;
-        </span>
-      </button>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--color-text)' }}>{label}</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 2 }}>
+              <span style={{
+                fontSize: 11, fontWeight: 600, color: status.color,
+                padding: '1px 8px', borderRadius: 10, backgroundColor: status.bg,
+              }}>
+                {status.label}
+              </span>
+              <span style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>
+                {data.components.length} components
+              </span>
+            </div>
+          </div>
+
+          <span style={{ fontSize: 16, color: 'var(--color-text-muted)', transition: 'transform 0.2s', transform: open ? 'rotate(180deg)' : 'none' }}>
+            &#9662;
+          </span>
+        </button>
+        {/* Category-level dismiss/restore button */}
+        {isCategoryDismissed ? (
+          onRestoreCategory && (
+            <button
+              onClick={(e) => { e.stopPropagation(); onRestoreCategory(name); }}
+              style={{ marginRight: 16, padding: '4px 12px', fontSize: 11, fontWeight: 600, border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)', backgroundColor: '#fff', cursor: 'pointer', color: 'var(--color-primary)', whiteSpace: 'nowrap' }}
+            >
+              Restore Category
+            </button>
+          )
+        ) : (
+          onDismissCategory && (
+            <button
+              onClick={(e) => { e.stopPropagation(); onDismissCategory(name); }}
+              title="Not relevant to my business"
+              style={{ marginRight: 16, padding: '4px 12px', fontSize: 11, fontWeight: 600, border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)', backgroundColor: '#fff', cursor: 'pointer', color: 'var(--color-text-muted)', whiteSpace: 'nowrap' }}
+            >
+              Dismiss Category
+            </button>
+          )
+        )}
+      </div>
 
       {open && (
         <div style={{ padding: '0 20px 20px', borderTop: '1px solid var(--color-border)' }}>
@@ -245,7 +272,7 @@ function ScorePageInner() {
 
   const handleDismiss = async (recKey: string) => {
     try {
-      await scoresApi.dismiss(recKey);
+      await scoresApi.dismiss(recKey, scope);
       const result = await scoresApi.recalculateScope(scope);
       setData(result);
     } catch { /* ignore */ }
@@ -254,6 +281,22 @@ function ScorePageInner() {
   const handleRestore = async (recKey: string) => {
     try {
       await scoresApi.restore(recKey);
+      const result = await scoresApi.recalculateScope(scope);
+      setData(result);
+    } catch { /* ignore */ }
+  };
+
+  const handleDismissCategory = async (category: string) => {
+    try {
+      await scoresApi.dismissCategory(category, scope);
+      const result = await scoresApi.recalculateScope(scope);
+      setData(result);
+    } catch { /* ignore */ }
+  };
+
+  const handleRestoreCategory = async (category: string) => {
+    try {
+      await scoresApi.restoreCategory(category);
       const result = await scoresApi.recalculateScope(scope);
       setData(result);
     } catch { /* ignore */ }
@@ -284,6 +327,7 @@ function ScorePageInner() {
   if (data) {
     const order: Record<string, number> = { high: 0, medium: 1, low: 2 };
     for (const [cat, result] of Object.entries(data.categories)) {
+      if (result.category_dismissed) continue; // skip dismissed categories
       for (const rec of result.recommendations) {
         if (!rec.dismissed) allRecs.push({ ...rec, category: cat });
       }
@@ -385,9 +429,11 @@ function ScorePageInner() {
               key={cat}
               name={cat}
               data={catData}
-              defaultOpen={catData.score < 50}
+              defaultOpen={catData.score < 50 && !catData.category_dismissed}
               onDismiss={handleDismiss}
               onRestore={handleRestore}
+              onDismissCategory={handleDismissCategory}
+              onRestoreCategory={handleRestoreCategory}
             />
           );
         })}

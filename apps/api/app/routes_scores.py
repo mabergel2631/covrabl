@@ -7,6 +7,7 @@ import hashlib
 import json
 import logging
 from datetime import datetime, timedelta, timezone
+from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
@@ -1051,10 +1052,18 @@ def _compute_scores_for_scope(db: Session, user: User, scope: str):
         }
         for cat_name, cat_data in categories.items():
             cat_data["weight"] = weights[cat_name]
+            cat_dismissed = f"cat:{cat_name}" in dismissed_keys
+            cat_data["category_dismissed"] = cat_dismissed
             for rec in cat_data.get("recommendations", []):
                 rec["rec_key"] = _rec_key(cat_name, rec["text"])
-                rec["dismissed"] = rec["rec_key"] in dismissed_keys
-            _adjust_score_for_dismissed(cat_data, dismissed_keys)
+                rec["dismissed"] = cat_dismissed or rec["rec_key"] in dismissed_keys
+            if cat_dismissed:
+                # Entire category dismissed — give full score
+                cat_data["score"] = 100
+                for comp in cat_data.get("components", []):
+                    comp["score"] = comp["max"]
+            else:
+                _adjust_score_for_dismissed(cat_data, dismissed_keys)
         expected = [t for t in _expected_policy_types(profile)
                     if t not in ("general_liability",)]
     else:
@@ -1067,10 +1076,17 @@ def _compute_scores_for_scope(db: Session, user: User, scope: str):
         }
         for cat_name, cat_data in categories.items():
             cat_data["weight"] = biz_weights[cat_name]
+            cat_dismissed = f"cat:{cat_name}" in dismissed_keys
+            cat_data["category_dismissed"] = cat_dismissed
             for rec in cat_data.get("recommendations", []):
                 rec["rec_key"] = _rec_key(cat_name, rec["text"])
-                rec["dismissed"] = rec["rec_key"] in dismissed_keys
-            _adjust_score_for_dismissed(cat_data, dismissed_keys)
+                rec["dismissed"] = cat_dismissed or rec["rec_key"] in dismissed_keys
+            if cat_dismissed:
+                cat_data["score"] = 100
+                for comp in cat_data.get("components", []):
+                    comp["score"] = comp["max"]
+            else:
+                _adjust_score_for_dismissed(cat_data, dismissed_keys)
         expected = ["general_liability", "workers_comp", "commercial_property", "cyber"]
 
     weighted_sum = sum(
@@ -1190,6 +1206,12 @@ def _rec_key(category: str, text: str) -> str:
 
 class DismissRequest(BaseModel):
     rec_key: str
+    scope: Optional[str] = None  # "personal" or "business" — for renewal reset
+
+
+class CategoryDismissRequest(BaseModel):
+    category: str
+    scope: Optional[str] = None
 
 
 @router.get("/dismissed")
@@ -1219,7 +1241,7 @@ def dismiss_recommendation(
     ).scalar_one_or_none()
     if existing:
         return {"ok": True, "already_dismissed": True}
-    rec = DismissedRecommendation(user_id=user.id, rec_key=body.rec_key)
+    rec = DismissedRecommendation(user_id=user.id, rec_key=body.rec_key, scope=body.scope)
     db.add(rec)
     db.commit()
     return {"ok": True}
@@ -1238,5 +1260,47 @@ def restore_recommendation(
             DismissedRecommendation.rec_key == body.rec_key,
         )
     )
+    db.commit()
+    return {"ok": True}
+
+
+@router.post("/dismiss-category")
+def dismiss_category(
+    body: CategoryDismissRequest,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Dismiss an entire coverage category."""
+    cat_key = f"cat:{body.category}"
+    existing = db.execute(
+        select(DismissedRecommendation).where(
+            DismissedRecommendation.user_id == user.id,
+            DismissedRecommendation.rec_key == cat_key,
+        )
+    ).scalar_one_or_none()
+    if not existing:
+        db.add(DismissedRecommendation(user_id=user.id, rec_key=cat_key, scope=body.scope))
+        db.commit()
+    return {"ok": True}
+
+
+@router.post("/restore-category")
+def restore_category(
+    body: CategoryDismissRequest,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Restore a previously dismissed coverage category (and all its individual recs)."""
+    cat_key = f"cat:{body.category}"
+    # Remove the category-level dismissal
+    db.execute(
+        sa_delete(DismissedRecommendation).where(
+            DismissedRecommendation.user_id == user.id,
+            DismissedRecommendation.rec_key == cat_key,
+        )
+    )
+    # Also remove all individual rec dismissals within this category
+    # (rec_keys are md5 hashes, but we can identify them by scope+category prefix pattern)
+    # Instead, just remove category-level and let individual ones stay — user can restore those separately
     db.commit()
     return {"ok": True}

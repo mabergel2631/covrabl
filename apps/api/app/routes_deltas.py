@@ -5,7 +5,7 @@ Tracks and displays changes between policy versions.
 
 import json
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import select
+from sqlalchemy import select, delete as sa_delete
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from typing import Optional
@@ -334,6 +334,58 @@ def acknowledge_all_deltas(
 
         db.commit()
 
+    return {"ok": True}
+
+
+@router.delete("/deltas/clear-acknowledged")
+def delete_acknowledged_deltas(
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Delete all acknowledged alerts for the current user."""
+    check_feature(user, "deltas")
+    policy_ids = db.execute(
+        select(Policy.id).where(Policy.user_id == user.id)
+    ).scalars().all()
+    if policy_ids:
+        ack_deltas = db.execute(
+            select(PolicyDelta).where(
+                PolicyDelta.policy_id.in_(policy_ids),
+                PolicyDelta.is_acknowledged == True,
+            )
+        ).scalars().all()
+        ack_ids = [d.id for d in ack_deltas]
+        if ack_ids:
+            db.execute(sa_delete(DeltaExplanation).where(DeltaExplanation.delta_id.in_(ack_ids)))
+            db.execute(sa_delete(PolicyDelta).where(PolicyDelta.id.in_(ack_ids)))
+            db.commit()
+    return {"ok": True}
+
+
+@router.delete("/deltas/{delta_id}")
+def delete_delta(
+    delta_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Delete a single alert."""
+    check_feature(user, "deltas")
+    policy_ids = db.execute(
+        select(Policy.id).where(Policy.user_id == user.id)
+    ).scalars().all()
+    delta = db.execute(
+        select(PolicyDelta).where(
+            PolicyDelta.id == delta_id,
+            PolicyDelta.policy_id.in_(policy_ids),
+        )
+    ).scalar_one_or_none()
+    if not delta:
+        raise HTTPException(status_code=404, detail="Alert not found")
+    # Also remove any explanation
+    db.execute(sa_delete(DeltaExplanation).where(DeltaExplanation.delta_id == delta_id))
+    db.delete(delta)
+    db.commit()
+    return {"ok": True}
     return {"ok": True}
 
 

@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import select
+from sqlalchemy import select, delete as sa_delete
 from sqlalchemy.orm import Session, selectinload
 from typing import List, Optional
 from collections import defaultdict
@@ -7,7 +7,7 @@ from collections import defaultdict
 from .auth import get_current_user
 from .db import get_db
 from .models import Policy, Contact, CoverageItem, PolicyDetail, User, Exposure
-from .models_features import Premium, PolicyShare, Certificate, Claim, RenewalReminder, PremiumHistory, PolicyDelta
+from .models_features import Premium, PolicyShare, Certificate, Claim, RenewalReminder, PremiumHistory, PolicyDelta, DismissedRecommendation
 from .schemas import PolicyCreate, PolicyUpdate, PolicyOut, BusinessGroupRename, BusinessGroupDelete
 from .audit_helper import log_action
 from .routes_reminders import ensure_reminders
@@ -329,7 +329,7 @@ def create_policy(payload: PolicyCreate, db: Session = Depends(get_db), user: Us
     log_action(db, user.id, "created", "policy", policy.id)
     if policy.renewal_date:
         ensure_reminders(policy.id, policy.renewal_date, db)
-    # Auto-archive the replaced policy
+    # Auto-archive the replaced policy and reset dismissed recommendations
     if payload.replaces_policy_id:
         old = db.execute(
             select(Policy).where(
@@ -340,6 +340,15 @@ def create_policy(payload: PolicyCreate, db: Session = Depends(get_db), user: Us
         if old:
             old.status = "archived"
             log_action(db, user.id, "archived", "policy", old.id)
+            # Reset dismissed recommendations for this scope so user gets a fresh look
+            renewal_scope = policy.scope or old.scope  # "personal" or "business"
+            if renewal_scope:
+                db.execute(
+                    sa_delete(DismissedRecommendation).where(
+                        DismissedRecommendation.user_id == user.id,
+                        DismissedRecommendation.scope == renewal_scope,
+                    )
+                )
     db.commit()
     db.refresh(policy)
     return policy

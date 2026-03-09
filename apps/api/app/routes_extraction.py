@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
-from sqlalchemy import select
+from sqlalchemy import select, delete as sa_delete
 
 from .auth import get_current_user
 from .db import get_db
@@ -277,6 +277,16 @@ def confirm_extraction(document_id: int, payload: ConfirmExtraction, db: Session
             old.status = "archived"
             policy.replaces_policy_id = payload.replaces_policy_id
             log_action(db, user.id, "archived", "policy", old.id)
+            # Reset dismissed recommendations for this scope so user gets a fresh look
+            from .models_features import DismissedRecommendation
+            renewal_scope = policy.scope or old.scope
+            if renewal_scope:
+                db.execute(
+                    sa_delete(DismissedRecommendation).where(
+                        DismissedRecommendation.user_id == user.id,
+                        DismissedRecommendation.scope == renewal_scope,
+                    )
+                )
 
     # Auto-record premium history
     if payload.premium_amount is not None:

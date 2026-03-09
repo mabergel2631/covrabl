@@ -85,6 +85,24 @@ export default function AlertsPage() {
     }
   };
 
+  const handleDelete = async (deltaId: number) => {
+    try {
+      await deltasApi.delete(deltaId);
+      load();
+    } catch (err: any) {
+      setError(err.message);
+    }
+  };
+
+  const handleDeleteAcknowledged = async () => {
+    try {
+      await deltasApi.deleteAcknowledged();
+      load();
+    } catch (err: any) {
+      setError(err.message);
+    }
+  };
+
   const handleExplain = async (delta: PolicyDelta) => {
     if (explanations[delta.id]) return;
     setExplaining(delta.id);
@@ -116,15 +134,25 @@ export default function AlertsPage() {
             Changes detected in your policies
           </p>
         </div>
-        {unacknowledgedCount > 0 && (
-          <button
-            onClick={handleAcknowledgeAll}
-            className="btn btn-outline"
-            style={{ padding: '8px 16px', fontSize: 13 }}
-          >
-            Acknowledge All
-          </button>
-        )}
+        <div style={{ display: 'flex', gap: 8 }}>
+          {unacknowledgedCount > 0 && (
+            <button
+              onClick={handleAcknowledgeAll}
+              className="btn btn-outline"
+              style={{ padding: '8px 16px', fontSize: 13 }}
+            >
+              Acknowledge All
+            </button>
+          )}
+          {data && data.total > unacknowledgedCount && (
+            <button
+              onClick={handleDeleteAcknowledged}
+              style={{ padding: '8px 16px', fontSize: 13, border: '1px solid #fecaca', borderRadius: 'var(--radius-sm)', backgroundColor: '#fff', color: '#dc2626', cursor: 'pointer', fontWeight: 600 }}
+            >
+              Delete Acknowledged
+            </button>
+          )}
+        </div>
       </div>
 
       {error && <div className="alert alert-error">{error}</div>}
@@ -276,6 +304,12 @@ export default function AlertsPage() {
                       style={{ padding: '6px 12px', fontSize: 12 }}
                     >
                       View Policy
+                    </button>
+                    <button
+                      onClick={() => handleDelete(delta.id)}
+                      style={{ padding: '6px 12px', fontSize: 12, border: '1px solid #fecaca', borderRadius: 'var(--radius-sm)', backgroundColor: '#fff', color: '#dc2626', cursor: 'pointer', fontWeight: 500, marginLeft: 'auto' }}
+                    >
+                      Delete
                     </button>
                   </div>
                 </div>

@@ -1128,6 +1128,12 @@ export const deltasApi = {
   explain(deltaId: number): Promise<DeltaExplanation> {
     return request<DeltaExplanation>(`/deltas/${deltaId}/explain`, { method: "POST" });
   },
+  delete(deltaId: number): Promise<{ ok: boolean }> {
+    return request<{ ok: boolean }>(`/deltas/${deltaId}`, { method: "DELETE" });
+  },
+  deleteAcknowledged(): Promise<{ ok: boolean }> {
+    return request<{ ok: boolean }>(`/deltas/clear-acknowledged`, { method: "DELETE" });
+  },
 };
 
 // ── Coverage Score API ─────────────────────────────────────
@@ -1150,6 +1156,7 @@ export type ScoreRecommendation = {
 export type CategoryResult = {
   score: number;
   weight: number;
+  category_dismissed?: boolean;
   components: ScoreComponent[];
   recommendations: ScoreRecommendation[];
 };
@@ -1188,11 +1195,11 @@ export const scoresApi = {
   byScope(): Promise<{ personal: CoverageScoresResult | null; business: CoverageScoresResult | null }> {
     return request<{ personal: CoverageScoresResult | null; business: CoverageScoresResult | null }>("/coverage-scores/by-scope");
   },
-  dismiss(recKey: string): Promise<{ ok: boolean }> {
+  dismiss(recKey: string, scope?: string): Promise<{ ok: boolean }> {
     return request<{ ok: boolean }>("/coverage-scores/dismiss", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ rec_key: recKey }),
+      body: JSON.stringify({ rec_key: recKey, scope }),
     });
   },
   restore(recKey: string): Promise<{ ok: boolean }> {
@@ -1200,6 +1207,20 @@ export const scoresApi = {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ rec_key: recKey }),
+    });
+  },
+  dismissCategory(category: string, scope?: string): Promise<{ ok: boolean }> {
+    return request<{ ok: boolean }>("/coverage-scores/dismiss-category", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ category, scope }),
+    });
+  },
+  restoreCategory(category: string): Promise<{ ok: boolean }> {
+    return request<{ ok: boolean }>("/coverage-scores/restore-category", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ category }),
     });
   },
   recalculateScope(scope: string): Promise<CoverageScoresResult> {
