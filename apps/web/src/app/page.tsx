@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '../../lib/auth';
 import { scoresApi, deltasApi, renewalsApi, policiesApi, CoverageScoresResult, DeltaListResponse, RenewalSummaryResult, Policy } from '../../lib/api';
 import { APP_NAME, APP_TAGLINE, APP_CONTACT_EMAIL, ANNOUNCEMENT_BAR } from './config';
+import { POLICY_TYPE_CONFIG } from './constants';
 import Logo from './components/Logo';
 
 /* ── Scroll-reveal hook ─────────────────────────────── */
@@ -485,6 +486,24 @@ function Dashboard() {
   const unackCount = alerts?.unacknowledged_count ?? 0;
   const renewalPolicies = renewals?.policies?.slice(0, 3) ?? [];
   const activeCount = policies.filter(p => p.status !== 'archived').length;
+  const activePolicies = policies.filter(p => p.status !== 'archived' && p.status !== 'expired');
+  const urgentRenewals = (renewals?.policies ?? []).filter(r => r.days_until_renewal <= 30 && r.days_until_renewal >= 0);
+  const hasAttention = unackCount > 0 || urgentRenewals.length > 0;
+
+  // Coverage insights from score recommendations
+  const insights: { text: string; priority: string }[] = [];
+  if (scores?.categories) {
+    Object.values(scores.categories).forEach((cat: any) => {
+      (cat.recommendations ?? []).filter((r: any) => !r.dismissed).forEach((r: any) => {
+        insights.push({ text: r.text, priority: r.priority });
+      });
+    });
+  }
+  insights.sort((a, b) => {
+    const order: Record<string, number> = { high: 0, medium: 1, low: 2 };
+    return (order[a.priority] ?? 2) - (order[b.priority] ?? 2);
+  });
+  const topInsights = insights.slice(0, 3);
 
   return (
     <div style={{ padding: '32px 24px', maxWidth: 960, margin: '0 auto' }}>
@@ -494,123 +513,227 @@ function Dashboard() {
       </p>
 
       {loading ? (
-        <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap' }}>
-          {[1,2,3].map(i => (
-            <div key={i} style={{ flex: '1 1 280px', height: 180, borderRadius: 'var(--radius-md)', backgroundColor: 'var(--color-bg)', border: '1px solid var(--color-border)' }} />
-          ))}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+          <div style={{ height: 56, borderRadius: 'var(--radius-md)', backgroundColor: 'var(--color-bg)', border: '1px solid var(--color-border)' }} />
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 16 }}>
+            {[1,2,3,4].map(i => (
+              <div key={i} style={{ height: 140, borderRadius: 'var(--radius-md)', backgroundColor: 'var(--color-bg)', border: '1px solid var(--color-border)' }} />
+            ))}
+          </div>
         </div>
       ) : (
         <>
-          {/* Top row: Score + Alerts + Renewals */}
-          <div className="dashboard-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 20, marginBottom: 28 }}>
-
-            {/* Coverage Overview Widget */}
-            <div className="card" style={{ padding: 24, cursor: 'pointer' }} onClick={() => router.push('/score?scope=personal')}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 20 }}>
-                <div style={{
-                  width: 56, height: 56, borderRadius: '50%', flexShrink: 0,
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  backgroundColor: healthStatus.bg, color: healthStatus.color,
-                  fontSize: 24, fontWeight: 700,
-                }}>
-                  {healthStatus.icon}
-                </div>
-                <div>
-                  <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--color-text)', marginBottom: 4 }}>Coverage Overview</div>
-                  <div style={{
-                    display: 'inline-block', padding: '2px 10px', borderRadius: 10,
-                    fontSize: 12, fontWeight: 600,
-                    backgroundColor: healthStatus.bg, color: healthStatus.color,
-                    marginBottom: 4,
-                  }}>
-                    {healthStatus.label}
-                  </div>
-                  <div style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>
-                    {scores ? `${scores.policies_analyzed} policies analyzed` : 'No data yet'}
-                  </div>
-                  {scores?.confidence && (
-                    <div style={{ fontSize: 11, color: healthStatus.color, fontWeight: 600, marginTop: 4, textTransform: 'capitalize' }}>
-                      {scores.confidence} confidence
-                    </div>
-                  )}
-                </div>
-              </div>
+          {/* ── Section 1: Coverage Status Bar ── */}
+          <div
+            onClick={() => router.push('/score')}
+            style={{
+              padding: '14px 20px', marginBottom: 20, cursor: 'pointer',
+              backgroundColor: 'var(--color-surface)', border: '1px solid var(--color-border)',
+              borderLeft: `4px solid ${healthStatus.color}`,
+              borderRadius: 'var(--radius-md)',
+              display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap',
+            }}
+          >
+            <div style={{
+              width: 32, height: 32, borderRadius: '50%', flexShrink: 0,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              backgroundColor: healthStatus.bg, color: healthStatus.color,
+              fontSize: 16, fontWeight: 700,
+            }}>
+              {healthStatus.icon}
             </div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--color-text)' }}>Coverage Status: </span>
+              <span style={{ fontSize: 14, fontWeight: 600, color: healthStatus.color }}>{healthStatus.label}</span>
+              <span style={{ fontSize: 13, color: 'var(--color-text-muted)', marginLeft: 12 }}>
+                {activeCount} active {activeCount === 1 ? 'policy' : 'policies'}
+                {unackCount > 0 && <> &middot; <span style={{ color: 'var(--color-danger)', fontWeight: 600 }}>{unackCount} alert{unackCount !== 1 ? 's' : ''}</span></>}
+              </span>
+            </div>
+            <span style={{ fontSize: 12, color: 'var(--color-primary)', fontWeight: 600, whiteSpace: 'nowrap' }}>
+              View details &rarr;
+            </span>
+          </div>
 
-            {/* Alerts Summary */}
-            <div className="card" style={{ padding: 24, cursor: 'pointer' }} onClick={() => router.push('/audit')}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
-                <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--color-text)' }}>Alerts</div>
+          {/* ── Section 2: Important Alerts (only when items need attention) ── */}
+          {hasAttention && (
+            <div className="card" style={{ padding: 20, marginBottom: 20 }}>
+              <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--color-text)', marginBottom: 12 }}>Needs Attention</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {alerts?.items?.slice(0, 3).map(d => (
+                  <div key={`a-${d.id}`} onClick={() => router.push('/audit')} style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13, color: 'var(--color-text-secondary)', cursor: 'pointer' }}>
+                    <span style={{
+                      width: 7, height: 7, borderRadius: '50%', flexShrink: 0,
+                      backgroundColor: d.severity === 'critical' ? 'var(--color-danger)' : d.severity === 'warning' ? 'var(--color-warning)' : 'var(--color-text-muted)',
+                    }} />
+                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {d.policy_carrier || 'Policy'}: {d.field_key} {d.delta_type}
+                    </span>
+                  </div>
+                ))}
+                {urgentRenewals.map(rp => (
+                  <div key={`r-${rp.id}`} onClick={() => router.push('/renewals')} style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13, color: 'var(--color-text-secondary)', cursor: 'pointer' }}>
+                    <span style={{
+                      width: 7, height: 7, borderRadius: '50%', flexShrink: 0,
+                      backgroundColor: rp.days_until_renewal <= 14 ? 'var(--color-danger)' : 'var(--color-warning)',
+                    }} />
+                    <span>
+                      {rp.nickname || `${rp.carrier} ${rp.policy_type}`} — {rp.days_until_renewal <= 0 ? 'Renewal overdue' : `Renews in ${rp.days_until_renewal} days`}
+                    </span>
+                  </div>
+                ))}
+              </div>
+              <div style={{ display: 'flex', gap: 16, marginTop: 12 }}>
                 {unackCount > 0 && (
-                  <span style={{ padding: '2px 10px', borderRadius: 12, fontSize: 12, fontWeight: 700, backgroundColor: 'var(--color-danger-bg)', color: 'var(--color-danger)' }}>
-                    {unackCount} new
-                  </span>
+                  <span onClick={() => router.push('/audit')} style={{ fontSize: 12, color: 'var(--color-primary)', fontWeight: 600, cursor: 'pointer' }}>View all alerts &rarr;</span>
+                )}
+                {urgentRenewals.length > 0 && (
+                  <span onClick={() => router.push('/renewals')} style={{ fontSize: 12, color: 'var(--color-primary)', fontWeight: 600, cursor: 'pointer' }}>View renewals &rarr;</span>
                 )}
               </div>
-              {alerts?.items && alerts.items.length > 0 ? (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  {alerts.items.slice(0, 3).map(d => (
-                    <div key={d.id} style={{ fontSize: 13, color: 'var(--color-text-secondary)', display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <span style={{
-                        width: 6, height: 6, borderRadius: '50%', flexShrink: 0,
-                        backgroundColor: d.severity === 'high' ? 'var(--color-danger)' : d.severity === 'medium' ? 'var(--color-warning)' : 'var(--color-text-muted)',
-                      }} />
-                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {d.policy_carrier || 'Policy'}: {d.field_key} changed
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div style={{ fontSize: 13, color: 'var(--color-text-muted)' }}>No unacknowledged alerts</div>
+            </div>
+          )}
+
+          {/* ── Section 3: Your Policies (main section) ── */}
+          <div style={{ marginBottom: 20 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+              <h2 style={{ margin: 0, fontSize: 17, fontWeight: 700, color: 'var(--color-text)' }}>Your Policies</h2>
+              {activePolicies.length > 0 && (
+                <span onClick={() => router.push('/policies')} style={{ fontSize: 12, color: 'var(--color-primary)', fontWeight: 600, cursor: 'pointer' }}>
+                  Manage all &rarr;
+                </span>
               )}
-              <div style={{ marginTop: 12, fontSize: 12, color: 'var(--color-primary)', fontWeight: 600 }}>View all</div>
             </div>
 
-            {/* Upcoming Renewals */}
-            <div className="card" style={{ padding: 24, cursor: 'pointer' }} onClick={() => router.push('/renewals')}>
-              <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--color-text)', marginBottom: 12 }}>Upcoming Renewals</div>
-              {renewalPolicies.length > 0 ? (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                  {renewalPolicies.map(rp => {
-                    const daysLeft = rp.days_until_renewal;
-                    const urgent = daysLeft <= 14;
-                    return (
-                      <div key={rp.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 13 }}>
-                        <span style={{ color: 'var(--color-text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, marginRight: 8 }}>
-                          {rp.nickname || `${rp.carrier} ${rp.policy_type}`}
-                        </span>
-                        <span style={{ fontWeight: 600, fontSize: 12, color: urgent ? 'var(--color-danger)' : 'var(--color-text-muted)', whiteSpace: 'nowrap' }}>
-                          {daysLeft <= 0 ? 'Overdue' : `${daysLeft}d left`}
-                        </span>
+            {activePolicies.length === 0 ? (
+              <div className="card" style={{ padding: 48, textAlign: 'center' }}>
+                <div style={{ fontSize: 40, marginBottom: 12 }}>📄</div>
+                <div style={{ fontSize: 16, fontWeight: 600, color: 'var(--color-text)', marginBottom: 8 }}>No policies yet</div>
+                <div style={{ fontSize: 14, color: 'var(--color-text-muted)', marginBottom: 20 }}>Upload your first policy to get started with coverage analysis.</div>
+                <button onClick={() => router.push('/policies?action=upload')} className="btn btn-primary" style={{ padding: '10px 24px', fontSize: 14 }}>
+                  Upload Your First Policy
+                </button>
+              </div>
+            ) : (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 16 }}>
+                {activePolicies.map(p => {
+                  const cfg = POLICY_TYPE_CONFIG[p.policy_type] || { icon: '📋', label: p.policy_type };
+                  const renewalInfo = p.renewal_date ? (() => {
+                    const days = Math.ceil((new Date(p.renewal_date).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+                    if (days < 0) return { label: 'Overdue', color: 'var(--color-danger)' };
+                    if (days <= 14) return { label: `${days}d left`, color: 'var(--color-danger)' };
+                    if (days <= 30) return { label: `${days}d left`, color: 'var(--color-warning-dark)' };
+                    return { label: new Date(p.renewal_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }), color: 'var(--color-text-muted)' };
+                  })() : null;
+
+                  return (
+                    <div
+                      key={p.id}
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => router.push(`/policies/${p.id}`)}
+                      onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); router.push(`/policies/${p.id}`); } }}
+                      style={{
+                        backgroundColor: '#fff', border: '1px solid var(--color-border)',
+                        borderRadius: 'var(--radius-lg)', cursor: 'pointer',
+                        padding: 20, display: 'flex', flexDirection: 'column', gap: 10,
+                        transition: 'border-color 0.15s, box-shadow 0.15s',
+                      }}
+                      onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--color-primary)'; e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.06)'; }}
+                      onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--color-border)'; e.currentTarget.style.boxShadow = 'none'; }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                        <span style={{ fontSize: 24 }}>{cfg.icon}</span>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--color-text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {p.nickname || p.carrier}
+                          </div>
+                          <div style={{ fontSize: 12, color: 'var(--color-text-muted)', marginTop: 1 }}>
+                            {cfg.label}{p.business_name ? ` \u00b7 ${p.business_name}` : ''}
+                          </div>
+                        </div>
                       </div>
-                    );
-                  })}
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8 }}>
+                        <div>
+                          <div style={{ fontSize: 11, color: 'var(--color-text-muted)', fontWeight: 500 }}>Premium</div>
+                          <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--color-text)' }}>
+                            {p.premium_amount ? `$${p.premium_amount.toLocaleString()}` : '\u2014'}
+                          </div>
+                        </div>
+                        <div style={{ textAlign: 'right' }}>
+                          <div style={{ fontSize: 11, color: 'var(--color-text-muted)', fontWeight: 500 }}>Expiration</div>
+                          <div style={{ fontSize: 13, fontWeight: 600, color: renewalInfo?.color || 'var(--color-text)' }}>
+                            {renewalInfo ? renewalInfo.label : '\u2014'}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+
+                {/* + Add Policy card */}
+                <div
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => router.push('/policies?action=upload')}
+                  onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); router.push('/policies?action=upload'); } }}
+                  style={{
+                    border: '2px dashed var(--color-border)', borderRadius: 'var(--radius-lg)',
+                    cursor: 'pointer', padding: 20, display: 'flex', flexDirection: 'column',
+                    alignItems: 'center', justifyContent: 'center', gap: 8, minHeight: 120,
+                    transition: 'border-color 0.15s, background-color 0.15s',
+                  }}
+                  onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--color-primary)'; e.currentTarget.style.backgroundColor = 'rgba(13,148,136,0.03)'; }}
+                  onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--color-border)'; e.currentTarget.style.backgroundColor = 'transparent'; }}
+                >
+                  <span style={{ fontSize: 28, color: 'var(--color-text-muted)' }}>+</span>
+                  <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-text-muted)' }}>Add Policy</span>
                 </div>
-              ) : (
-                <div style={{ fontSize: 13, color: 'var(--color-text-muted)' }}>No upcoming renewals</div>
-              )}
-              <div style={{ marginTop: 12, fontSize: 12, color: 'var(--color-primary)', fontWeight: 600 }}>View all</div>
-            </div>
+              </div>
+            )}
           </div>
 
-          {/* Quick Actions */}
-          <div className="card" style={{ padding: 24, marginBottom: 28 }}>
-            <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--color-text)', marginBottom: 16 }}>Quick Actions</div>
-            <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-              <button onClick={() => router.push('/policies?action=upload')} className="btn btn-primary" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                Upload Policy
-              </button>
-              <button onClick={() => router.push('/chat')} className="btn btn-outline" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <span style={{ fontSize: 14 }}>&#10024;</span> Ask AI
-              </button>
-              <button onClick={() => router.push('/policies/compare')} className="btn btn-outline">
-                Compare Policies
-              </button>
+          {/* ── Section 4: Coverage Insights (advisory) ── */}
+          {topInsights.length > 0 && (
+            <div style={{
+              padding: '16px 20px', marginBottom: 20,
+              backgroundColor: 'var(--color-bg)', border: '1px solid var(--color-border)',
+              borderRadius: 'var(--radius-md)',
+            }}>
+              <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--color-text)', marginBottom: 10 }}>Coverage Insights</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {topInsights.map((ins, i) => (
+                  <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13, color: 'var(--color-text-secondary)' }}>
+                    <span style={{
+                      padding: '1px 8px', borderRadius: 10, fontSize: 10, fontWeight: 600, flexShrink: 0,
+                      backgroundColor: ins.priority === 'high' ? 'var(--color-danger-light)' : ins.priority === 'medium' ? 'var(--color-warning-light)' : 'var(--color-info-light)',
+                      color: ins.priority === 'high' ? 'var(--color-danger-dark)' : ins.priority === 'medium' ? 'var(--color-warning-dark)' : 'var(--color-info-dark)',
+                    }}>
+                      {ins.priority}
+                    </span>
+                    <span>{ins.text}</span>
+                  </div>
+                ))}
+              </div>
+              <div style={{ marginTop: 10 }}>
+                <span onClick={() => router.push('/score')} style={{ fontSize: 12, color: 'var(--color-primary)', fontWeight: 600, cursor: 'pointer' }}>
+                  View coverage details &rarr;
+                </span>
+              </div>
             </div>
+          )}
+
+          {/* ── Section 5: Quick Actions ── */}
+          <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 20 }}>
+            <button onClick={() => router.push('/chat')} className="btn btn-outline" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span style={{ fontSize: 14 }}>&#10024;</span> Ask AI
+            </button>
+            <button onClick={() => router.push('/policies/compare')} className="btn btn-outline">
+              Compare Policies
+            </button>
           </div>
 
-          {/* Security Trust Banner */}
+          {/* ── Section 6: Security Trust Banner ── */}
           <div style={{
             padding: '12px 20px', marginBottom: 28,
             backgroundColor: '#f0fdf4', border: '1px solid #bbf7d0',
