@@ -2090,58 +2090,46 @@ export default function PolicyDetailPage() {
 
         async function handleLeaseViewResults(req: LeaseRequirement) {
           setLeaseActiveReqId(req.id);
-          if (req.latest_check) {
-            try {
-              const checks = await leaseComplianceApi.listChecks(req.id);
-              if (checks.length > 0) {
-                const latest = checks[0];
-                const parsed = typeof latest.results_json === 'string' ? JSON.parse(latest.results_json) : (latest as any).results || [];
-                setLeaseResults(parsed);
-                setLeaseCheckCounts({ pass: latest.pass_count, fail: latest.fail_count, unclear: latest.unclear_count });
-                // Show what was checked against — include tenant name if available
-                if (latest.tenant_name || latest.tenant_email) {
-                  setLeaseCheckedAgainst(`${latest.tenant_name || latest.tenant_email || 'Tenant'}'s certificate`);
-                } else if (latest.checked_against === 'certificate') {
-                  setLeaseCheckedAgainst('certificate');
-                } else if (latest.checked_against === 'policy') {
-                  setLeaseCheckedAgainst(`${policy!.carrier ? policy!.carrier + ' ' : ''}${policy!.policy_type.replace(/_/g, ' ')} policy`);
-                } else {
-                  setLeaseCheckedAgainst('all policies');
-                }
-              }
-            } catch {
-              toast('Could not load check results', 'error');
-              setLeaseResults([]);
-              setLeaseCheckCounts({ pass: 0, fail: 0, unclear: 0 });
-              setLeaseCheckedAgainst('');
-            }
-          } else {
-            // No latest_check from the standard flow — check if tenants have submitted
-            const submittedTenant = req.tenants?.find(t => t.submitted_at);
-            if (submittedTenant) {
-              try {
-                const checks = await leaseComplianceApi.listChecks(req.id);
-                const tenantCheck = checks.find((c: any) => c.id === submittedTenant.check_id);
-                if (tenantCheck) {
-                  const parsed = typeof tenantCheck.results_json === 'string' ? JSON.parse(tenantCheck.results_json) : [];
-                  setLeaseResults(parsed);
-                  setLeaseCheckCounts({ pass: tenantCheck.pass_count, fail: tenantCheck.fail_count, unclear: tenantCheck.unclear_count });
-                  setLeaseCheckedAgainst(`${submittedTenant.tenant_name || submittedTenant.tenant_email || 'Tenant'}'s certificate`);
-                } else {
-                  setLeaseResults([]);
-                  setLeaseCheckCounts({ pass: 0, fail: 0, unclear: 0 });
-                  setLeaseCheckedAgainst('');
-                }
-              } catch {
-                setLeaseResults([]);
-                setLeaseCheckCounts({ pass: 0, fail: 0, unclear: 0 });
-                setLeaseCheckedAgainst('');
+          // Always refresh the requirement data so we have fresh latest_check / tenants
+          let freshReq = req;
+          try {
+            const freshReqs = await leaseComplianceApi.list(undefined, policyId);
+            setLeaseReqs(freshReqs);
+            freshReq = freshReqs.find(r => r.id === req.id) || req;
+          } catch { /* use stale req */ }
+
+          // Load check results from API
+          try {
+            const checks = await leaseComplianceApi.listChecks(req.id);
+            if (checks.length > 0) {
+              // Prefer the tenant-submitted check if available, otherwise the latest
+              const submittedTenant = freshReq.tenants?.find(t => t.submitted_at);
+              const targetCheck = submittedTenant
+                ? checks.find((c: any) => c.id === submittedTenant.check_id) || checks[0]
+                : checks[0];
+              const parsed = typeof targetCheck.results_json === 'string' ? JSON.parse(targetCheck.results_json) : (targetCheck as any).results || [];
+              setLeaseResults(parsed);
+              setLeaseCheckCounts({ pass: targetCheck.pass_count, fail: targetCheck.fail_count, unclear: targetCheck.unclear_count });
+              // Determine what was checked against
+              if (targetCheck.tenant_name || targetCheck.tenant_email) {
+                setLeaseCheckedAgainst(`${targetCheck.tenant_name || targetCheck.tenant_email || 'Tenant'}'s certificate`);
+              } else if (targetCheck.checked_against === 'certificate') {
+                setLeaseCheckedAgainst('certificate');
+              } else if (targetCheck.checked_against === 'policy') {
+                setLeaseCheckedAgainst(`${policy!.carrier ? policy!.carrier + ' ' : ''}${policy!.policy_type.replace(/_/g, ' ')} policy`);
+              } else {
+                setLeaseCheckedAgainst('all policies');
               }
             } else {
               setLeaseResults([]);
               setLeaseCheckCounts({ pass: 0, fail: 0, unclear: 0 });
               setLeaseCheckedAgainst('');
             }
+          } catch {
+            toast('Could not load check results', 'error');
+            setLeaseResults([]);
+            setLeaseCheckCounts({ pass: 0, fail: 0, unclear: 0 });
+            setLeaseCheckedAgainst('');
           }
           setLeaseView('results');
         }
