@@ -451,7 +451,7 @@ async def check_document(
     fail_count = sum(1 for r in results if r["status"] == "fail")
     unclear_count = sum(1 for r in results if r["status"] == "unclear")
 
-    # Save check
+    # Save check (store PDF in DB so it survives ephemeral filesystem)
     check = ComplianceCheck(
         user_id=user.id,
         lease_requirement_id=req.id,
@@ -461,6 +461,7 @@ async def check_document(
         fail_count=fail_count,
         unclear_count=unclear_count,
         coi_file_key=coi_file_key,
+        coi_file_data=content,
         submitted_at=datetime.now(timezone.utc),
     )
     db.add(check)
@@ -517,21 +518,40 @@ def download_coi_document(
     db: Session = Depends(get_db),
 ):
     """Download the tenant's uploaded COI document."""
+    # Allow both the check owner AND the lease requirement owner to download
     check = db.execute(
-        select(ComplianceCheck).where(
-            ComplianceCheck.id == check_id,
-            ComplianceCheck.user_id == user.id,
-        )
+        select(ComplianceCheck).where(ComplianceCheck.id == check_id)
     ).scalar_one_or_none()
     if not check:
         raise HTTPException(status_code=404, detail="Check not found")
+    # Verify the current user owns either the check or the parent requirement
+    if check.user_id != user.id:
+        req = db.execute(
+            select(LeaseRequirement).where(
+                LeaseRequirement.id == check.lease_requirement_id,
+                LeaseRequirement.user_id == user.id,
+            )
+        ).scalar_one_or_none()
+        if not req:
+            raise HTTPException(status_code=404, detail="Check not found")
     if not check.coi_file_key:
         raise HTTPException(status_code=404, detail="No document attached to this check")
 
+    # Serve from database blob (survives Railway redeploys)
+    if check.coi_file_data:
+        from fastapi.responses import Response
+        filename = Path(check.coi_file_key).name if check.coi_file_key else "certificate.pdf"
+        return Response(
+            content=check.coi_file_data,
+            media_type="application/pdf",
+            headers={"Content-Disposition": f'inline; filename="{filename}"'},
+        )
+
+    # Fallback: serve from local disk
     upload_dir = Path(__file__).resolve().parent.parent / "uploads"
     file_path = upload_dir / check.coi_file_key
     if not file_path.exists():
-        raise HTTPException(status_code=404, detail="Document file not found")
+        raise HTTPException(status_code=404, detail="Document file not found on server")
 
     from fastapi.responses import FileResponse
     return FileResponse(
@@ -925,7 +945,7 @@ async def submit_coi_public(
     fail_count = sum(1 for r in results if r["status"] == "fail")
     unclear_count = sum(1 for r in results if r["status"] == "unclear")
 
-    # Save the check
+    # Save the check (store PDF in DB so it survives ephemeral filesystem)
     check = ComplianceCheck(
         user_id=req.user_id,
         lease_requirement_id=req.id,
@@ -937,6 +957,7 @@ async def submit_coi_public(
         tenant_name=tenant_name or None,
         tenant_email=tenant_email or None,
         coi_file_key=coi_file_key,
+        coi_file_data=content,
         submitted_at=datetime.now(timezone.utc),
     )
     db.add(check)

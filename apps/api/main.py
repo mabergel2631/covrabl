@@ -161,6 +161,8 @@ def on_startup():
         with engine.begin() as conn:
             if "coi_file_key" not in cc_cols:
                 conn.execute(text("ALTER TABLE compliance_checks ADD COLUMN coi_file_key VARCHAR(500)"))
+            if "coi_file_data" not in cc_cols:
+                conn.execute(text("ALTER TABLE compliance_checks ADD COLUMN coi_file_data BLOB"))
     # One-time migration: normalize all emails to lowercase
     with engine.begin() as conn:
         conn.execute(text("UPDATE users SET email = lower(email) WHERE email != lower(email)"))
