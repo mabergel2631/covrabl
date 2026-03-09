@@ -1,5 +1,6 @@
 """Lease compliance routes — extract requirements, compare, share."""
 
+import asyncio
 import json
 import logging
 import secrets
@@ -101,7 +102,7 @@ async def extract_lease_pdf(
 
     extractor = get_extractor()
     try:
-        result = extractor.extract_lease_images(images)
+        result = await asyncio.to_thread(extractor.extract_lease_images, images)
     except Exception as e:
         logger.exception("Lease PDF extraction failed")
         raise HTTPException(status_code=500, detail=f"Extraction failed: {str(e)}")
@@ -410,10 +411,10 @@ async def check_document(
         logger.exception("PDF conversion failed")
         raise HTTPException(status_code=400, detail=f"Could not process PDF: {str(e)}")
 
-    # Extract COI data
+    # Extract COI data (run in thread to avoid blocking event loop)
     extractor = get_extractor()
     try:
-        coi_result = extractor.extract_coi_images(images)
+        coi_result = await asyncio.to_thread(extractor.extract_coi_images, images)
     except Exception as e:
         logger.exception("COI extraction failed")
         raise HTTPException(status_code=500, detail=f"Certificate extraction failed: {str(e)}")
@@ -886,7 +887,7 @@ async def submit_coi_public(
 
     extractor = get_extractor()
     try:
-        coi_result = extractor.extract_coi_images(images)
+        coi_result = await asyncio.to_thread(extractor.extract_coi_images, images)
     except Exception as e:
         logger.exception("COI extraction failed")
         raise HTTPException(status_code=500, detail=f"Certificate extraction failed: {str(e)}")
