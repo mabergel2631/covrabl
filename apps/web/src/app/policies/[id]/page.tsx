@@ -2016,9 +2016,10 @@ export default function PolicyDetailPage() {
           setLeaseEditableReqs(reqs);
           setLeaseFormLabel(existing.label || '');
           setLeaseFormPropertyAddress(existing.property_address || '');
-          setLeaseFormCounterpartyName('');
-          setLeaseFormCounterpartyEmail('');
-          setLeaseFormRole(existing.role);
+          // Pre-fill counterparty from the existing requirement's counterparty
+          setLeaseFormCounterpartyName(existing.counterparty_name || '');
+          setLeaseFormCounterpartyEmail(existing.counterparty_email || '');
+          // Keep the user's currently selected role — don't override with the stored role
           setLeaseExtraction(null);
           setLeaseCreateStep(2);
         }
