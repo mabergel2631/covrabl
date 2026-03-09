@@ -309,6 +309,18 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             );
           })}
         {children}
+
+        {/* Trust Footer */}
+        <div style={{
+          padding: '16px 24px', marginTop: 40,
+          borderTop: '1px solid var(--color-border)',
+          display: 'flex', justifyContent: 'center', gap: 20,
+          fontSize: 11, color: 'var(--color-text-muted)',
+        }}>
+          <span>&#128274; Encrypted Storage</span>
+          <span>&#128737;&#65039; Private Vault</span>
+          <span onClick={() => router.push('/security')} style={{ cursor: 'pointer', color: 'var(--color-text-muted)' }}>Security &amp; Privacy</span>
+        </div>
       </div>
 
       {/* Floating SOS Button — hidden on emergency and chat pages */}

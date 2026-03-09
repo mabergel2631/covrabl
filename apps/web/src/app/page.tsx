@@ -609,6 +609,21 @@ function Dashboard() {
               </button>
             </div>
           </div>
+
+          {/* Security Trust Banner */}
+          <div style={{
+            padding: '12px 20px', marginBottom: 28,
+            backgroundColor: '#f0fdf4', border: '1px solid #bbf7d0',
+            borderRadius: 'var(--radius-md)',
+            display: 'flex', alignItems: 'center', gap: 10,
+            fontSize: 12, color: '#166534',
+          }}>
+            <span style={{ fontSize: 16 }}>&#128274;</span>
+            <span><strong>Secure Policy Vault</strong> — Your documents are encrypted and stored privately. Only you control access.</span>
+            <span onClick={() => router.push('/security')} style={{ marginLeft: 'auto', cursor: 'pointer', fontWeight: 600, whiteSpace: 'nowrap' }}>
+              Security &amp; Privacy &rarr;
+            </span>
+          </div>
         </>
       )}
     </div>
@@ -1470,9 +1485,15 @@ export default function Home() {
       ═══════════════════════════════════════════════════════════════ */}
       <footer style={{ padding: '32px 24px', borderTop: '1px solid var(--color-border)', color: 'var(--color-text-muted)', fontSize: 13 }}>
         <div style={{ maxWidth: 700, margin: '0 auto' }}>
+          <div style={{ display: 'flex', justifyContent: 'center', gap: 20, marginBottom: 12, fontSize: 11, color: 'var(--color-text-muted)' }}>
+            <span>&#128274; Encrypted Storage</span>
+            <span>&#128737;&#65039; Secure Infrastructure</span>
+            <span>&#128272; Private Access</span>
+          </div>
           <div style={{ display: 'flex', justifyContent: 'center', gap: 24, marginBottom: 16 }}>
             <span onClick={() => router.push('/privacy')} style={{ cursor: 'pointer' }}>Privacy</span>
             <span onClick={() => router.push('/terms')} style={{ cursor: 'pointer' }}>Terms</span>
+            <span onClick={() => router.push('/security')} style={{ cursor: 'pointer' }}>Security</span>
             <span onClick={() => router.push('/support')} style={{ cursor: 'pointer' }}>Support</span>
             <a href={`mailto:${APP_CONTACT_EMAIL}`} style={{ color: 'var(--color-text-muted)', textDecoration: 'none' }}>{APP_CONTACT_EMAIL}</a>
           </div>

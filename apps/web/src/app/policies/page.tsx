@@ -1219,7 +1219,7 @@ function PoliciesPageInner() {
                   >
                     <div style={{ fontSize: 40, marginBottom: 12 }}>📄</div>
                     <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--color-text)', marginBottom: 4 }}>
-                      Drop a PDF here or click to browse
+                      Drop a PDF here or click to upload securely
                     </div>
                     <div style={{ fontSize: 13, color: 'var(--color-text-muted)' }}>
                       We&apos;ll extract carrier, limits, deductibles, and more
@@ -1234,6 +1234,13 @@ function PoliciesPageInner() {
                         if (file) handleFirstTimeUpload(file);
                       }}
                     />
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'center', gap: 16, marginTop: 12, fontSize: 11, color: 'var(--color-text-muted)' }}>
+                    <span>&#128274; Encrypted Storage</span>
+                    <span>&#183;</span>
+                    <span>&#128737;&#65039; Private Vault</span>
+                    <span>&#183;</span>
+                    <span>&#128272; No Data Sharing</span>
                   </div>
                   <div style={{ marginTop: 16, display: 'flex', gap: 16, justifyContent: 'center', alignItems: 'center' }}>
                     <button
@@ -1837,7 +1844,13 @@ function PoliciesPageInner() {
                     Our AI reads your policy and organizes coverage instantly.
                   </p>
                   <input ref={createFileRef} type="file" accept=".pdf" style={{ marginBottom: 8 }} />
-                  <div style={{ fontSize: 11, color: 'var(--color-text-muted)', marginBottom: 12 }}>&#128274; Your documents are encrypted and never shared.</div>
+                  <div style={{ display: 'flex', justifyContent: 'center', gap: 16, fontSize: 11, color: 'var(--color-text-muted)', marginBottom: 12 }}>
+                    <span>&#128274; Encrypted Storage</span>
+                    <span>&#183;</span>
+                    <span>&#128737;&#65039; Private Vault</span>
+                    <span>&#183;</span>
+                    <span>&#128272; No Data Sharing</span>
+                  </div>
                   <div>
                     <button
                       onClick={handleUpload}
@@ -1845,7 +1858,7 @@ function PoliciesPageInner() {
                       className="btn btn-accent"
                       style={{ padding: '14px 32px', fontSize: 15, fontWeight: 600 }}
                     >
-                      {extracting ? 'Extracting...' : uploading ? 'Uploading...' : 'Upload & Extract'}
+                      {extracting ? 'Extracting...' : uploading ? 'Uploading...' : '&#128274; Upload & Extract'}
                     </button>
                   </div>
 

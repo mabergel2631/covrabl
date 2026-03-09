@@ -1774,10 +1774,16 @@ export default function PolicyDetailPage() {
               </select>
               <input ref={fileRef} type="file" style={{ fontSize: 14, minWidth: 0 }} />
               <button onClick={handleUpload} disabled={uploading} className="btn btn-accent">
-                {uploading ? 'Uploading...' : 'Upload'}
+                {uploading ? 'Uploading...' : '\u{1F512} Upload'}
               </button>
             </div>
-            <div style={{ fontSize: 11, color: 'var(--color-text-muted)', marginBottom: 12 }}>&#128274; Your documents are encrypted and never shared.</div>
+            <div style={{ display: 'flex', gap: 16, fontSize: 11, color: 'var(--color-text-muted)', marginBottom: 12 }}>
+              <span>&#128274; Encrypted Storage</span>
+              <span>&#183;</span>
+              <span>&#128737;&#65039; Private Vault</span>
+              <span>&#183;</span>
+              <span>&#128272; No Data Sharing</span>
+            </div>
           </>
         )}
 

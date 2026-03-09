@@ -142,6 +142,10 @@ export default function LoginPage() {
             </button>
           </form>
 
+          <p style={{ marginTop: 12, textAlign: 'center', fontSize: 11, color: 'var(--color-text-muted)', lineHeight: 1.5 }}>
+            &#128274; Your insurance documents remain private. {APP_NAME} analyzes them only to provide coverage insights.
+          </p>
+
           <p style={{ marginTop: 20, textAlign: 'center', fontSize: 13, color: 'var(--color-text-secondary)' }}>
             {mode === 'login' ? "Don't have an account? " : 'Already have an account? '}
             <button
