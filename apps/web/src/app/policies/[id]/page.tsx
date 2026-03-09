@@ -2110,9 +2110,32 @@ export default function PolicyDetailPage() {
               setLeaseCheckedAgainst('');
             }
           } else {
-            setLeaseResults([]);
-            setLeaseCheckCounts({ pass: 0, fail: 0, unclear: 0 });
-            setLeaseCheckedAgainst('');
+            // No latest_check from the standard flow — check if tenants have submitted
+            const submittedTenant = req.tenants?.find(t => t.submitted_at);
+            if (submittedTenant) {
+              try {
+                const checks = await leaseComplianceApi.listChecks(req.id);
+                const tenantCheck = checks.find((c: any) => c.id === submittedTenant.check_id);
+                if (tenantCheck) {
+                  const parsed = typeof tenantCheck.results_json === 'string' ? JSON.parse(tenantCheck.results_json) : [];
+                  setLeaseResults(parsed);
+                  setLeaseCheckCounts({ pass: tenantCheck.pass_count, fail: tenantCheck.fail_count, unclear: tenantCheck.unclear_count });
+                  setLeaseCheckedAgainst(`${submittedTenant.tenant_name || submittedTenant.tenant_email || 'Tenant'}'s certificate`);
+                } else {
+                  setLeaseResults([]);
+                  setLeaseCheckCounts({ pass: 0, fail: 0, unclear: 0 });
+                  setLeaseCheckedAgainst('');
+                }
+              } catch {
+                setLeaseResults([]);
+                setLeaseCheckCounts({ pass: 0, fail: 0, unclear: 0 });
+                setLeaseCheckedAgainst('');
+              }
+            } else {
+              setLeaseResults([]);
+              setLeaseCheckCounts({ pass: 0, fail: 0, unclear: 0 });
+              setLeaseCheckedAgainst('');
+            }
           }
           setLeaseView('results');
         }
@@ -2437,7 +2460,8 @@ export default function PolicyDetailPage() {
               const activeReq = leaseReqs.find(r => r.id === leaseActiveReqId);
               const isLandlord = activeReq?.role === 'landlord';
               const hasResults = leaseResults.length > 0;
-              const landlordNoCheck = isLandlord && !hasResults && !leaseChecking;
+              const hasTenantSubmissions = activeReq?.tenants?.some(t => t.submitted_at);
+              const landlordNoCheck = isLandlord && !hasResults && !leaseChecking && !hasTenantSubmissions;
               return (
                 <>
                   <div style={{ marginBottom: 16 }}>
