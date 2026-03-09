@@ -9,7 +9,7 @@ from fastapi.responses import JSONResponse
 from app.db import engine, Base
 from app.models import User, Policy, Contact, CoverageItem, PolicyDetail, PasswordReset, Exposure  # noqa: F401 — register models
 from app.models_documents import Document  # noqa: F401
-from app.models_features import Premium, Claim, RenewalReminder, AuditLog, PolicyShare, EmergencyCard, PremiumHistory, PolicyDelta, DeltaExplanation, CoverageScore, InboundAddress, InboundEmail, PolicyDraft, Certificate, CertificateReminder, LeaseRequirement, ComplianceCheck  # noqa: F401
+from app.models_features import Premium, Claim, RenewalReminder, AuditLog, PolicyShare, EmergencyCard, PremiumHistory, PolicyDelta, DeltaExplanation, CoverageScore, InboundAddress, InboundEmail, PolicyDraft, Certificate, CertificateReminder, LeaseRequirement, ComplianceCheck, DismissedRecommendation  # noqa: F401
 from app.models_profile import UserProfile, ProfileContact  # noqa: F401
 from app.models_chat import Conversation, ChatMessage  # noqa: F401
 from app.models_admin import EmailLog, Announcement  # noqa: F401
@@ -163,6 +163,11 @@ def on_startup():
                 conn.execute(text("ALTER TABLE compliance_checks ADD COLUMN coi_file_key VARCHAR(500)"))
             if "coi_file_data" not in cc_cols:
                 conn.execute(text("ALTER TABLE compliance_checks ADD COLUMN coi_file_data BYTEA"))
+    if "dismissed_recommendations" in insp.get_table_names():
+        dr_cols = [c["name"] for c in insp.get_columns("dismissed_recommendations")]
+        with engine.begin() as conn:
+            if "scope" not in dr_cols:
+                conn.execute(text("ALTER TABLE dismissed_recommendations ADD COLUMN scope VARCHAR(20)"))
     # One-time migration: normalize all emails to lowercase
     with engine.begin() as conn:
         conn.execute(text("UPDATE users SET email = lower(email) WHERE email != lower(email)"))
