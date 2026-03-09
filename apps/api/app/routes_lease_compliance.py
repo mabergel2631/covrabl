@@ -486,10 +486,25 @@ def list_compliance_checks(
     db: Session = Depends(get_db),
 ):
     check_feature(user, "lease_compliance")
+    # Allow access if user owns the check OR the parent requirement
+    req = db.execute(
+        select(LeaseRequirement).where(LeaseRequirement.id == req_id)
+    ).scalar_one_or_none()
+    if not req:
+        raise HTTPException(status_code=404, detail="Requirement not found")
+    if req.user_id != user.id:
+        # Check if user has any checks on this requirement (tenant)
+        has_own = db.execute(
+            select(ComplianceCheck.id).where(
+                ComplianceCheck.lease_requirement_id == req_id,
+                ComplianceCheck.user_id == user.id,
+            ).limit(1)
+        ).scalar_one_or_none()
+        if not has_own:
+            raise HTTPException(status_code=404, detail="Requirement not found")
     checks = db.execute(
         select(ComplianceCheck).where(
             ComplianceCheck.lease_requirement_id == req_id,
-            ComplianceCheck.user_id == user.id,
         ).order_by(ComplianceCheck.created_at.desc())
     ).scalars().all()
     return [
@@ -502,6 +517,7 @@ def list_compliance_checks(
             "unclear_count": c.unclear_count,
             "tenant_name": c.tenant_name,
             "tenant_email": c.tenant_email,
+            "has_document": bool(c.coi_file_key),
             "submitted_at": c.submitted_at.isoformat() if c.submitted_at else None,
             "created_at": c.created_at.isoformat() if c.created_at else None,
         }

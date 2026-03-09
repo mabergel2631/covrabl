@@ -2068,6 +2068,7 @@ export type ComplianceCheckResult = {
   checked_against: string;
   tenant_name?: string | null;
   tenant_email?: string | null;
+  has_document?: boolean;
   created_at: string;
 };
 

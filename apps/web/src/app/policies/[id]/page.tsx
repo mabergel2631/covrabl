@@ -160,6 +160,9 @@ export default function PolicyDetailPage() {
   const [leaseLandlordName, setLeaseLandlordName] = useState('');
   const [leaseLandlordNotes, setLeaseLandlordNotes] = useState('');
   const [leaseLandlordSending, setLeaseLandlordSending] = useState(false);
+  // Active check ID (for document download)
+  const [leaseActiveCheckId, setLeaseActiveCheckId] = useState<number | null>(null);
+  const [leaseActiveCheckHasDoc, setLeaseActiveCheckHasDoc] = useState(false);
 
   // Version history
   const [versionHistory, setVersionHistory] = useState<PolicyVersionEntry[]>([]);
@@ -2103,6 +2106,8 @@ export default function PolicyDetailPage() {
             const result = await leaseComplianceApi.checkDocument(leaseActiveReqId, leaseDocUploadFile);
             setLeaseResults(result.results || []);
             setLeaseCheckCounts({ pass: result.pass_count, fail: result.fail_count, unclear: result.unclear_count });
+            setLeaseActiveCheckId(result.id);
+            setLeaseActiveCheckHasDoc(true);
             setLeaseCheckedAgainst('uploaded document');
             setLeaseView('results');
             toast('Document analyzed and compliance check complete');
@@ -2138,6 +2143,8 @@ export default function PolicyDetailPage() {
               const parsed = typeof targetCheck.results_json === 'string' ? JSON.parse(targetCheck.results_json) : (targetCheck as any).results || [];
               setLeaseResults(parsed);
               setLeaseCheckCounts({ pass: targetCheck.pass_count, fail: targetCheck.fail_count, unclear: targetCheck.unclear_count });
+              setLeaseActiveCheckId(targetCheck.id);
+              setLeaseActiveCheckHasDoc(!!targetCheck.has_document);
               // Determine what was checked against
               if (targetCheck.tenant_name || targetCheck.tenant_email) {
                 setLeaseCheckedAgainst(`${targetCheck.tenant_name || targetCheck.tenant_email || 'Tenant'}'s certificate`);
@@ -2218,6 +2225,8 @@ export default function PolicyDetailPage() {
           setLeaseCheckCounts({ pass: 0, fail: 0, unclear: 0 });
           setLeaseCheckedAgainst('');
           setLeaseActiveReqId(null);
+          setLeaseActiveCheckId(null);
+          setLeaseActiveCheckHasDoc(false);
         }
 
         // Auto-open lease results when arriving via #lease hash (email notification link)
@@ -2558,6 +2567,31 @@ export default function PolicyDetailPage() {
                     )}
                   </div>
 
+                  {/* Lease Requirements summary — always visible so tenant/landlord can see what's required */}
+                  {activeReq && (() => {
+                    const reqItems: LeaseRequirementItem[] = (() => { try { return JSON.parse(activeReq.requirements_json); } catch { return []; } })();
+                    if (reqItems.length === 0) return null;
+                    return (
+                      <details style={{ marginBottom: 14, border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)', padding: '10px 14px', backgroundColor: '#fafafa' }}>
+                        <summary style={{ fontSize: 13, fontWeight: 600, cursor: 'pointer', color: 'var(--color-text-secondary)' }}>
+                          Lease Requirements ({reqItems.length})
+                        </summary>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginTop: 8 }}>
+                          {reqItems.map((r, i) => {
+                            const cc = CATEGORY_COLORS[r.category] || CATEGORY_COLORS.other;
+                            return (
+                              <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12 }}>
+                                <span style={{ padding: '1px 6px', borderRadius: 10, fontSize: 10, fontWeight: 600, backgroundColor: cc.bg, color: cc.fg }}>{CATEGORY_LABELS[r.category] || r.category}</span>
+                                <span style={{ fontWeight: 500 }}>{r.label}</span>
+                                {r.required_value && <span style={{ color: 'var(--color-text-muted)' }}>&mdash; {r.required_value}</span>}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </details>
+                    );
+                  })()}
+
                   {/* Landlord: next-steps card when no check has been run */}
                   {landlordNoCheck ? (
                     <div style={{ border: '1px solid #bfdbfe', borderRadius: 'var(--radius-md)', padding: 20, backgroundColor: '#f0f9ff', marginBottom: 16 }}>
@@ -2673,6 +2707,20 @@ export default function PolicyDetailPage() {
                         {!isLandlord && (
                           <button onClick={() => { setLeaseCreateStep(3); setLeaseView('create'); }} style={{ padding: '6px 14px', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)', backgroundColor: '#fff', cursor: 'pointer', fontWeight: 600, fontSize: 12 }}>
                             {hasResults ? 'Upload New Document' : 'Upload Document'}
+                          </button>
+                        )}
+                        {/* View My Document — tenant only, when current check has a document */}
+                        {!isLandlord && leaseActiveCheckHasDoc && leaseActiveCheckId && (
+                          <button onClick={async () => {
+                            try {
+                              const blob = await leaseComplianceApi.downloadCoiDocument(leaseActiveCheckId);
+                              const url = URL.createObjectURL(blob);
+                              window.open(url, '_blank');
+                            } catch {
+                              toast('Document not available', 'error');
+                            }
+                          }} style={{ padding: '6px 14px', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)', backgroundColor: '#fff', cursor: 'pointer', fontWeight: 600, fontSize: 12 }}>
+                            View My Document
                           </button>
                         )}
                         {/* Send to Landlord — tenant only, when results exist */}
