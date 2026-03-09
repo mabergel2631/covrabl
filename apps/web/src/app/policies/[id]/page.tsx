@@ -3076,7 +3076,7 @@ export default function PolicyDetailPage() {
           <div className="card" style={{ marginBottom: 32 }}>
             <h2 className="section-title" style={{ margin: '0 0 8px' }}>Score Contribution</h2>
             <div style={{ fontSize: 13, color: 'var(--color-text-secondary)', marginBottom: 12 }}>
-              This policy contributes to your Coverage Health Score in:
+              This policy contributes to your Coverage Overview in:
             </div>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
               {cats.map(cat => (

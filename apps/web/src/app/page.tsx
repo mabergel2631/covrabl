@@ -477,9 +477,9 @@ function Dashboard() {
   }, []);
 
   const scoreValue = scores?.overall_score ?? 0;
-  const healthStatus = scoreValue >= 75
+  const healthStatus = scoreValue >= 70
     ? { label: 'Good Standing', color: '#166534', bg: '#dcfce7', icon: '\u2713' }
-    : scoreValue >= 50
+    : scoreValue >= 40
     ? { label: 'Needs Review', color: '#92400e', bg: '#fef3c7', icon: '!' }
     : { label: 'Action Needed', color: '#991b1b', bg: '#fee2e2', icon: '\u26A0' };
   const unackCount = alerts?.unacknowledged_count ?? 0;
@@ -504,8 +504,8 @@ function Dashboard() {
           {/* Top row: Score + Alerts + Renewals */}
           <div className="dashboard-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 20, marginBottom: 28 }}>
 
-            {/* Coverage Health Widget */}
-            <div className="card" style={{ padding: 24, cursor: 'pointer' }} onClick={() => router.push('/score')}>
+            {/* Coverage Overview Widget */}
+            <div className="card" style={{ padding: 24, cursor: 'pointer' }} onClick={() => router.push('/score?scope=personal')}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 20 }}>
                 <div style={{
                   width: 56, height: 56, borderRadius: '50%', flexShrink: 0,
@@ -516,7 +516,7 @@ function Dashboard() {
                   {healthStatus.icon}
                 </div>
                 <div>
-                  <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--color-text)', marginBottom: 4 }}>Coverage Health</div>
+                  <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--color-text)', marginBottom: 4 }}>Coverage Overview</div>
                   <div style={{
                     display: 'inline-block', padding: '2px 10px', borderRadius: 10,
                     fontSize: 12, fontWeight: 600,
@@ -564,7 +564,7 @@ function Dashboard() {
               ) : (
                 <div style={{ fontSize: 13, color: 'var(--color-text-muted)' }}>No unacknowledged alerts</div>
               )}
-              <div style={{ marginTop: 12, fontSize: 12, color: 'var(--color-primary)', fontWeight: 600 }}>View all &rarr;</div>
+              <div style={{ marginTop: 12, fontSize: 12, color: 'var(--color-primary)', fontWeight: 600 }}>View all</div>
             </div>
 
             {/* Upcoming Renewals */}
@@ -590,7 +590,7 @@ function Dashboard() {
               ) : (
                 <div style={{ fontSize: 13, color: 'var(--color-text-muted)' }}>No upcoming renewals</div>
               )}
-              <div style={{ marginTop: 12, fontSize: 12, color: 'var(--color-primary)', fontWeight: 600 }}>View all &rarr;</div>
+              <div style={{ marginTop: 12, fontSize: 12, color: 'var(--color-primary)', fontWeight: 600 }}>View all</div>
             </div>
           </div>
 
@@ -973,7 +973,7 @@ export default function Home() {
                 <div className="stagger-1" style={{ fontSize: 13, fontWeight: 700, color: 'var(--color-primary)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 12 }}>Step 2</div>
                 <h3 className="stagger-2" style={{ fontSize: 22, fontWeight: 600, margin: '0 0 12px', color: 'var(--color-text)' }}>AI insights you can act on</h3>
                 <p className="stagger-3" style={{ fontSize: 15, color: 'var(--color-text-secondary)', margin: 0, lineHeight: 1.7 }}>
-                  Complex policies are translated into clear, color-coded coverage you can actually understand. Your Coverage Health Score shows where you&#39;re strong, where you&#39;re exposed, and gives you specific questions to ask your agent — without reading a single page of legalese.
+                  Complex policies are translated into clear, color-coded coverage you can actually understand. Your Coverage Overview shows where you&#39;re strong, where you&#39;re exposed, and gives you specific questions to ask your agent — without reading a single page of legalese.
                 </p>
                 <p className="stagger-3" style={{ fontSize: 13, color: 'var(--color-text-muted)', margin: '8px 0 0', lineHeight: 1.6 }}>
                   Every answer is based on your actual uploaded documents — not generic AI.

@@ -178,6 +178,7 @@ def list_requirements(
     query = select(LeaseRequirement).where(
         LeaseRequirement.user_id == user.id,
         LeaseRequirement.status == "active",
+        LeaseRequirement.policy_id.isnot(None),  # exclude orphaned (policy deleted)
     )
     if role and role in ("tenant", "landlord"):
         query = query.where(LeaseRequirement.role == role)
@@ -185,7 +186,13 @@ def list_requirements(
         query = query.where(LeaseRequirement.policy_id == policy_id)
     query = query.order_by(LeaseRequirement.created_at.desc())
     reqs = db.execute(query).scalars().all()
-    return [_requirement_to_dict(r, db) for r in reqs]
+
+    # Filter out any reqs whose policy no longer exists (extra safety)
+    valid_reqs = []
+    for r in reqs:
+        if r.policy_id and db.get(Policy, r.policy_id):
+            valid_reqs.append(r)
+    return [_requirement_to_dict(r, db) for r in valid_reqs]
 
 
 @router.get("/requirements/{req_id}")
