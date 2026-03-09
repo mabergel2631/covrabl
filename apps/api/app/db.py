@@ -3,15 +3,16 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, DeclarativeBase
 from .config import settings
 
-_db_url = settings.database_url
+def get_database_url() -> str:
+    """Return resolved database URL with correct driver prefix."""
+    url = settings.database_url
+    if url.startswith("postgres://"):
+        url = url.replace("postgres://", "postgresql+psycopg://", 1)
+    elif url.startswith("postgresql://") and "+" not in url.split("://")[0]:
+        url = url.replace("postgresql://", "postgresql+psycopg://", 1)
+    return url
 
-# Railway Postgres provides "postgresql://..." but SQLAlchemy needs the driver suffix.
-# Using psycopg3 (psycopg[binary]) so the driver is "+psycopg".
-# Also handle the legacy "postgres://" scheme that some providers use.
-if _db_url.startswith("postgres://"):
-    _db_url = _db_url.replace("postgres://", "postgresql+psycopg://", 1)
-elif _db_url.startswith("postgresql://") and "+" not in _db_url.split("://")[0]:
-    _db_url = _db_url.replace("postgresql://", "postgresql+psycopg://", 1)
+_db_url = get_database_url()
 
 # Log which DB backend is in use (mask credentials)
 if "postgresql" in _db_url:

@@ -6,7 +6,7 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from app.db import engine, Base
+from app.db import engine
 from app.models import User, Policy, Contact, CoverageItem, PolicyDetail, PasswordReset, Exposure  # noqa: F401 — register models
 from app.models_documents import Document  # noqa: F401
 from app.models_features import Premium, Claim, RenewalReminder, AuditLog, PolicyShare, EmergencyCard, PremiumHistory, PolicyDelta, DeltaExplanation, CoverageScore, InboundAddress, InboundEmail, PolicyDraft, Certificate, CertificateReminder, LeaseRequirement, ComplianceCheck, DismissedRecommendation  # noqa: F401
@@ -84,91 +84,18 @@ async def global_exception_handler(request: Request, exc: Exception):
 
 @app.on_event("startup")
 def on_startup():
-    logging.info("Starting up — creating tables if needed")
-    Base.metadata.create_all(bind=engine)
-    # Add nickname column to existing policies table if missing
-    from sqlalchemy import inspect, text
-    insp = inspect(engine)
-    if "policies" in insp.get_table_names():
-        cols = [c["name"] for c in insp.get_columns("policies")]
-        with engine.begin() as conn:
-            if "nickname" not in cols:
-                conn.execute(text("ALTER TABLE policies ADD COLUMN nickname VARCHAR(200)"))
-            if "premium_amount" not in cols:
-                conn.execute(text("ALTER TABLE policies ADD COLUMN premium_amount INTEGER"))
-            if "business_name" not in cols:
-                conn.execute(text("ALTER TABLE policies ADD COLUMN business_name VARCHAR(200)"))
-            if "exposure_id" not in cols:
-                conn.execute(text("ALTER TABLE policies ADD COLUMN exposure_id INTEGER"))
-            if "status" not in cols:
-                conn.execute(text("ALTER TABLE policies ADD COLUMN status VARCHAR(20) DEFAULT 'active'"))
-            # Health-specific fields
-            if "plan_subtype" not in cols:
-                conn.execute(text("ALTER TABLE policies ADD COLUMN plan_subtype VARCHAR(30)"))
-            if "out_of_pocket_max" not in cols:
-                conn.execute(text("ALTER TABLE policies ADD COLUMN out_of_pocket_max INTEGER"))
-            if "family_deductible" not in cols:
-                conn.execute(text("ALTER TABLE policies ADD COLUMN family_deductible INTEGER"))
-            if "family_oop_max" not in cols:
-                conn.execute(text("ALTER TABLE policies ADD COLUMN family_oop_max INTEGER"))
-            # Deductible tracking
-            if "deductible_type" not in cols:
-                conn.execute(text("ALTER TABLE policies ADD COLUMN deductible_type VARCHAR(20)"))
-            if "deductible_period_start" not in cols:
-                conn.execute(text("ALTER TABLE policies ADD COLUMN deductible_period_start DATE"))
-            if "deductible_applied" not in cols:
-                conn.execute(text("ALTER TABLE policies ADD COLUMN deductible_applied INTEGER"))
-            if "replaces_policy_id" not in cols:
-                conn.execute(text(
-                    "ALTER TABLE policies ADD COLUMN replaces_policy_id INTEGER "
-                    "REFERENCES policies(id) ON DELETE SET NULL"
-                ))
-    if "users" in insp.get_table_names():
-        user_cols = [c["name"] for c in insp.get_columns("users")]
-        with engine.begin() as conn:
-            if "role" not in user_cols:
-                conn.execute(text("ALTER TABLE users ADD COLUMN role VARCHAR(20) DEFAULT 'individual'"))
-            if "plan" not in user_cols:
-                conn.execute(text("ALTER TABLE users ADD COLUMN plan VARCHAR(20) DEFAULT 'free'"))
-            if "stripe_customer_id" not in user_cols:
-                conn.execute(text("ALTER TABLE users ADD COLUMN stripe_customer_id VARCHAR(100)"))
-            if "stripe_subscription_id" not in user_cols:
-                conn.execute(text("ALTER TABLE users ADD COLUMN stripe_subscription_id VARCHAR(100)"))
-            if "trial_ends_at" not in user_cols:
-                conn.execute(text("ALTER TABLE users ADD COLUMN trial_ends_at TIMESTAMP"))
-            if "is_suspended" not in user_cols:
-                conn.execute(text("ALTER TABLE users ADD COLUMN is_suspended BOOLEAN DEFAULT FALSE"))
-    if "documents" in insp.get_table_names():
-        doc_cols = [c["name"] for c in insp.get_columns("documents")]
-        with engine.begin() as conn:
-            if "cached_text" not in doc_cols:
-                conn.execute(text("ALTER TABLE documents ADD COLUMN cached_text TEXT"))
-    if "policy_shares" in insp.get_table_names():
-        share_cols = [c["name"] for c in insp.get_columns("policy_shares")]
-        with engine.begin() as conn:
-            if "role_label" not in share_cols:
-                conn.execute(text("ALTER TABLE policy_shares ADD COLUMN role_label VARCHAR(30)"))
-            if "expires_at" not in share_cols:
-                conn.execute(text("ALTER TABLE policy_shares ADD COLUMN expires_at DATE"))
-    if "lease_requirements" in insp.get_table_names():
-        lr_cols = [c["name"] for c in insp.get_columns("lease_requirements")]
-        with engine.begin() as conn:
-            if "policy_id" not in lr_cols:
-                conn.execute(text("ALTER TABLE lease_requirements ADD COLUMN policy_id INTEGER REFERENCES policies(id) ON DELETE SET NULL"))
-                conn.execute(text("CREATE INDEX ix_lease_requirements_policy_id ON lease_requirements (policy_id)"))
-    if "compliance_checks" in insp.get_table_names():
-        cc_cols = [c["name"] for c in insp.get_columns("compliance_checks")]
-        with engine.begin() as conn:
-            if "coi_file_key" not in cc_cols:
-                conn.execute(text("ALTER TABLE compliance_checks ADD COLUMN coi_file_key VARCHAR(500)"))
-            if "coi_file_data" not in cc_cols:
-                conn.execute(text("ALTER TABLE compliance_checks ADD COLUMN coi_file_data BYTEA"))
-    if "dismissed_recommendations" in insp.get_table_names():
-        dr_cols = [c["name"] for c in insp.get_columns("dismissed_recommendations")]
-        with engine.begin() as conn:
-            if "scope" not in dr_cols:
-                conn.execute(text("ALTER TABLE dismissed_recommendations ADD COLUMN scope VARCHAR(20)"))
-    # One-time migration: normalize all emails to lowercase
+    logging.info("Starting up — running Alembic migrations")
+    from alembic.config import Config
+    from alembic import command
+
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    alembic_cfg = Config(os.path.join(base_dir, "alembic.ini"))
+    alembic_cfg.set_main_option("script_location", os.path.join(base_dir, "alembic"))
+    command.upgrade(alembic_cfg, "head")
+    logging.info("Alembic migrations complete")
+
+    # Idempotent data normalization
+    from sqlalchemy import text
     with engine.begin() as conn:
         conn.execute(text("UPDATE users SET email = lower(email) WHERE email != lower(email)"))
         conn.execute(text("UPDATE policy_shares SET shared_with_email = lower(shared_with_email) WHERE shared_with_email != lower(shared_with_email)"))
