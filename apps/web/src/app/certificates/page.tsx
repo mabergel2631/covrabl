@@ -88,6 +88,23 @@ function CertificatesContent() {
   // Build a lookup from policy_id → policy for entity grouping
   const policyMap = new Map(policies.map(p => [p.id, p]));
 
+  // Group policies for dropdown: Personal, then Business groups
+  const policyOptGroups = (() => {
+    const personal = policies.filter(p => p.scope === 'personal');
+    const bizMap = new Map<string, Policy[]>();
+    for (const p of policies.filter(p => p.scope === 'business')) {
+      const group = p.business_name || 'Other Business';
+      if (!bizMap.has(group)) bizMap.set(group, []);
+      bizMap.get(group)!.push(p);
+    }
+    const groups: { label: string; items: Policy[] }[] = [];
+    if (personal.length) groups.push({ label: 'Personal', items: personal });
+    for (const [name, items] of Array.from(bizMap.entries()).sort((a, b) => a[0].localeCompare(b[0]))) {
+      groups.push({ label: name, items });
+    }
+    return groups;
+  })();
+
   // Group filtered certificates by entity
   const entityGroups: { key: string; label: string; icon: string; certs: Certificate[] }[] = (() => {
     const groups: Record<string, Certificate[]> = {};
@@ -534,7 +551,11 @@ function CertificatesContent() {
                             style={{ width: '100%', padding: '6px 10px', fontSize: 13, border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)' }}
                           >
                             <option value="">Select a policy...</option>
-                            {policies.map(p => <option key={p.id} value={p.id}>{p.nickname || p.carrier} - {p.policy_type}</option>)}
+                            {policyOptGroups.map(g => (
+                              <optgroup key={g.label} label={g.label}>
+                                {g.items.map(p => <option key={p.id} value={p.id}>{p.nickname || p.carrier} - {p.policy_type.replace(/_/g, ' ')}</option>)}
+                              </optgroup>
+                            ))}
                           </select>
                         ) : (
                           <div
@@ -650,7 +671,11 @@ function CertificatesContent() {
                 onChange={e => setForm(f => ({ ...f, policy_id: e.target.value ? Number(e.target.value) : null }))}
               >
                 <option value="">Select a policy...</option>
-                {policies.map(p => <option key={p.id} value={p.id}>{p.nickname || p.carrier} - {p.policy_type}</option>)}
+                {policyOptGroups.map(g => (
+                  <optgroup key={g.label} label={g.label}>
+                    {g.items.map(p => <option key={p.id} value={p.id}>{p.nickname || p.carrier} - {p.policy_type.replace(/_/g, ' ')}</option>)}
+                  </optgroup>
+                ))}
               </select>
               {!form.policy_id && (
                 <div style={{ fontSize: 11, color: '#92400e', marginTop: 4 }}>
