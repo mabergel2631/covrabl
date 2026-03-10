@@ -2104,15 +2104,29 @@ export default function PolicyDetailPage() {
           }
           setLeaseDocUploading(true);
           try {
-            const result = await leaseComplianceApi.checkDocument(leaseActiveReqId, leaseDocUploadFile);
-            setLeaseResults(result.results || []);
-            setLeaseCheckCounts({ pass: result.pass_count, fail: result.fail_count, unclear: result.unclear_count });
-            setLeaseActiveCheckId(result.id);
-            setLeaseActiveCheckHasDoc(true);
-            setLeaseCheckedAgainst('uploaded document');
-            setLeaseView('results');
-            toast('Document analyzed and compliance check complete');
-            leaseComplianceApi.list(undefined, policyId).then(setLeaseReqs).catch(() => {});
+            // Upload returns immediately with a pending check ID
+            const { id: checkId } = await leaseComplianceApi.checkDocument(leaseActiveReqId, leaseDocUploadFile);
+            setLeaseActiveCheckId(checkId);
+
+            // Poll for completion (2s intervals, up to 3 minutes)
+            for (let i = 0; i < 90; i++) {
+              await new Promise(r => setTimeout(r, 2000));
+              const status = await leaseComplianceApi.pollCheckStatus(checkId);
+              if (status.status === 'complete') {
+                setLeaseResults(status.results || []);
+                setLeaseCheckCounts({ pass: status.pass_count || 0, fail: status.fail_count || 0, unclear: status.unclear_count || 0 });
+                setLeaseActiveCheckHasDoc(status.has_document ?? true);
+                setLeaseCheckedAgainst('uploaded document');
+                setLeaseView('results');
+                toast('Document analyzed and compliance check complete');
+                leaseComplianceApi.list(undefined, policyId).then(setLeaseReqs).catch(() => {});
+                return;
+              }
+              if (status.status === 'error') {
+                throw new Error(status.error || 'Document processing failed');
+              }
+            }
+            throw new Error('Processing timed out — please check back shortly');
           } catch (err: any) {
             toast(err.message || 'Document check failed', 'error');
           } finally {

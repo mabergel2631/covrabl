@@ -2178,7 +2178,7 @@ export const leaseComplianceApi = {
   getPublic(code: string): Promise<LeasePublicData> {
     return request<LeasePublicData>(`/lease-compliance/public/${code}`);
   },
-  async submitCoiPublic(code: string, file: File, tenantName: string, tenantEmail: string, tenantNotes?: string): Promise<{ ok: boolean; results: ComplianceResultItem[]; pass_count: number; fail_count: number; unclear_count: number }> {
+  async submitCoiPublic(code: string, file: File, tenantName: string, tenantEmail: string, tenantNotes?: string): Promise<{ ok: boolean; id: number; status: string }> {
     const formData = new FormData();
     formData.append("file", file);
     formData.append("tenant_name", tenantName);
@@ -2190,6 +2190,13 @@ export const leaseComplianceApi = {
     if (!res.ok) throw new Error(data.detail || "Submission failed");
     return data;
   },
+  async pollPublicCheckStatus(checkId: number): Promise<{ id: number; status: string; ok?: boolean; results?: ComplianceResultItem[]; pass_count?: number; fail_count?: number; unclear_count?: number; error?: string }> {
+    const url = `${API_BASE}/lease-compliance/public/checks/${checkId}/status`;
+    const res = await fetch(url);
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || "Status check failed");
+    return data;
+  },
   async downloadCoiDocument(checkId: number): Promise<Blob> {
     const url = `${API_BASE}/lease-compliance/checks/${checkId}/document`;
     const token = getToken();
@@ -2199,7 +2206,7 @@ export const leaseComplianceApi = {
     if (!res.ok) throw new Error("Document not found");
     return res.blob();
   },
-  async checkDocument(reqId: number, file: File): Promise<ComplianceCheckResult & { ok: boolean; id: number }> {
+  async checkDocument(reqId: number, file: File): Promise<{ ok: boolean; id: number; status: string }> {
     const formData = new FormData();
     formData.append("file", file);
     const url = `${API_BASE}/lease-compliance/requirements/${reqId}/check-document`;
@@ -2210,6 +2217,9 @@ export const leaseComplianceApi = {
     const data = await res.json();
     if (!res.ok) throw new Error(data.detail || "Document check failed");
     return data;
+  },
+  async pollCheckStatus(checkId: number): Promise<{ id: number; status: string; ok?: boolean; results?: ComplianceResultItem[]; pass_count?: number; fail_count?: number; unclear_count?: number; checked_against?: string; has_document?: boolean; error?: string }> {
+    return request(`/lease-compliance/checks/${checkId}/status`);
   },
   sendToLandlord(id: number, landlordEmail: string, landlordName?: string, notes?: string, fromName?: string): Promise<{ ok: boolean }> {
     return request<{ ok: boolean }>(`/lease-compliance/requirements/${id}/send-to-landlord`, {

@@ -76,9 +76,24 @@ export default function LeaseCompliancePublicPage() {
     if (!file.name.toLowerCase().endsWith('.pdf')) { setError('Only PDF files are accepted.'); return; }
     setSubmitting(true);
     try {
-      const result = await leaseComplianceApi.submitCoiPublic(code, file, tenantName, tenantEmail, tenantNotes || undefined);
-      setResults(result.results);
-      setCounts({ pass: result.pass_count, fail: result.fail_count, unclear: result.unclear_count });
+      // Upload returns immediately with a pending check ID
+      const { id: checkId } = await leaseComplianceApi.submitCoiPublic(code, file, tenantName, tenantEmail, tenantNotes || undefined);
+
+      // Poll for completion (2s intervals, up to 3 minutes)
+      for (let i = 0; i < 90; i++) {
+        await new Promise(r => setTimeout(r, 2000));
+        const status = await leaseComplianceApi.pollPublicCheckStatus(checkId);
+        if (status.status === 'complete') {
+          setResults(status.results || []);
+          setCounts({ pass: status.pass_count || 0, fail: status.fail_count || 0, unclear: status.unclear_count || 0 });
+          setSubmitting(false);
+          return;
+        }
+        if (status.status === 'error') {
+          throw new Error(status.error || 'Document processing failed');
+        }
+      }
+      throw new Error('Processing timed out — please try again');
     } catch (err: any) {
       setError(err.message || 'Submission failed');
     } finally {
