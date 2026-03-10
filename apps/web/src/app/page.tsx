@@ -819,15 +819,18 @@ export default function Home() {
   const { token } = useAuth();
   const router = useRouter();
   const [isReferral, setIsReferral] = useState(false);
+  const [isPreview, setIsPreview] = useState(false);
   useEffect(() => {
-    if (typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('ref') === 'tenant') {
-      setIsReferral(true);
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('ref') === 'tenant') setIsReferral(true);
+      if (params.get('preview') === '1') setIsPreview(true);
     }
   }, []);
   const [openFaq, setOpenFaq] = useState<number | null>(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [announcementDismissed, setAnnouncementDismissed] = useState(false);
-  const showAsPublic = !token || isReferral;
+  const showAsPublic = !token || isReferral || isPreview;
   const showAnnouncement = ANNOUNCEMENT_BAR.enabled && showAsPublic && !announcementDismissed;
 
   const scrollTo = (id: string) => {
@@ -848,8 +851,8 @@ export default function Home() {
   /* Timeline fill tracker */
   const { containerRef: timelineContainer, lineRef: timelineLine, activeDots } = useTimelineFill();
 
-  // Authenticated users see the dashboard (unless arriving via tenant referral link)
-  if (token && !isReferral) return <Dashboard />;
+  // Authenticated users see the dashboard (unless arriving via tenant referral or preview)
+  if (token && !isReferral && !isPreview) return <Dashboard />;
 
   return (
     <div style={{ minHeight: '100vh', background: '#fff' }}>

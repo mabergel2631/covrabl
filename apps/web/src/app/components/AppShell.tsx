@@ -81,15 +81,16 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
   // Public routes should never show the authenticated shell (even if user is logged in)
   const isPublicLeaseRoute = pathname.startsWith('/lease-compliance/') && pathname !== '/lease-compliance';
-  const [isReferralRoute, setIsReferralRoute] = useState(false);
+  const [isPublicOverride, setIsPublicOverride] = useState(false);
   useEffect(() => {
-    if (pathname === '/' && typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('ref') === 'tenant') {
-      setIsReferralRoute(true);
+    if (pathname === '/' && typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      setIsPublicOverride(params.get('ref') === 'tenant' || params.get('preview') === '1');
     } else {
-      setIsReferralRoute(false);
+      setIsPublicOverride(false);
     }
   }, [pathname]);
-  if (!token || isPublicLeaseRoute || isReferralRoute) return <>{children}</>;
+  if (!token || isPublicLeaseRoute || isPublicOverride) return <>{children}</>;
 
   return (
     <div style={{ display: 'flex', minHeight: '100vh' }}>
