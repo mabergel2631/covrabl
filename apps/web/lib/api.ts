@@ -23,13 +23,18 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const data = text ? safeJsonParse(text) : null;
 
   if (!res.ok) {
-    // Expired or invalid token — clear session and redirect to login
+    // Invalid token — clear session and redirect to login
     if (res.status === 401 && token) {
+      // Only show "session expired" if the user was recently active (within 5 min).
+      // Otherwise it's a stale token from a previous visit — just redirect cleanly.
+      const lastActive = parseInt(localStorage.getItem("pv_last_active") || "0", 10);
+      const recentlyActive = Date.now() - lastActive < 5 * 60 * 1000;
       localStorage.removeItem("pv_token");
       localStorage.removeItem("pv_role");
       localStorage.removeItem("pv_plan");
+      localStorage.removeItem("pv_last_active");
       if (typeof window !== "undefined") {
-        window.location.href = "/login?expired=1";
+        window.location.href = recentlyActive ? "/login?expired=1" : "/login";
         return undefined as never;
       }
     }
@@ -40,6 +45,11 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
     err.status = res.status;
     err.data = data;
     throw err;
+  }
+
+  // Track last successful authenticated request
+  if (token && typeof localStorage !== "undefined") {
+    localStorage.setItem("pv_last_active", Date.now().toString());
   }
 
   return data as T;

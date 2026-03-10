@@ -76,6 +76,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.removeItem('pv_token');
     localStorage.removeItem('pv_role');
     localStorage.removeItem('pv_plan');
+    localStorage.removeItem('pv_last_active');
     setToken(null);
     setRole(null);
     setPlan(null);
