@@ -118,14 +118,22 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           flexShrink: 0,
         }}
       >
-        <button
-          onClick={() => router.push('/')}
-          aria-label="Go to home page"
-          style={{ padding: '20px 20px 16px', borderBottom: '1px solid rgba(255,255,255,0.1)', cursor: 'pointer', background: 'none', border: 'none', color: 'inherit', textAlign: 'left', width: '100%' }}
-        >
-          <Logo size="md" variant="light" />
-          <div style={{ fontSize: 11, opacity: 0.6, marginTop: 4 }}>{APP_SIDEBAR_TAGLINE}</div>
-        </button>
+        <div style={{ padding: '20px 20px 16px', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
+          <button
+            onClick={() => router.push('/')}
+            aria-label="Go to dashboard"
+            style={{ cursor: 'pointer', background: 'none', border: 'none', color: 'inherit', textAlign: 'left', width: '100%', padding: 0 }}
+          >
+            <Logo size="md" variant="light" />
+            <div style={{ fontSize: 11, opacity: 0.6, marginTop: 4 }}>{APP_SIDEBAR_TAGLINE}</div>
+          </button>
+          <button
+            onClick={() => window.open('/?preview=1', '_blank')}
+            style={{ marginTop: 8, background: 'none', border: 'none', color: 'rgba(255,255,255,0.4)', fontSize: 11, cursor: 'pointer', padding: 0, textDecoration: 'underline' }}
+          >
+            Visit site &#8599;
+          </button>
+        </div>
 
         <nav style={{ flex: 1, padding: '12px 8px', overflowY: 'auto' }}>
           {(() => {
