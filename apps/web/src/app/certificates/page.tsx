@@ -9,6 +9,7 @@ import ConfirmDialog from '../components/ConfirmDialog';
 import TabNav from '../components/TabNav';
 import UpgradePrompt from '../components/UpgradePrompt';
 import BackButton from '../components/BackButton';
+import { trackClick } from '../../../lib/track';
 import { CERT_STATUS_COLORS } from '../constants';
 
 const COUNTERPARTY_TYPES = [
@@ -176,6 +177,7 @@ function CertificatesContent() {
         await certificatesApi.update(editingId, form);
         toast('Certificate updated');
       } else {
+        trackClick('create_certificate');
         await certificatesApi.create(form);
         toast('Certificate added');
         if (!form.policy_id) {

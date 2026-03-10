@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '../../../lib/auth';
 import { agentApi, AgentOverview, AgentClient } from '../../../lib/api';
+import { trackClick } from '../../../lib/track';
 import BackButton from '../components/BackButton';
 
 function ScoreBadge({ score }: { score: number | null }) {
@@ -79,9 +80,9 @@ export default function AdvisorDashboard() {
 
   return (
     <div style={{ padding: '32px 24px', maxWidth: 1000, margin: '0 auto' }}>
-      <BackButton href="/" label="Advisor" parentLabel="Home" />
+      <BackButton href="/" label="My Clients" parentLabel="Home" />
       <h1 style={{ fontSize: 24, fontWeight: 700, margin: '0 0 8px', color: 'var(--color-text)' }}>
-        Advisor Dashboard
+        My Clients
       </h1>
       <p style={{ fontSize: 14, color: 'var(--color-text-secondary)', margin: '0 0 32px' }}>
         Your clients who have shared access with you.
@@ -114,7 +115,7 @@ export default function AdvisorDashboard() {
             <div
               key={client.id}
               className="card"
-              onClick={() => router.push(`/agent/${client.id}`)}
+              onClick={() => { trackClick('client_row', { client_id: client.id }); router.push(`/agent/${client.id}`); }}
               style={{
                 padding: '16px 20px',
                 cursor: 'pointer',

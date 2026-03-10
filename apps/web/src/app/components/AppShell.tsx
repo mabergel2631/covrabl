@@ -4,8 +4,10 @@ import { useState, useEffect, useCallback } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { useAuth } from '../../../lib/auth';
 import { fetchActiveAnnouncements, checkFeatureAccess } from '../../../lib/api';
+import { trackPageView, trackClick } from '../../../lib/track';
 import { APP_NAME, APP_SIDEBAR_TAGLINE } from '../config';
 import Logo from './Logo';
+import BrokerPrompt from './BrokerPrompt';
 
 type NavItem = { href: string; label: string; icon: string; urgent?: boolean; feature?: string };
 type NavSection = { label: string; items: NavItem[] };
@@ -53,6 +55,11 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       .then(setAnnouncements)
       .catch(() => {});
   }, []);
+
+  // Global page view tracking
+  useEffect(() => {
+    if (token) trackPageView(pathname);
+  }, [pathname, token]);
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -123,7 +130,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           {(() => {
             // Build sections with role-based items appended to MAIN
             const sections = NAV_SECTIONS.map(s => ({ ...s, items: [...s.items] }));
-            if (role === 'agent') sections[0].items.push({ href: '/agent', label: 'Advisor Dashboard', icon: '👥' });
+            if (role === 'agent') sections[0].items.push({ href: '/agent', label: 'My Clients', icon: '👥' });
             if (role === 'admin') sections[0].items.push({ href: '/admin', label: 'Admin', icon: '⚙️' });
 
             return sections.map((section, si) => (
@@ -141,7 +148,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
                   return (
                     <button
                       key={item.href}
-                      onClick={() => { router.push(item.href); setSidebarOpen(false); }}
+                      onClick={() => { trackClick('nav', { target: item.href }); router.push(item.href); setSidebarOpen(false); }}
                       style={{
                         display: 'flex',
                         alignItems: 'center',
@@ -309,6 +316,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             );
           })}
         {children}
+        <BrokerPrompt />
 
         {/* Trust Footer */}
         <div style={{

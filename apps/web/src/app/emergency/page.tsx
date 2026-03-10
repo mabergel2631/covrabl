@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '../../../lib/auth';
 import { policiesApi, contactsApi, documentsApi, policyDetailsApi, iceApi, profileApi, Policy, Contact, DocMeta, PolicyDetail, EmergencyCardData } from '../../../lib/api';
 import { formatPhone, cleanPhone } from '../../../lib/format';
+import { trackClick, trackFeatureUse } from '../../../lib/track';
 import { PolicyListSkeleton } from '../components/Skeleton';
 import { useToast } from '../components/Toast';
 import BackButton from '../components/BackButton';
@@ -251,6 +252,7 @@ export default function EmergencyPage() {
     details.find(d => d.field_name.toLowerCase() === field.toLowerCase())?.field_value;
 
   const handleDownload = async (docId: number) => {
+    trackClick('emergency_download_doc', { doc_id: docId });
     try {
       const { download_url } = await documentsApi.download(docId);
       window.open(download_url, '_blank');
@@ -277,6 +279,7 @@ export default function EmergencyPage() {
 
   const handleCreateIceCard = async () => {
     if (!iceForm.holder_name.trim()) return;
+    trackFeatureUse('create_ice_card');
     setIceSaving(true);
     try {
       const result = await iceApi.create({

@@ -159,11 +159,18 @@ export const authApi = {
   me() {
     return request<AuthMe>("/auth/me");
   },
-  register(email: string, password: string) {
+  register(email: string, password: string, role: 'individual' | 'broker' = 'individual') {
     return request<{ access_token: string; token_type: string }>("/auth/register", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, password }),
+      body: JSON.stringify({ email, password, role }),
+    });
+  },
+  setRole(role: 'broker') {
+    return request<{ ok: boolean; role: string }>("/auth/set-role", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ role }),
     });
   },
   login(email: string, password: string) {

@@ -13,6 +13,7 @@ from .config import settings
 from .db import get_db
 from .email import send_reset_email, log_email_send
 from .models import User, Policy, PasswordReset
+from .models_features import UserEvent
 from .models_documents import Document
 from .models_features import PolicyDraft, AuditLog
 from .models_admin import EmailLog, Announcement
@@ -853,3 +854,46 @@ def admin_cleanup_lease_requirements(
     db.commit()
 
     return {"ok": True, "deleted": count}
+
+
+@router.get("/events")
+def admin_list_events(
+    limit: int = Query(100, le=500),
+    event_name: str | None = None,
+    user_id: int | None = None,
+    category: str | None = None,
+    admin: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    """Query user events for analytics."""
+    q = select(UserEvent).order_by(UserEvent.created_at.desc())
+    if event_name:
+        q = q.where(UserEvent.event_name == event_name)
+    if user_id:
+        q = q.where(UserEvent.user_id == user_id)
+    if category:
+        q = q.where(UserEvent.event_category == category)
+    q = q.limit(limit)
+    rows = db.execute(q).scalars().all()
+
+    # Also get user emails for display
+    user_ids = {r.user_id for r in rows if r.user_id}
+    user_map: dict[int, str] = {}
+    if user_ids:
+        users = db.execute(select(User.id, User.email).where(User.id.in_(user_ids))).all()
+        user_map = {u.id: u.email for u in users}
+
+    return [
+        {
+            "id": r.id,
+            "user_id": r.user_id,
+            "user_email": user_map.get(r.user_id, None) if r.user_id else None,
+            "session_id": r.session_id,
+            "event_name": r.event_name,
+            "event_category": r.event_category,
+            "properties": r.properties,
+            "page_path": r.page_path,
+            "created_at": r.created_at.isoformat() if r.created_at else None,
+        }
+        for r in rows
+    ]

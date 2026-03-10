@@ -8,6 +8,7 @@ import {
   LeaseRequirement,
   checkFeatureAccess,
 } from '../../../lib/api';
+import { trackClick } from '../../../lib/track';
 import BackButton from '../components/BackButton';
 import UpgradePrompt from '../components/UpgradePrompt';
 
@@ -88,7 +89,7 @@ function LeaseComplianceContent() {
                 <div style={{ display: 'flex', gap: 8 }}>
                   {req.policy_id ? (
                     <button
-                      onClick={() => router.push(`/policies/${req.policy_id}`)}
+                      onClick={() => { trackClick('view_lease_on_policy', { req_id: req.id }); router.push(`/policies/${req.policy_id}`); }}
                       style={{
                         padding: '6px 14px', fontSize: 13, fontWeight: 600,
                         backgroundColor: 'var(--color-primary)', color: '#fff',

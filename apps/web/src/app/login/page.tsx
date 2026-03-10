@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '../../../lib/auth';
 import { authApi } from '../../../lib/api';
+import { track } from '../../../lib/track';
 import { APP_NAME, APP_DESCRIPTION } from '../config';
 import AuthHeader from '../components/AuthHeader';
 
@@ -21,6 +22,7 @@ export default function LoginPage() {
   }, []);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [role, setRole] = useState<'individual' | 'broker'>('individual');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [touched, setTouched] = useState<Record<string, boolean>>({});
@@ -36,8 +38,10 @@ export default function LoginPage() {
     setError('');
     setLoading(true);
     try {
-      const fn = mode === 'login' ? authApi.login : authApi.register;
-      const res = await fn(trimmedEmail, password);
+      track(mode === 'login' ? 'login_submit' : 'register_submit', 'auth', { role: mode === 'register' ? role : undefined });
+      const res = mode === 'login'
+        ? await authApi.login(trimmedEmail, password)
+        : await authApi.register(trimmedEmail, password, role);
       login(res.access_token);
       const returnTo = new URLSearchParams(window.location.search).get('returnTo');
       router.push(returnTo || '/policies');
@@ -124,6 +128,31 @@ export default function LoginPage() {
               style={{ marginBottom: passwordError ? 4 : 28 }}
             />
             {passwordError && <span className="form-error" style={{ marginBottom: 24, display: 'block' }}>{passwordError}</span>}
+
+            {mode === 'register' && (
+              <div style={{ marginBottom: 20 }}>
+                <label className="form-label">I am a...</label>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  {([['individual', 'Policy Holder'], ['broker', 'Insurance Broker']] as const).map(([val, label]) => (
+                    <button
+                      key={val}
+                      type="button"
+                      onClick={() => setRole(val)}
+                      style={{
+                        flex: 1, padding: '10px 12px', fontSize: 14, fontWeight: 600,
+                        border: role === val ? '2px solid var(--color-primary)' : '1px solid var(--color-border)',
+                        borderRadius: 'var(--radius-md)', cursor: 'pointer',
+                        backgroundColor: role === val ? 'var(--color-primary-light)' : '#fff',
+                        color: role === val ? 'var(--color-primary-dark)' : 'var(--color-text-secondary)',
+                        transition: 'all 0.15s',
+                      }}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {mode === 'login' && (
               <div style={{ textAlign: 'right', marginBottom: 20, marginTop: -12 }}>

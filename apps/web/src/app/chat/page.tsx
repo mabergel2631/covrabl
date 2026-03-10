@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import ReactMarkdown from 'react-markdown';
 import { useAuth } from '../../../lib/auth';
 import { chatApi, ChatConversation, ChatMessageData } from '../../../lib/api';
+import { trackFeatureUse } from '../../../lib/track';
 
 type DisplayMessage = {
   id?: number;
@@ -108,6 +109,7 @@ function ChatPageInner() {
   const sendMessage = useCallback((text?: string) => {
     const msg = (text || input).trim();
     if (!msg || isStreaming) return;
+    trackFeatureUse('chat_message');
 
     setInput('');
     setMessages(prev => [...prev, { role: 'user', content: msg }]);

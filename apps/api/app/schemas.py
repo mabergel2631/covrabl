@@ -8,6 +8,7 @@ from datetime import date, datetime
 class UserCreate(BaseModel):
     email: EmailStr
     password: str
+    role: Optional[Literal["individual", "broker"]] = "individual"
 
 
 class UserOut(BaseModel):

@@ -4,6 +4,7 @@ import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '../../../lib/auth';
 import { billingApi, type BillingStatus } from '../../../lib/api';
+import { trackClick } from '../../../lib/track';
 import BackButton from '../components/BackButton';
 
 export default function BillingPage() {
@@ -26,6 +27,7 @@ function BillingContent() {
   }, [token]);
 
   const openPortal = async () => {
+    trackClick('open_billing_portal');
     setLoading(true);
     setError('');
     try {

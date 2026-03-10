@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useRef, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '../../../../lib/auth';
 import { policiesApi, compareApi, chatApi, Policy, PolicyBundle, CompareAnalysis } from '../../../../lib/api';
+import { trackClick, trackFeatureUse } from '../../../../lib/track';
 import BackButton from '../../components/BackButton';
 
 const SEVERITY_STYLES: Record<string, { bg: string; color: string; label: string }> = {
@@ -94,6 +95,7 @@ function CompareContent() {
       setError('Select up to 4 policies.');
       return;
     }
+    trackFeatureUse('compare_policies', { count: validIds.length });
     router.replace(`/policies/compare?ids=${validIds.join(',')}`, { scroll: false });
     runCompare(validIds);
   };
@@ -101,6 +103,7 @@ function CompareContent() {
   const handleAnalyze = async () => {
     const validIds = getCompareIds();
     if (validIds.length < 2) return;
+    trackFeatureUse('analyze_policies', { count: validIds.length });
     setAnalyzing(true);
     setAnalysisError('');
     setAnalysis(null);

@@ -7,6 +7,7 @@ import { API_BASE, policiesApi, renewalsApi, remindersApi, premiumsApi, sharingA
 import { useToast } from '../components/Toast';
 import ConfirmDialog from '../components/ConfirmDialog';
 import BulkShareModal from '../components/BulkShareModal';
+import { trackClick } from '../../../lib/track';
 import { APP_NAME } from '../config';
 import { POLICY_TYPE_CONFIG, POLICY_TYPES, POLICY_TYPE_CATEGORIES, STATUS_COLORS, SEVERITY_COLORS } from '../constants';
 import TabNav from '../components/TabNav';
@@ -1088,7 +1089,7 @@ function PoliciesPageInner() {
         <section style={{ marginBottom: 40 }}>
           <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
             <button
-              onClick={() => setShowAddModal(true)}
+              onClick={() => { trackClick('add_policy'); setShowAddModal(true); }}
               className="btn btn-accent"
               style={{ padding: '14px 28px', fontSize: 15, fontWeight: 600 }}
             >

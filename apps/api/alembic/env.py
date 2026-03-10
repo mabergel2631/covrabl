@@ -19,7 +19,7 @@ from app.models_features import (  # noqa: E402, F401
     Premium, Claim, RenewalReminder, AuditLog, PolicyShare, EmergencyCard,
     PremiumHistory, PolicyDelta, DeltaExplanation, CoverageScore,
     InboundAddress, InboundEmail, PolicyDraft, Certificate, CertificateReminder,
-    LeaseRequirement, ComplianceCheck, DismissedRecommendation,
+    LeaseRequirement, ComplianceCheck, DismissedRecommendation, UserEvent,
 )
 from app.models_documents import Document  # noqa: E402, F401
 from app.models_profile import UserProfile, ProfileContact  # noqa: E402, F401

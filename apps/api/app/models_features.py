@@ -277,3 +277,17 @@ class DismissedRecommendation(Base):
     rec_key: Mapped[str] = mapped_column(String(200))  # unique key for the recommendation
     scope: Mapped[str | None] = mapped_column(String(20), nullable=True)  # "personal" or "business" — for renewal reset
     dismissed_at: Mapped[DateTime] = mapped_column(DateTime, server_default=func.now())
+
+
+class UserEvent(Base):
+    """Behavioral event tracking for analytics (page views, clicks, feature usage)."""
+    __tablename__ = "user_events"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    user_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("users.id"), nullable=True, index=True)
+    session_id: Mapped[str | None] = mapped_column(String(50), nullable=True, index=True)
+    event_name: Mapped[str] = mapped_column(String(80), index=True)
+    event_category: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    properties: Mapped[str | None] = mapped_column(Text, nullable=True)  # JSON
+    page_path: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    created_at: Mapped[DateTime] = mapped_column(DateTime, server_default=func.now(), index=True)

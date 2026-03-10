@@ -9,7 +9,7 @@ from fastapi.responses import JSONResponse
 from app.db import engine
 from app.models import User, Policy, Contact, CoverageItem, PolicyDetail, PasswordReset, Exposure  # noqa: F401 — register models
 from app.models_documents import Document  # noqa: F401
-from app.models_features import Premium, Claim, RenewalReminder, AuditLog, PolicyShare, EmergencyCard, PremiumHistory, PolicyDelta, DeltaExplanation, CoverageScore, InboundAddress, InboundEmail, PolicyDraft, Certificate, CertificateReminder, LeaseRequirement, ComplianceCheck, DismissedRecommendation  # noqa: F401
+from app.models_features import Premium, Claim, RenewalReminder, AuditLog, PolicyShare, EmergencyCard, PremiumHistory, PolicyDelta, DeltaExplanation, CoverageScore, InboundAddress, InboundEmail, PolicyDraft, Certificate, CertificateReminder, LeaseRequirement, ComplianceCheck, DismissedRecommendation, UserEvent  # noqa: F401
 from app.models_profile import UserProfile, ProfileContact  # noqa: F401
 from app.models_chat import Conversation, ChatMessage  # noqa: F401
 from app.models_admin import EmailLog, Announcement  # noqa: F401
@@ -44,6 +44,7 @@ from app.routes_billing import router as billing_router
 from app.routes_chat import router as chat_router
 from app.routes_compare_analysis import router as compare_analysis_router
 from app.routes_lease_compliance import router as lease_compliance_router
+from app.routes_events import router as events_router
 
 app = FastAPI(title="Covrabl API")
 
@@ -132,3 +133,4 @@ app.include_router(billing_router)
 app.include_router(chat_router)
 app.include_router(compare_analysis_router)
 app.include_router(lease_compliance_router)
+app.include_router(events_router)

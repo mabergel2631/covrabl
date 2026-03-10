@@ -2,6 +2,7 @@ import logging
 import secrets
 from collections import defaultdict
 from datetime import datetime, timedelta, timezone
+from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel
@@ -16,7 +17,7 @@ from .models import User, PasswordReset, Policy, Exposure, PolicyDetail, Contact
 from .models_features import (
     Premium, Claim, RenewalReminder, AuditLog, PolicyShare, EmergencyCard,
     PremiumHistory, PolicyDelta, DeltaExplanation, CoverageScore,
-    InboundAddress, InboundEmail, PolicyDraft, Certificate, CertificateReminder,
+    InboundAddress, InboundEmail, PolicyDraft, Certificate, CertificateReminder, UserEvent,
 )
 from .models_profile import UserProfile, ProfileContact
 from .models_chat import Conversation, ChatMessage
@@ -82,6 +83,7 @@ def register(payload: UserCreate, db: Session = Depends(get_db)):
         email=email,
         hashed_password=hashed,
         plan="free",
+        role="agent" if payload.role == "broker" else "individual",
     )
     db.add(user)
     db.commit()
@@ -220,7 +222,8 @@ def delete_user_cascade(db: Session, uid: int) -> None:
         db.execute(delete(Policy).where(Policy.id.in_(policy_ids)))
     db.execute(delete(Exposure).where(Exposure.user_id == uid))
 
-    # Phase 4: auth tables & user
+    # Phase 4: events, auth tables & user
+    db.execute(delete(UserEvent).where(UserEvent.user_id == uid))
     db.execute(delete(PasswordReset).where(PasswordReset.user_id == uid))
     # Also clean up email logs referencing this user's email
     user = db.get(User, uid)
@@ -257,6 +260,24 @@ def change_password(
     db.commit()
     logger.info("Password changed for user_id=%s", user.id)
     return {"ok": True}
+
+
+class SetRoleRequest(BaseModel):
+    role: Literal["broker"]
+
+
+@router.put("/set-role")
+def set_role(
+    payload: SetRoleRequest,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Allow an individual user to upgrade to broker role."""
+    if user.role != "individual":
+        raise HTTPException(status_code=400, detail="Role already set")
+    user.role = "agent"  # "broker" maps to "agent" internally
+    db.commit()
+    return {"ok": True, "role": "agent"}
 
 
 class DeleteAccountRequest(BaseModel):

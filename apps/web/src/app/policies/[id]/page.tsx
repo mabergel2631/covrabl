@@ -5,6 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { useAuth } from '../../../../lib/auth';
 import { API_BASE, policiesApi, contactsApi, documentsApi, coverageApi, policyDetailsApi, claimsApi, sharingApi, exportApi, premiumHistoryApi, exposuresApi, gapsApi, certificatesApi, leaseComplianceApi, chatApi, profileApi, Policy, Contact, DocMeta, ContactCreate, ExtractionData, CoverageItem, CoverageItemCreate, PolicyDetail, PolicyDetailCreate, PolicyUpdate, Claim, ClaimCreate, PolicyShareType, ShareCreate, PremiumHistoryEntry, Exposure, CoverageGap, Certificate, LeaseRequirement, LeaseRequirementTenant, LeaseRequirementItem, ComplianceResultItem, LeaseExtraction, BrokerEmail, PolicyVersionEntry, PotentialRenewal, checkFeatureAccess, parseUpgradeError } from '../../../../lib/api';
 import { formatPhone, cleanPhone } from '../../../../lib/format';
+import { trackClick, trackFeatureUse } from '../../../../lib/track';
 import { useToast } from '../../components/Toast';
 import { Skeleton } from '../../components/Skeleton';
 import UpgradePrompt from '../../components/UpgradePrompt';
@@ -179,6 +180,7 @@ export default function PolicyDetailPage() {
   const handleAiSend = useCallback((message?: string) => {
     const text = (message || aiInput).trim();
     if (!text || aiStreaming) return;
+    trackFeatureUse('policy_ai_chat', { policy_id: policyId });
     setAiInput('');
     setAiMessages(prev => [...prev, { role: 'user', content: text }]);
     setAiStreaming(true);
@@ -390,6 +392,7 @@ export default function PolicyDetailPage() {
   };
 
   const handleDownload = async (docId: number) => {
+    trackClick('download_document', { doc_id: docId, policy_id: policyId });
     try {
       const { download_url } = await documentsApi.download(docId);
       window.open(download_url, '_blank');
@@ -412,6 +415,7 @@ export default function PolicyDetailPage() {
       toast('File size must be under 20 MB.', 'error');
       return;
     }
+    trackClick('upload_document', { policy_id: policyId });
     setUploading(true);
     setUploadProgress(0);
     setError('');
@@ -466,6 +470,7 @@ export default function PolicyDetailPage() {
   };
 
   const handleExtract = async (docId: number) => {
+    trackFeatureUse('extract_document', { doc_id: docId, policy_id: policyId });
     setExtractingId(docId);
     setError('');
     try {
@@ -868,7 +873,7 @@ export default function PolicyDetailPage() {
             {showShareForm && isOwner && (
               <div style={{ marginTop: 20, padding: 20, backgroundColor: 'var(--color-bg)', borderRadius: 'var(--radius-md)', border: '1px solid var(--color-border)' }}>
                 <h3 style={{ margin: '0 0 16px', fontSize: 16, fontWeight: 600 }}>Share This Policy</h3>
-                <form onSubmit={async (e) => { e.preventDefault(); try { await sharingApi.share(policyId, shareForm); setShowShareForm(false); setShareForm({ shared_with_email: '', permission: 'view', role_label: null, expires_at: null }); setShares(await sharingApi.listShares(policyId)); toast('Invite sent', 'success'); } catch (err: any) { setError(err.message); } }}>
+                <form onSubmit={async (e) => { e.preventDefault(); try { trackClick('share_policy', { policy_id: policyId }); await sharingApi.share(policyId, shareForm); setShowShareForm(false); setShareForm({ shared_with_email: '', permission: 'view', role_label: null, expires_at: null }); setShares(await sharingApi.listShares(policyId)); toast('Invite sent', 'success'); } catch (err: any) { setError(err.message); } }}>
                   <div className="form-grid-2" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                     <div>
                       <label style={labelStyle}>Email</label>
@@ -2027,6 +2032,7 @@ export default function PolicyDetailPage() {
         async function handleLeaseSaveAndCheck() {
           if (!leaseFormLabel.trim()) { toast('Please enter a label', 'error'); return; }
           if (leaseEditableReqs.length === 0) { toast('Add at least one requirement', 'error'); return; }
+          trackFeatureUse('lease_check', { policy_id: policyId });
 
           // Validate that requirements have meaningful labels
           const emptyReqs = leaseEditableReqs.filter(r => !r.label.trim());

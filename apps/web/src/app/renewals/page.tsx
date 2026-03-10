@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '../../../lib/auth';
 import { renewalsApi, RenewalSummaryResult, RenewalPolicySummary, RenewalChange, checkFeatureAccess } from '../../../lib/api';
 import { formatDate, formatCurrency, formatPhone, cleanPhone } from '../../../lib/format';
+import { trackClick } from '../../../lib/track';
 import EmptyState from '../components/EmptyState';
 import UpgradePrompt from '../components/UpgradePrompt';
 import BackButton from '../components/BackButton';
@@ -280,6 +281,7 @@ function RenewalSummaryOverlay({
   const questions = generateQuestions(data.policies);
 
   const handleCopy = async () => {
+    trackClick('copy_renewal_summary');
     try {
       await navigator.clipboard.writeText(generatePlainText(data));
       setCopied(true);
@@ -297,6 +299,7 @@ function RenewalSummaryOverlay({
   };
 
   const handlePrint = () => {
+    trackClick('print_renewal_summary');
     window.print();
   };
 
@@ -548,7 +551,7 @@ export default function RenewalsPage() {
           {data && data.total_renewing > 0 && (
             <button
               className="btn btn-outline"
-              onClick={() => setShowSummary(true)}
+              onClick={() => { trackClick('prepare_for_advisor'); setShowSummary(true); }}
               style={{ borderColor: 'var(--color-accent)', color: 'var(--color-accent)' }}
             >
               Prepare for Advisor

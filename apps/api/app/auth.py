@@ -47,6 +47,24 @@ def get_current_user(
     return user
 
 
+def get_current_user_optional(
+    creds: HTTPAuthorizationCredentials | None = Depends(HTTPBearer(auto_error=False)),
+    db: Session = Depends(get_db),
+) -> User | None:
+    """Like get_current_user but returns None instead of raising 401."""
+    if creds is None:
+        return None
+    try:
+        payload = jwt.decode(creds.credentials, settings.jwt_key, algorithms=[settings.jwt_algorithm])
+        user_id = int(payload["sub"])
+    except (JWTError, KeyError, ValueError):
+        return None
+    user = db.get(User, user_id)
+    if user is None or user.is_suspended:
+        return None
+    return user
+
+
 def require_admin(user: User = Depends(get_current_user)) -> User:
     if user.role != "admin":
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin role required")

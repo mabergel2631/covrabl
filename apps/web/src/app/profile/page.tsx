@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '../../../lib/auth';
 import { profileApi, authApi, UserProfile, ProfileContact, ProfileContactCreate } from '../../../lib/api';
 import { formatPhone } from '../../../lib/format';
+import { trackClick, trackFeatureUse } from '../../../lib/track';
 import { useToast } from '../components/Toast';
 import BackButton from '../components/BackButton';
 
@@ -90,6 +91,7 @@ export default function ProfilePage() {
   };
 
   const handleSavePersonal = async () => {
+    trackClick('save_profile');
     setSaving(true);
     try {
       const updated = await profileApi.update(form);
@@ -177,6 +179,7 @@ export default function ProfilePage() {
     if (!pwForm.current.trim()) { setPwError('Current password is required'); return; }
     if (pwForm.newPw.length < 6) { setPwError('New password must be at least 6 characters'); return; }
     if (pwForm.newPw !== pwForm.confirm) { setPwError('Passwords do not match'); return; }
+    trackClick('change_password');
 
     setChangingPw(true);
     try {
@@ -193,6 +196,7 @@ export default function ProfilePage() {
 
   const handleDeleteAccount = async () => {
     if (!deletePassword.trim()) { setDeleteError('Password is required'); return; }
+    trackClick('delete_account');
     setDeleting(true);
     setDeleteError('');
     try {

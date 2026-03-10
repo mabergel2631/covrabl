@@ -4,6 +4,7 @@ import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '../../../lib/auth';
 import { scoresApi, CoverageScoresResult, CategoryResult, ScoreRecommendation } from '../../../lib/api';
+import { trackClick, trackFeatureUse } from '../../../lib/track';
 import BackButton from '../components/BackButton';
 
 const PERSONAL_CATEGORIES = ['liability', 'property', 'income', 'catastrophic'];
@@ -271,6 +272,7 @@ function ScorePageInner() {
   };
 
   const handleDismiss = async (recKey: string) => {
+    trackClick('dismiss_recommendation', { rec_key: recKey });
     try {
       await scoresApi.dismiss(recKey, scope);
       const result = await scoresApi.recalculateScope(scope);
@@ -311,6 +313,7 @@ function ScorePageInner() {
   }, [token, scope]);
 
   const handleRecalculate = async () => {
+    trackClick('recalculate_score', { scope });
     setRecalculating(true);
     try {
       const result = await scoresApi.recalculateScope(scope);
