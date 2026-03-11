@@ -81,9 +81,16 @@ function LeaseComplianceContent() {
                   <div style={{ fontSize: 12, color: 'var(--color-text-secondary)' }}>
                     {req.property_address && <span>{req.property_address} &middot; </span>}
                     {req.role === 'tenant' ? 'Tenant' : 'Landlord'}
-                    {req.latest_check && (
-                      <span> &middot; {req.latest_check.pass_count} pass, {req.latest_check.fail_count} fail, {req.latest_check.unclear_count} unclear</span>
-                    )}
+                    {req.latest_check && (() => {
+                      const lc = req.latest_check;
+                      const lcAllPass = lc.fail_count === 0 && lc.unclear_count === 0 && lc.pass_count > 0;
+                      const lcHasFail = lc.fail_count > 0;
+                      const lcVerdict = lcAllPass ? 'Compliant' : lcHasFail ? (lc.pass_count > 0 ? 'Partially Compliant' : 'Non-Compliant') : 'Needs Verification';
+                      const lcColor = lcAllPass ? '#166534' : lcHasFail ? '#991b1b' : '#92400e';
+                      return (
+                        <span> &middot; <span style={{ fontWeight: 600, color: lcColor }}>{lcVerdict}</span> ({lc.pass_count}/{lc.pass_count + lc.fail_count + lc.unclear_count} met)</span>
+                      );
+                    })()}
                   </div>
                 </div>
                 <div style={{ display: 'flex', gap: 8 }}>
@@ -105,6 +112,7 @@ function LeaseComplianceContent() {
                   )}
                   <button
                     onClick={async () => {
+                      trackClick('lease_dashboard_delete', { req_id: req.id });
                       if (!confirm('Delete this lease check?')) return;
                       try {
                         await leaseComplianceApi.remove(req.id);
@@ -137,7 +145,7 @@ function LeaseComplianceContent() {
             Lease checks are now available on your business policy pages. Open any commercial policy to check it against lease insurance requirements.
           </p>
           <button
-            onClick={() => router.push('/policies')}
+            onClick={() => { trackClick('lease_dashboard_go_to_policies'); router.push('/policies'); }}
             style={{
               padding: '10px 24px', backgroundColor: 'var(--color-primary)', color: '#fff',
               border: 'none', borderRadius: 'var(--radius-md)', fontWeight: 600, fontSize: 14, cursor: 'pointer',

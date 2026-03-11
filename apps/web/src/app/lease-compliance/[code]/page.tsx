@@ -8,6 +8,7 @@ import {
   LeaseRequirementItem,
   ComplianceResultItem,
 } from '../../../../lib/api';
+import { trackClick } from '../../../../lib/track';
 
 const CATEGORY_LABELS: Record<string, string> = {
   general_liability: 'General Liability',
@@ -148,7 +149,7 @@ export default function LeaseCompliancePublicPage() {
           </div>
           <button
             className="no-print"
-            onClick={() => window.print()}
+            onClick={() => { trackClick('lease_public_print'); window.print(); }}
             style={{
               padding: '8px 18px', backgroundColor: 'rgba(255,255,255,0.15)', color: '#fff',
               border: '1px solid rgba(255,255,255,0.3)', borderRadius: 6, fontWeight: 600,
@@ -198,39 +199,104 @@ export default function LeaseCompliancePublicPage() {
           <div style={{ marginBottom: 32 }}>
             <h2 style={{ fontSize: 16, fontWeight: 700, color: '#1f2937', marginBottom: 14 }}>Compliance Results</h2>
 
-            <div style={{ display: 'flex', gap: 12, marginBottom: 20, flexWrap: 'wrap' }}>
-              {[
-                { label: 'Pass', count: counts.pass, color: '#166534', bg: '#dcfce7' },
-                { label: 'Fail', count: counts.fail, color: '#991b1b', bg: '#fee2e2' },
-                { label: 'Unclear', count: counts.unclear, color: '#92400e', bg: '#fef3c7' },
-              ].map(s => (
-                <div key={s.label} style={{ padding: '10px 18px', borderRadius: 8, backgroundColor: s.bg, minWidth: 80, textAlign: 'center' }}>
-                  <div style={{ fontSize: 20, fontWeight: 700, color: s.color }}>{s.count}</div>
-                  <div style={{ fontSize: 11, fontWeight: 600, color: s.color }}>{s.label}</div>
+            {/* Big Verdict Banner */}
+            {(() => {
+              const total = counts.pass + counts.fail + counts.unclear;
+              const allPass = counts.fail === 0 && counts.unclear === 0;
+              const hasFails = counts.fail > 0;
+              const verdictLabel = allPass ? 'COMPLIANT' : hasFails ? (counts.pass > 0 ? 'PARTIALLY COMPLIANT' : 'NON-COMPLIANT') : 'NEEDS VERIFICATION';
+              const verdictBg = allPass ? '#dcfce7' : hasFails ? '#fee2e2' : '#fef3c7';
+              const verdictColor = allPass ? '#166534' : hasFails ? '#991b1b' : '#92400e';
+              const verdictBorder = allPass ? '#bbf7d0' : hasFails ? '#fecaca' : '#fde68a';
+              return (
+                <div style={{ borderRadius: 10, border: `2px solid ${verdictBorder}`, backgroundColor: verdictBg, padding: '16px 20px', marginBottom: 20, textAlign: 'center' }}>
+                  <div style={{ fontSize: 18, fontWeight: 800, color: verdictColor, letterSpacing: '0.03em' }}>{verdictLabel}</div>
+                  <div style={{ fontSize: 13, color: verdictColor, marginTop: 4, fontWeight: 500 }}>
+                    {counts.pass} of {total} requirement{total !== 1 ? 's' : ''} met
+                    {counts.fail > 0 && <span> &middot; {counts.fail} failed</span>}
+                    {counts.unclear > 0 && <span> &middot; {counts.unclear} unclear</span>}
+                  </div>
                 </div>
-              ))}
-            </div>
+              );
+            })()}
 
+            {/* Structured results with required vs actual */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               {results.map((r, i) => {
                 const si = STATUS_ICONS[r.status] || STATUS_ICONS.unclear;
                 const cc = CATEGORY_COLORS[r.category] || CATEGORY_COLORS.other;
+                const resolutionText = r.status === 'fail'
+                  ? (r.required_value && r.actual_value
+                      ? `Request updated certificate with ${r.requirement_label} increased to ${r.required_value}`
+                      : r.required_value
+                        ? `Request coverage for ${r.requirement_label} at ${r.required_value} minimum`
+                        : `Request proof of ${r.requirement_label} from your insurer`)
+                  : r.status === 'unclear'
+                    ? `Verify ${r.requirement_label} with your carrier or agent`
+                    : null;
                 return (
-                  <div key={i} style={{ border: '1px solid #e5e7eb', borderRadius: 8, padding: 14, backgroundColor: '#fff' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-                      <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 22, height: 22, borderRadius: '50%', backgroundColor: si.bg, color: si.color, fontSize: 12, fontWeight: 700 }}>{si.icon}</span>
-                      <span style={{ padding: '2px 8px', borderRadius: 12, fontSize: 11, fontWeight: 600, backgroundColor: cc.bg, color: cc.fg }}>{CATEGORY_LABELS[r.category] || r.category}</span>
-                      <span style={{ fontSize: 13, fontWeight: 600, color: '#1f2937' }}>{r.requirement_label}</span>
+                  <div key={i} style={{ border: `1px solid ${r.status === 'fail' ? '#fecaca' : r.status === 'unclear' ? '#fde68a' : '#e5e7eb'}`, borderRadius: 8, padding: 14, backgroundColor: '#fff' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: (r.required_value || r.actual_value || r.note) ? 8 : 0, flexWrap: 'wrap' }}>
+                      <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 22, height: 22, borderRadius: '50%', backgroundColor: si.bg, color: si.color, fontSize: 12, fontWeight: 700, flexShrink: 0 }}>{si.icon}</span>
+                      <span style={{ padding: '2px 8px', borderRadius: 12, fontSize: 11, fontWeight: 600, backgroundColor: cc.bg, color: cc.fg, flexShrink: 0 }}>{CATEGORY_LABELS[r.category] || r.category}</span>
+                      <span style={{ fontSize: 13, fontWeight: 600, color: '#1f2937', flex: 1, minWidth: 0 }}>{r.requirement_label}</span>
+                      <span style={{ fontSize: 11, fontWeight: 700, color: si.color, textTransform: 'uppercase', flexShrink: 0 }}>{r.status === 'pass' ? 'Met' : r.status === 'fail' ? 'Failed' : 'Unclear'}</span>
                     </div>
-                    {r.note && <p style={{ fontSize: 12, color: '#6b7280', margin: '4px 0 0 30px', lineHeight: 1.5 }}>{r.note}</p>}
+                    {/* Required vs Actual */}
+                    {(r.required_value || r.actual_value) && (
+                      <div className="form-grid-2" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginLeft: 30, marginBottom: r.note ? 6 : 0 }}>
+                        {r.required_value && (
+                          <div style={{ fontSize: 12, color: '#6b7280' }}>
+                            <span style={{ fontWeight: 600 }}>Required:</span> {r.required_value}
+                          </div>
+                        )}
+                        <div style={{ fontSize: 12, color: r.status === 'fail' ? '#991b1b' : r.status === 'pass' ? '#166534' : '#92400e' }}>
+                          <span style={{ fontWeight: 600 }}>Found:</span> {r.actual_value || 'Not detected'}
+                        </div>
+                      </div>
+                    )}
+                    {r.note && <p style={{ fontSize: 12, color: '#6b7280', margin: '0 0 0 30px', lineHeight: 1.5 }}>{r.note}</p>}
+                    {/* Resolution guidance */}
+                    {resolutionText && (
+                      <div style={{ marginTop: 8, marginLeft: 30, padding: '6px 10px', borderRadius: 6, backgroundColor: r.status === 'fail' ? '#fef2f2' : '#fffbeb', fontSize: 12, color: r.status === 'fail' ? '#991b1b' : '#92400e' }}>
+                        <span style={{ fontWeight: 600 }}>How to resolve:</span> {resolutionText}
+                      </div>
+                    )}
                   </div>
                 );
               })}
             </div>
+
+            {/* Next Steps summary */}
+            {(counts.fail > 0 || counts.unclear > 0) && (
+              <div style={{ border: '1px solid #e5e7eb', borderRadius: 10, padding: '14px 18px', marginTop: 16, backgroundColor: '#fafafa' }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: '#1f2937', marginBottom: 8 }}>Next Steps</div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  {results.filter(r => r.status === 'fail').map((r, i) => (
+                    <div key={`f${i}`} style={{ display: 'flex', alignItems: 'flex-start', gap: 6, fontSize: 12, color: '#991b1b' }}>
+                      <span style={{ flexShrink: 0, marginTop: 1 }}>&bull;</span>
+                      <span>
+                        {r.required_value && r.actual_value
+                          ? `Increase ${r.requirement_label} from ${r.actual_value} to ${r.required_value}`
+                          : r.required_value
+                            ? `Add ${r.requirement_label} coverage (${r.required_value} required)`
+                            : `Obtain proof of ${r.requirement_label}`}
+                      </span>
+                    </div>
+                  ))}
+                  {results.filter(r => r.status === 'unclear').map((r, i) => (
+                    <div key={`u${i}`} style={{ display: 'flex', alignItems: 'flex-start', gap: 6, fontSize: 12, color: '#92400e' }}>
+                      <span style={{ flexShrink: 0, marginTop: 1 }}>&bull;</span>
+                      <span>Verify {r.requirement_label} with your carrier or agent</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         )}
 
-        {/* Post-submission next steps */}
+        {/* Post-submission guidance */}
         {results && (() => {
           const allPass = counts.fail === 0 && counts.unclear === 0 && counts.pass > 0;
           const hasFail = counts.fail > 0;
@@ -243,17 +309,18 @@ export default function LeaseCompliancePublicPage() {
                 marginBottom: 16,
               }}>
                 <h3 style={{ margin: '0 0 6px', fontSize: 15, fontWeight: 700, color: allPass ? '#166534' : hasFail ? '#991b1b' : '#92400e' }}>
-                  {allPass ? 'Your insurance meets all requirements' : hasFail ? 'Some requirements were not met' : 'Some requirements need review'}
+                  {allPass ? 'Your insurance meets all requirements' : hasFail ? 'Action needed — some requirements were not met' : 'Some requirements need verification'}
                 </h3>
                 <p style={{ margin: 0, fontSize: 13, color: allPass ? '#15803d' : hasFail ? '#b91c1c' : '#a16207', lineHeight: 1.5 }}>
                   Your landlord has been notified automatically with these results.
-                  {hasFail && ' They may reach out with next steps. You can resubmit an updated certificate using this same link.'}
+                  {hasFail && ' Contact your insurance agent to update your coverage, then resubmit an updated certificate using this same link.'}
                 </p>
               </div>
               <div style={{ textAlign: 'center', padding: '16px 0' }}>
                 <p style={{ fontSize: 13, color: '#6b7280', marginBottom: 12 }}>Want to track your own insurance policies and stay on top of renewals?</p>
                 <a
                   href="https://covrabl.com/?ref=tenant"
+                  onClick={() => trackClick('lease_public_cta_try_covrabl')}
                   target="_blank"
                   rel="noopener noreferrer"
                   style={{
@@ -278,7 +345,7 @@ export default function LeaseCompliancePublicPage() {
               Upload your COI to automatically check it against the requirements above.
             </p>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 }}>
+            <div className="form-grid-2" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 }}>
               <div>
                 <label style={labelStyle}>Your Name</label>
                 <input style={inputStyle} value={tenantName} onChange={e => setTenantName(e.target.value)} placeholder="Optional" />
@@ -306,7 +373,7 @@ export default function LeaseCompliancePublicPage() {
             </div>
 
             <button
-              onClick={handleSubmitCoi}
+              onClick={() => { trackClick('lease_public_submit_coi'); handleSubmitCoi(); }}
               disabled={submitting}
               style={{
                 padding: '10px 24px', backgroundColor: '#1e3a5f', color: '#fff',

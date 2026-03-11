@@ -2268,13 +2268,13 @@ export default function PolicyDetailPage() {
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 12 }}>
               <div>
                 <h2 className="section-title" style={{ margin: 0 }}>Lease Check</h2>
-                <a href="/features/lease-check" target="_blank" rel="noopener noreferrer" style={{ fontSize: 12, color: 'var(--color-accent)', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 4, marginTop: 2 }}>See how it works <span style={{ fontSize: 14 }}>&rsaquo;</span></a>
+                <a href="/features/lease-check" target="_blank" rel="noopener noreferrer" onClick={() => trackClick('lease_check_how_it_works')} style={{ fontSize: 12, color: 'var(--color-accent)', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 4, marginTop: 2 }}>See how it works <span style={{ fontSize: 14 }}>&rsaquo;</span></a>
               </div>
               {leaseView === 'list' && canEdit && (
-                <button onClick={() => setLeaseView('create')} className="btn btn-primary">+ New Check</button>
+                <button onClick={() => { trackClick('lease_check_new'); setLeaseView('create'); }} className="btn btn-primary">+ New Check</button>
               )}
               {leaseView !== 'list' && (
-                <button onClick={resetLeaseCreate} style={{ background: 'none', border: 'none', color: 'var(--color-primary)', cursor: 'pointer', fontSize: 13, fontWeight: 600, padding: 0 }}>
+                <button onClick={() => { trackClick('lease_check_back_to_list'); resetLeaseCreate(); }} style={{ background: 'none', border: 'none', color: 'var(--color-primary)', cursor: 'pointer', fontSize: 13, fontWeight: 600, padding: 0 }}>
                   &larr; Back to list
                 </button>
               )}
@@ -2287,7 +2287,7 @@ export default function PolicyDetailPage() {
                   <div style={{ textAlign: 'center', padding: '24px 16px', color: 'var(--color-text-secondary)' }}>
                     <p style={{ fontSize: 14, margin: '0 0 12px' }}>No lease requirements checked yet.</p>
                     {canEdit && (
-                      <button onClick={() => setLeaseView('create')} className="btn btn-primary">
+                      <button onClick={() => { trackClick('lease_check_new'); setLeaseView('create'); }} className="btn btn-primary">
                         Check Against Lease Requirements
                       </button>
                     )}
@@ -2299,8 +2299,8 @@ export default function PolicyDetailPage() {
                       return (
                         <div key={req.id} style={{ border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', padding: 14, backgroundColor: '#fff' }}>
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 8 }}>
-                            <div style={{ flex: 1 }}>
-                              <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 4, display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 4, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
                                 {req.label}
                                 <span style={{ padding: '1px 6px', borderRadius: 10, fontSize: 10, fontWeight: 600, backgroundColor: req.role === 'landlord' ? '#dcfce7' : '#dbeafe', color: req.role === 'landlord' ? '#166534' : '#1e40af' }}>
                                   {req.role === 'landlord' ? 'Landlord' : 'Tenant'}
@@ -2311,19 +2311,27 @@ export default function PolicyDetailPage() {
                                 {req.counterparty_name && <span>&middot; {req.counterparty_name}</span>}
                                 <span>&middot; {reqs.length} req{reqs.length !== 1 ? 's' : ''}</span>
                               </div>
-                              {req.latest_check && (
-                                <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
-                                  {req.latest_check.pass_count > 0 && <span style={{ padding: '1px 8px', borderRadius: 10, fontSize: 11, fontWeight: 600, backgroundColor: '#dcfce7', color: '#166534' }}>{req.latest_check.pass_count} pass</span>}
-                                  {req.latest_check.fail_count > 0 && <span style={{ padding: '1px 8px', borderRadius: 10, fontSize: 11, fontWeight: 600, backgroundColor: '#fee2e2', color: '#991b1b' }}>{req.latest_check.fail_count} fail</span>}
-                                  {req.latest_check.unclear_count > 0 && <span style={{ padding: '1px 8px', borderRadius: 10, fontSize: 11, fontWeight: 600, backgroundColor: '#fef3c7', color: '#92400e' }}>{req.latest_check.unclear_count} unclear</span>}
-                                </div>
-                              )}
+                              {req.latest_check && (() => {
+                                const lc = req.latest_check;
+                                const lcTotal = lc.pass_count + lc.fail_count + lc.unclear_count;
+                                const lcAllPass = lc.fail_count === 0 && lc.unclear_count === 0 && lc.pass_count > 0;
+                                const lcHasFail = lc.fail_count > 0;
+                                const lcVerdict = lcAllPass ? 'Compliant' : lcHasFail ? (lc.pass_count > 0 ? 'Partially Compliant' : 'Non-Compliant') : 'Needs Verification';
+                                const lcColor = lcAllPass ? '#166534' : lcHasFail ? '#991b1b' : '#92400e';
+                                const lcBg = lcAllPass ? '#dcfce7' : lcHasFail ? '#fee2e2' : '#fef3c7';
+                                return (
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 6 }}>
+                                    <span style={{ padding: '2px 10px', borderRadius: 10, fontSize: 11, fontWeight: 700, backgroundColor: lcBg, color: lcColor }}>{lcVerdict}</span>
+                                    <span style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>{lc.pass_count}/{lcTotal} met</span>
+                                  </div>
+                                );
+                              })()}
                             </div>
-                            <div style={{ display: 'flex', gap: 4 }}>
-                              <button onClick={() => handleLeaseViewResults(req)} style={{ padding: '4px 10px', fontSize: 12, border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)', backgroundColor: '#fff', cursor: 'pointer' }}>View</button>
-                              <button onClick={() => handleLeaseShare(req)} style={{ padding: '4px 10px', fontSize: 12, border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)', backgroundColor: '#fff', cursor: 'pointer' }}>Share</button>
-                              <button onClick={() => { const url = getLeaseShareUrl(req.access_code) + '?print=1'; window.open(url, '_blank'); }} style={{ padding: '4px 10px', fontSize: 12, border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)', backgroundColor: '#fff', cursor: 'pointer' }}>Print</button>
-                              {canEdit && <button onClick={() => setLeaseDeleteConfirm(req.id)} style={{ padding: '4px 10px', fontSize: 12, border: '1px solid var(--color-danger-border)', borderRadius: 'var(--radius-sm)', backgroundColor: '#fff', color: 'var(--color-danger)', cursor: 'pointer' }}>Delete</button>}
+                            <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                              <button onClick={() => { trackClick('lease_check_view', { req_id: req.id }); handleLeaseViewResults(req); }} style={{ padding: '4px 10px', fontSize: 12, border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)', backgroundColor: '#fff', cursor: 'pointer' }}>View</button>
+                              <button onClick={() => { trackClick('lease_check_share', { req_id: req.id }); handleLeaseShare(req); }} style={{ padding: '4px 10px', fontSize: 12, border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)', backgroundColor: '#fff', cursor: 'pointer' }}>Share</button>
+                              <button onClick={() => { trackClick('lease_check_print', { req_id: req.id }); const url = getLeaseShareUrl(req.access_code) + '?print=1'; window.open(url, '_blank'); }} style={{ padding: '4px 10px', fontSize: 12, border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)', backgroundColor: '#fff', cursor: 'pointer' }}>Print</button>
+                              {canEdit && <button onClick={() => { trackClick('lease_check_delete', { req_id: req.id }); setLeaseDeleteConfirm(req.id); }} style={{ padding: '4px 10px', fontSize: 12, border: '1px solid var(--color-danger-border)', borderRadius: 'var(--radius-sm)', backgroundColor: '#fff', color: 'var(--color-danger)', cursor: 'pointer' }}>Delete</button>}
                             </div>
                           </div>
                         </div>
@@ -2351,42 +2359,6 @@ export default function PolicyDetailPage() {
             {/* ── Create View ── */}
             {leaseView === 'create' && (
               <>
-                {/* Role selection cards */}
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 20 }}>
-                  <button
-                    onClick={() => setLeaseFormRole('tenant')}
-                    style={{
-                      padding: '16px 14px', textAlign: 'left', borderRadius: 'var(--radius-md)', cursor: 'pointer',
-                      border: leaseFormRole === 'tenant' ? '2px solid var(--color-primary)' : '1px solid var(--color-border)',
-                      backgroundColor: leaseFormRole === 'tenant' ? 'rgba(37,99,235,0.04)' : '#fff',
-                    }}
-                  >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-                      <span style={{ width: 16, height: 16, borderRadius: '50%', border: leaseFormRole === 'tenant' ? '5px solid var(--color-primary)' : '2px solid #ccc', display: 'inline-block', flexShrink: 0 }} />
-                      <span style={{ fontSize: 14, fontWeight: 700 }}>I&apos;m the Tenant</span>
-                    </div>
-                    <p style={{ fontSize: 12, color: 'var(--color-text-secondary)', margin: '0 0 0 24px', lineHeight: 1.5 }}>
-                      Check if your policy meets your landlord&apos;s lease requirements
-                    </p>
-                  </button>
-                  <button
-                    onClick={() => setLeaseFormRole('landlord')}
-                    style={{
-                      padding: '16px 14px', textAlign: 'left', borderRadius: 'var(--radius-md)', cursor: 'pointer',
-                      border: leaseFormRole === 'landlord' ? '2px solid var(--color-primary)' : '1px solid var(--color-border)',
-                      backgroundColor: leaseFormRole === 'landlord' ? 'rgba(37,99,235,0.04)' : '#fff',
-                    }}
-                  >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-                      <span style={{ width: 16, height: 16, borderRadius: '50%', border: leaseFormRole === 'landlord' ? '5px solid var(--color-primary)' : '2px solid #ccc', display: 'inline-block', flexShrink: 0 }} />
-                      <span style={{ fontSize: 14, fontWeight: 700 }}>I&apos;m the Landlord</span>
-                    </div>
-                    <p style={{ fontSize: 12, color: 'var(--color-text-secondary)', margin: '0 0 0 24px', lineHeight: 1.5 }}>
-                      Set requirements for your tenant and collect their proof of coverage
-                    </p>
-                  </button>
-                </div>
-
                 {leaseCreateStep === 1 && (
                   <>
                     {/* Use existing requirements if available */}
@@ -2428,27 +2400,23 @@ export default function PolicyDetailPage() {
 
                     <div style={{ marginBottom: 12 }}>
                       <label style={labelStyle}>
-                        {leaseFormRole === 'tenant'
-                          ? "Paste your landlord's lease requirements"
-                          : 'Paste the insurance clause from your lease'}
+                        Paste your lease requirements or insurance clause
                       </label>
                       <textarea
                         style={{ ...inputStyle, minHeight: 140, lineHeight: 1.6 }}
                         value={leaseClauseText}
                         onChange={e => setLeaseClauseText(e.target.value)}
-                        placeholder={leaseFormRole === 'tenant'
-                          ? "Paste the insurance requirements section from your lease. We'll check if your policy covers what's needed."
-                          : "Paste the insurance requirements you need from your tenant. We'll extract them so you can share and track compliance."}
+                        placeholder="Paste the insurance requirements section from your lease, contract, or vendor agreement. We'll extract them and check your coverage."
                       />
                     </div>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                      <button onClick={handleLeaseExtractText} disabled={leaseExtracting || !leaseClauseText.trim()} style={{ padding: '8px 20px', backgroundColor: 'var(--color-primary)', color: '#fff', border: 'none', borderRadius: 'var(--radius-sm)', fontWeight: 600, fontSize: 13, cursor: leaseExtracting ? 'wait' : 'pointer', opacity: leaseExtracting ? 0.7 : 1, alignSelf: 'flex-start' }}>
+                      <button onClick={() => { trackClick('lease_check_extract_text'); handleLeaseExtractText(); }} disabled={leaseExtracting || !leaseClauseText.trim()} style={{ padding: '8px 20px', backgroundColor: 'var(--color-primary)', color: '#fff', border: 'none', borderRadius: 'var(--radius-sm)', fontWeight: 600, fontSize: 13, cursor: leaseExtracting ? 'wait' : 'pointer', opacity: leaseExtracting ? 0.7 : 1, alignSelf: 'flex-start' }}>
                         {leaseExtracting ? 'Extracting...' : 'Extract Requirements'}
                       </button>
                       <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
                         <span style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>or upload PDF:</span>
                         <input ref={leasePdfRef} type="file" accept=".pdf" style={{ fontSize: 12, minWidth: 0, maxWidth: '100%' }} />
-                        <button onClick={handleLeaseExtractPdf} disabled={leaseExtracting} style={{ padding: '8px 14px', backgroundColor: '#2563eb', color: '#fff', border: 'none', borderRadius: 'var(--radius-sm)', fontWeight: 600, fontSize: 12, cursor: leaseExtracting ? 'wait' : 'pointer', opacity: leaseExtracting ? 0.7 : 1 }}>
+                        <button onClick={() => { trackClick('lease_check_extract_pdf'); handleLeaseExtractPdf(); }} disabled={leaseExtracting} style={{ padding: '8px 14px', backgroundColor: '#2563eb', color: '#fff', border: 'none', borderRadius: 'var(--radius-sm)', fontWeight: 600, fontSize: 12, cursor: leaseExtracting ? 'wait' : 'pointer', opacity: leaseExtracting ? 0.7 : 1 }}>
                           Upload
                         </button>
                       </div>
@@ -2465,7 +2433,32 @@ export default function PolicyDetailPage() {
                         {leaseExtraction.raw_summary}
                       </div>
                     )}
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 12 }}>
+
+                    {/* Role selector — compact inline toggle */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
+                      <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--color-text-secondary)' }}>I am the:</span>
+                      <div style={{ display: 'inline-flex', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)', overflow: 'hidden' }}>
+                        <button
+                          onClick={() => { trackClick('lease_check_role_tenant'); setLeaseFormRole('tenant'); }}
+                          style={{
+                            padding: '5px 14px', fontSize: 12, fontWeight: 600, border: 'none', cursor: 'pointer',
+                            backgroundColor: leaseFormRole === 'tenant' ? 'var(--color-primary)' : '#fff',
+                            color: leaseFormRole === 'tenant' ? '#fff' : 'var(--color-text-secondary)',
+                          }}
+                        >Tenant</button>
+                        <button
+                          onClick={() => { trackClick('lease_check_role_landlord'); setLeaseFormRole('landlord'); }}
+                          style={{
+                            padding: '5px 14px', fontSize: 12, fontWeight: 600, border: 'none', cursor: 'pointer',
+                            borderLeft: '1px solid var(--color-border)',
+                            backgroundColor: leaseFormRole === 'landlord' ? 'var(--color-primary)' : '#fff',
+                            color: leaseFormRole === 'landlord' ? '#fff' : 'var(--color-text-secondary)',
+                          }}
+                        >Landlord</button>
+                      </div>
+                    </div>
+
+                    <div className="form-grid-2" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 12 }}>
                       <div>
                         <label style={labelStyle}>Label *</label>
                         <input style={inputStyle} value={leaseFormLabel} onChange={e => setLeaseFormLabel(e.target.value)} placeholder="e.g. 123 Main St Lease" />
@@ -2475,7 +2468,7 @@ export default function PolicyDetailPage() {
                         <input style={inputStyle} value={leaseFormPropertyAddress} onChange={e => setLeaseFormPropertyAddress(e.target.value)} placeholder="Optional" />
                       </div>
                     </div>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 14 }}>
+                    <div className="form-grid-2" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 14 }}>
                       <div>
                         <label style={labelStyle}>{leaseFormRole === 'tenant' ? 'Landlord Name' : 'Tenant Name'}</label>
                         <input style={inputStyle} value={leaseFormCounterpartyName} onChange={e => setLeaseFormCounterpartyName(e.target.value)} placeholder="Optional" />
@@ -2486,39 +2479,44 @@ export default function PolicyDetailPage() {
                       </div>
                     </div>
 
-                    <div style={{ marginBottom: 14 }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                        <label style={{ ...labelStyle, marginBottom: 0 }}>Requirements ({leaseEditableReqs.length})</label>
-                        <button onClick={() => setLeaseEditableReqs(prev => [...prev, { category: 'other', requirement_type: 'other', required_value: null, label: '', notes: null }])} style={{ fontSize: 11, color: 'var(--color-primary)', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 600 }}>+ Add</button>
-                      </div>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                        {leaseEditableReqs.map((req, idx) => {
-                          const cc = CATEGORY_COLORS[req.category] || CATEGORY_COLORS.other;
-                          return (
-                            <div key={idx} style={{ border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)', padding: 10, backgroundColor: '#fff' }}>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                                <span style={{ padding: '1px 6px', borderRadius: 10, fontSize: 10, fontWeight: 600, backgroundColor: cc.bg, color: cc.fg }}>{CATEGORY_LABELS[req.category] || req.category}</span>
-                                <input
-                                  style={{ ...inputStyle, flex: 1, padding: '4px 8px', fontSize: 12 }}
-                                  value={req.label}
-                                  onChange={e => { const u = [...leaseEditableReqs]; u[idx] = { ...u[idx], label: e.target.value }; setLeaseEditableReqs(u); }}
-                                  placeholder="Requirement label"
-                                />
-                                <button onClick={() => setLeaseEditableReqs(prev => prev.filter((_, i) => i !== idx))} style={{ background: 'none', border: 'none', color: 'var(--color-danger)', cursor: 'pointer', fontSize: 14, padding: '0 4px' }}>&times;</button>
+                    {/* Requirements — collapsible for power users */}
+                    <details style={{ marginBottom: 14, border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)', padding: '10px 14px', backgroundColor: '#fafafa' }}>
+                      <summary style={{ fontSize: 13, fontWeight: 600, cursor: 'pointer', color: 'var(--color-text-secondary)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span>Review &amp; Edit Requirements ({leaseEditableReqs.length})</span>
+                      </summary>
+                      <div style={{ marginTop: 10 }}>
+                        <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 6 }}>
+                          <button onClick={() => setLeaseEditableReqs(prev => [...prev, { category: 'other', requirement_type: 'other', required_value: null, label: '', notes: null }])} style={{ fontSize: 11, color: 'var(--color-primary)', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 600 }}>+ Add</button>
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                          {leaseEditableReqs.map((req, idx) => {
+                            const cc = CATEGORY_COLORS[req.category] || CATEGORY_COLORS.other;
+                            return (
+                              <div key={idx} style={{ border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)', padding: 10, backgroundColor: '#fff' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                  <span style={{ padding: '1px 6px', borderRadius: 10, fontSize: 10, fontWeight: 600, backgroundColor: cc.bg, color: cc.fg, flexShrink: 0 }}>{CATEGORY_LABELS[req.category] || req.category}</span>
+                                  <input
+                                    style={{ ...inputStyle, flex: 1, padding: '4px 8px', fontSize: 12 }}
+                                    value={req.label}
+                                    onChange={e => { const u = [...leaseEditableReqs]; u[idx] = { ...u[idx], label: e.target.value }; setLeaseEditableReqs(u); }}
+                                    placeholder="Requirement label"
+                                  />
+                                  <button onClick={() => setLeaseEditableReqs(prev => prev.filter((_, i) => i !== idx))} style={{ background: 'none', border: 'none', color: 'var(--color-danger)', cursor: 'pointer', fontSize: 14, padding: '0 4px', flexShrink: 0 }}>&times;</button>
+                                </div>
                               </div>
-                            </div>
-                          );
-                        })}
+                            );
+                          })}
+                        </div>
                       </div>
-                    </div>
+                    </details>
 
                     <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                       <button onClick={() => setLeaseCreateStep(1)} style={{ padding: '8px 16px', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)', backgroundColor: '#fff', cursor: 'pointer', fontSize: 13 }}>Back</button>
-                      <button onClick={() => { leaseAutoShareRef.current = false; handleLeaseSaveAndCheck(); }} disabled={leaseSaving} style={{ padding: '8px 16px', backgroundColor: leaseFormRole === 'landlord' ? '#fff' : 'var(--color-primary)', color: leaseFormRole === 'landlord' ? 'var(--color-text)' : '#fff', border: leaseFormRole === 'landlord' ? '1px solid var(--color-border)' : 'none', borderRadius: 'var(--radius-sm)', fontWeight: 600, fontSize: 13, cursor: leaseSaving ? 'wait' : 'pointer', opacity: leaseSaving ? 0.7 : 1 }}>
+                      <button onClick={() => { trackClick('lease_check_save', { role: leaseFormRole }); leaseAutoShareRef.current = false; handleLeaseSaveAndCheck(); }} disabled={leaseSaving} style={{ padding: '8px 16px', backgroundColor: leaseFormRole === 'landlord' ? '#fff' : 'var(--color-primary)', color: leaseFormRole === 'landlord' ? 'var(--color-text)' : '#fff', border: leaseFormRole === 'landlord' ? '1px solid var(--color-border)' : 'none', borderRadius: 'var(--radius-sm)', fontWeight: 600, fontSize: 13, cursor: leaseSaving ? 'wait' : 'pointer', opacity: leaseSaving ? 0.7 : 1 }}>
                         {leaseSaving ? 'Saving...' : leaseFormRole === 'tenant' ? 'Save & Check' : 'Save'}
                       </button>
                       {leaseFormRole === 'landlord' && (
-                        <button onClick={() => { leaseAutoShareRef.current = true; handleLeaseSaveAndCheck(); }} disabled={leaseSaving} style={{ padding: '8px 16px', backgroundColor: 'var(--color-primary)', color: '#fff', border: 'none', borderRadius: 'var(--radius-sm)', fontWeight: 600, fontSize: 13, cursor: leaseSaving ? 'wait' : 'pointer', opacity: leaseSaving ? 0.7 : 1 }}>
+                        <button onClick={() => { trackClick('lease_check_save_share'); leaseAutoShareRef.current = true; handleLeaseSaveAndCheck(); }} disabled={leaseSaving} style={{ padding: '8px 16px', backgroundColor: 'var(--color-primary)', color: '#fff', border: 'none', borderRadius: 'var(--radius-sm)', fontWeight: 600, fontSize: 13, cursor: leaseSaving ? 'wait' : 'pointer', opacity: leaseSaving ? 0.7 : 1 }}>
                           {leaseSaving ? 'Saving...' : 'Save & Share'}
                         </button>
                       )}
@@ -2531,7 +2529,7 @@ export default function PolicyDetailPage() {
                   <div style={{ border: '1px solid #bfdbfe', borderRadius: 'var(--radius-md)', padding: 20, backgroundColor: '#f0f9ff' }}>
                     <h4 style={{ fontSize: 15, fontWeight: 700, margin: '0 0 6px', color: '#1e40af' }}>Upload Your Proof of Coverage</h4>
                     <p style={{ fontSize: 13, color: 'var(--color-text-secondary)', margin: '0 0 16px', lineHeight: 1.5 }}>
-                      Upload your Certificate of Insurance (COI), Declaration Page, or other proof of coverage so Covrabl can check it against the landlord requirements.
+                      Upload your Certificate of Insurance (COI), Declaration Page, or other proof of coverage so Covrabl can check it against the requirements.
                     </p>
                     <div
                       style={{ border: '2px dashed var(--color-border)', borderRadius: 'var(--radius-md)', padding: 24, textAlign: 'center', cursor: 'pointer', backgroundColor: leaseDocUploadFile ? '#dcfce7' : '#fff', transition: 'background-color 0.2s' }}
@@ -2557,7 +2555,7 @@ export default function PolicyDetailPage() {
                     <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
                       <button onClick={() => setLeaseCreateStep(2)} style={{ padding: '8px 16px', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)', backgroundColor: '#fff', cursor: 'pointer', fontSize: 13 }}>Back</button>
                       <button
-                        onClick={handleLeaseDocumentCheck}
+                        onClick={() => { trackClick('lease_check_upload_doc'); handleLeaseDocumentCheck(); }}
                         disabled={!leaseDocUploadFile || leaseDocUploading}
                         style={{ padding: '8px 16px', backgroundColor: 'var(--color-primary)', color: '#fff', border: 'none', borderRadius: 'var(--radius-sm)', fontWeight: 600, fontSize: 13, cursor: leaseDocUploading ? 'wait' : 'pointer', opacity: (!leaseDocUploadFile || leaseDocUploading) ? 0.5 : 1 }}
                       >
@@ -2681,36 +2679,93 @@ export default function PolicyDetailPage() {
                     </div>
                   ) : (
                     <>
-                      {/* Summary counts */}
-                      <div style={{ display: 'flex', gap: 10, marginBottom: 16 }}>
-                        {[
-                          { label: 'Pass', count: leaseCheckCounts.pass, color: '#166534', bg: '#dcfce7' },
-                          { label: 'Fail', count: leaseCheckCounts.fail, color: '#991b1b', bg: '#fee2e2' },
-                          { label: 'Unclear', count: leaseCheckCounts.unclear, color: '#92400e', bg: '#fef3c7' },
-                        ].map(s => (
-                          <div key={s.label} style={{ padding: '8px 16px', borderRadius: 'var(--radius-sm)', backgroundColor: s.bg, flex: '1 1 0', textAlign: 'center' }}>
-                            <div style={{ fontSize: 20, fontWeight: 700, color: s.color }}>{s.count}</div>
-                            <div style={{ fontSize: 11, fontWeight: 600, color: s.color }}>{s.label}</div>
-                          </div>
-                        ))}
-                      </div>
+                      {/* ── Big Verdict Banner ── */}
+                      {hasResults && (() => {
+                        const total = leaseCheckCounts.pass + leaseCheckCounts.fail + leaseCheckCounts.unclear;
+                        const allPass = leaseCheckCounts.fail === 0 && leaseCheckCounts.unclear === 0;
+                        const hasFails = leaseCheckCounts.fail > 0;
+                        const verdictLabel = allPass ? 'COMPLIANT' : hasFails ? (leaseCheckCounts.pass > 0 ? 'PARTIALLY COMPLIANT' : 'NON-COMPLIANT') : 'NEEDS VERIFICATION';
+                        const verdictBg = allPass ? '#dcfce7' : hasFails ? '#fee2e2' : '#fef3c7';
+                        const verdictColor = allPass ? '#166534' : hasFails ? '#991b1b' : '#92400e';
+                        const verdictBorder = allPass ? '#bbf7d0' : hasFails ? '#fecaca' : '#fde68a';
 
-                      {/* Results checklist */}
+                        // Expiration awareness
+                        const policyExpDate = policy?.renewal_date;
+                        const daysUntilExpiry = policyExpDate ? Math.ceil((new Date(policyExpDate).getTime() - Date.now()) / (1000 * 60 * 60 * 24)) : null;
+                        const isExpiringSoon = daysUntilExpiry !== null && daysUntilExpiry <= 30 && daysUntilExpiry > 0;
+                        const isExpired = daysUntilExpiry !== null && daysUntilExpiry <= 0;
+
+                        return (
+                          <div style={{ borderRadius: 'var(--radius-md)', border: `2px solid ${verdictBorder}`, backgroundColor: verdictBg, padding: '16px 20px', marginBottom: 16, textAlign: 'center' }}>
+                            <div style={{ fontSize: 18, fontWeight: 800, color: verdictColor, letterSpacing: '0.03em' }}>{verdictLabel}</div>
+                            <div style={{ fontSize: 13, color: verdictColor, marginTop: 4, fontWeight: 500 }}>
+                              {leaseCheckCounts.pass} of {total} requirement{total !== 1 ? 's' : ''} met
+                              {leaseCheckCounts.fail > 0 && <span> &middot; {leaseCheckCounts.fail} failed</span>}
+                              {leaseCheckCounts.unclear > 0 && <span> &middot; {leaseCheckCounts.unclear} unclear</span>}
+                            </div>
+                            {/* Expiration warning */}
+                            {isExpired && (
+                              <div style={{ marginTop: 8, fontSize: 12, fontWeight: 600, color: '#991b1b', backgroundColor: '#fff', borderRadius: 'var(--radius-sm)', padding: '4px 10px', display: 'inline-block' }}>
+                                Policy expired {policyExpDate ? new Date(policyExpDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : ''} &mdash; Renewal required
+                              </div>
+                            )}
+                            {isExpiringSoon && (
+                              <div style={{ marginTop: 8, fontSize: 12, fontWeight: 600, color: '#92400e', backgroundColor: '#fff', borderRadius: 'var(--radius-sm)', padding: '4px 10px', display: 'inline-block' }}>
+                                Policy expires {policyExpDate ? new Date(policyExpDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : ''} ({daysUntilExpiry} day{daysUntilExpiry !== 1 ? 's' : ''})
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })()}
+
+                      {/* Results checklist — structured with required vs actual */}
                       {leaseChecking ? (
                         <div style={{ padding: 24, textAlign: 'center', color: 'var(--color-text-secondary)', fontSize: 13 }}>Running compliance check...</div>
                       ) : hasResults ? (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 16 }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16 }}>
                           {leaseResults.map((r, i) => {
                             const si = STATUS_ICONS[r.status] || STATUS_ICONS.unclear;
                             const cc = CATEGORY_COLORS[r.category] || CATEGORY_COLORS.other;
+                            // Generate resolution guidance for failed/unclear items
+                            const resolutionText = r.status === 'fail'
+                              ? (r.required_value && r.actual_value
+                                  ? `Request updated certificate with ${r.requirement_label} increased to ${r.required_value}`
+                                  : r.required_value
+                                    ? `Request coverage for ${r.requirement_label} at ${r.required_value} minimum`
+                                    : `Request proof of ${r.requirement_label} from your insurer`)
+                              : r.status === 'unclear'
+                                ? `Verify ${r.requirement_label} with your carrier or agent`
+                                : null;
                             return (
-                              <div key={i} style={{ border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)', padding: 12, backgroundColor: '#fff' }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-                                  <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 20, height: 20, borderRadius: '50%', backgroundColor: si.bg, color: si.color, fontSize: 11, fontWeight: 700 }}>{si.icon}</span>
-                                  <span style={{ padding: '1px 6px', borderRadius: 10, fontSize: 10, fontWeight: 600, backgroundColor: cc.bg, color: cc.fg }}>{CATEGORY_LABELS[r.category] || r.category}</span>
-                                  <span style={{ fontSize: 13, fontWeight: 600, flex: 1 }}>{r.requirement_label}</span>
+                              <div key={i} style={{ border: `1px solid ${r.status === 'fail' ? '#fecaca' : r.status === 'unclear' ? '#fde68a' : 'var(--color-border)'}`, borderRadius: 'var(--radius-sm)', padding: '12px 14px', backgroundColor: '#fff' }}>
+                                {/* Header row: status + category + label */}
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: (r.required_value || r.actual_value || r.note) ? 8 : 0, flexWrap: 'wrap' }}>
+                                  <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 22, height: 22, borderRadius: '50%', backgroundColor: si.bg, color: si.color, fontSize: 12, fontWeight: 700, flexShrink: 0 }}>{si.icon}</span>
+                                  <span style={{ padding: '1px 6px', borderRadius: 10, fontSize: 10, fontWeight: 600, backgroundColor: cc.bg, color: cc.fg, flexShrink: 0 }}>{CATEGORY_LABELS[r.category] || r.category}</span>
+                                  <span style={{ fontSize: 13, fontWeight: 600, flex: 1, minWidth: 0 }}>{r.requirement_label}</span>
+                                  <span style={{ fontSize: 11, fontWeight: 700, color: si.color, textTransform: 'uppercase', flexShrink: 0 }}>{r.status === 'pass' ? 'Met' : r.status === 'fail' ? 'Failed' : 'Unclear'}</span>
                                 </div>
-                                {r.note && <p style={{ fontSize: 12, color: 'var(--color-text-secondary)', margin: '2px 0 0 28px', lineHeight: 1.5 }}>{r.note}</p>}
+                                {/* Required vs Actual comparison */}
+                                {(r.required_value || r.actual_value) && (
+                                  <div className="form-grid-2" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginLeft: 30, marginBottom: r.note ? 6 : 0 }}>
+                                    {r.required_value && (
+                                      <div style={{ fontSize: 12, color: 'var(--color-text-secondary)' }}>
+                                        <span style={{ fontWeight: 600 }}>Required:</span> {r.required_value}
+                                      </div>
+                                    )}
+                                    <div style={{ fontSize: 12, color: r.status === 'fail' ? '#991b1b' : r.status === 'pass' ? '#166534' : '#92400e' }}>
+                                      <span style={{ fontWeight: 600 }}>Found:</span> {r.actual_value || 'Not detected'}
+                                    </div>
+                                  </div>
+                                )}
+                                {/* Note */}
+                                {r.note && <p style={{ fontSize: 12, color: 'var(--color-text-secondary)', margin: '0 0 0 30px', lineHeight: 1.5 }}>{r.note}</p>}
+                                {/* Resolution guidance for failed/unclear items */}
+                                {resolutionText && (
+                                  <div style={{ marginTop: 8, marginLeft: 30, padding: '6px 10px', borderRadius: 'var(--radius-sm)', backgroundColor: r.status === 'fail' ? '#fef2f2' : '#fffbeb', fontSize: 12, color: r.status === 'fail' ? '#991b1b' : '#92400e' }}>
+                                    <span style={{ fontWeight: 600 }}>How to resolve:</span> {resolutionText}
+                                  </div>
+                                )}
                               </div>
                             );
                           })}
@@ -2718,7 +2773,34 @@ export default function PolicyDetailPage() {
                       ) : (
                         <div style={{ padding: 24, textAlign: 'center', color: 'var(--color-text-secondary)' }}>
                           <p style={{ fontSize: 13, margin: '0 0 10px' }}>No results yet.</p>
-                          {!isLandlord && <button onClick={() => leaseActiveReqId && handleLeaseRecheck(leaseActiveReqId)} className="btn btn-primary">Run Check</button>}
+                          {!isLandlord && <button onClick={() => { trackClick('lease_check_run'); leaseActiveReqId && handleLeaseRecheck(leaseActiveReqId); }} disabled={leaseChecking} className="btn btn-primary">{leaseChecking ? 'Checking...' : 'Run Check'}</button>}
+                        </div>
+                      )}
+
+                      {/* Next Steps summary — shown when there are failures or unclear items */}
+                      {hasResults && (leaseCheckCounts.fail > 0 || leaseCheckCounts.unclear > 0) && (
+                        <div style={{ border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', padding: '14px 18px', marginBottom: 16, backgroundColor: '#fafafa' }}>
+                          <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>Next Steps</div>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                            {leaseResults.filter(r => r.status === 'fail').map((r, i) => (
+                              <div key={`f${i}`} style={{ display: 'flex', alignItems: 'flex-start', gap: 6, fontSize: 12, color: '#991b1b' }}>
+                                <span style={{ flexShrink: 0, marginTop: 1 }}>&bull;</span>
+                                <span>
+                                  {r.required_value && r.actual_value
+                                    ? `Increase ${r.requirement_label} from ${r.actual_value} to ${r.required_value}`
+                                    : r.required_value
+                                      ? `Add ${r.requirement_label} coverage (${r.required_value} required)`
+                                      : `Obtain proof of ${r.requirement_label}`}
+                                </span>
+                              </div>
+                            ))}
+                            {leaseResults.filter(r => r.status === 'unclear').map((r, i) => (
+                              <div key={`u${i}`} style={{ display: 'flex', alignItems: 'flex-start', gap: 6, fontSize: 12, color: '#92400e' }}>
+                                <span style={{ flexShrink: 0, marginTop: 1 }}>&bull;</span>
+                                <span>Verify {r.requirement_label} with your carrier or agent</span>
+                              </div>
+                            ))}
+                          </div>
                         </div>
                       )}
 
@@ -2726,13 +2808,14 @@ export default function PolicyDetailPage() {
                       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: hasResults ? 0 : 8 }}>
                         {/* Upload New Document — tenant only */}
                         {!isLandlord && (
-                          <button onClick={() => { setLeaseCreateStep(3); setLeaseView('create'); }} style={{ padding: '6px 14px', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)', backgroundColor: '#fff', cursor: 'pointer', fontWeight: 600, fontSize: 12 }}>
+                          <button onClick={() => { trackClick('lease_check_upload_new'); setLeaseCreateStep(3); setLeaseView('create'); }} style={{ padding: '6px 14px', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)', backgroundColor: '#fff', cursor: 'pointer', fontWeight: 600, fontSize: 12 }}>
                             {hasResults ? 'Upload New Document' : 'Upload Document'}
                           </button>
                         )}
                         {/* View My Document — tenant only, when current check has a document */}
                         {!isLandlord && leaseActiveCheckHasDoc && leaseActiveCheckId && (
                           <button onClick={async () => {
+                            trackClick('lease_check_view_doc');
                             try {
                               const blob = await leaseComplianceApi.downloadCoiDocument(leaseActiveCheckId);
                               const url = URL.createObjectURL(blob);
@@ -2747,6 +2830,7 @@ export default function PolicyDetailPage() {
                         {/* Send to Landlord — tenant only, when results exist */}
                         {!isLandlord && hasResults && activeReq && (
                           <button onClick={() => {
+                            trackClick('lease_check_send_landlord');
                             setLeaseLandlordEmail(activeReq.counterparty_email || '');
                             setLeaseLandlordName(activeReq.counterparty_name || '');
                             setLeaseLandlordNotes('');
@@ -2760,6 +2844,7 @@ export default function PolicyDetailPage() {
                           <button
                             key={cert.id}
                             onClick={async () => {
+                              trackClick('lease_check_vs_cert', { cert_id: cert.id });
                               if (!leaseActiveReqId) return;
                               setLeaseChecking(true);
                               try {
@@ -2785,6 +2870,7 @@ export default function PolicyDetailPage() {
                         {/* Send Deficiency Notice — landlord only, when failures exist */}
                         {isLandlord && hasResults && leaseCheckCounts.fail > 0 && activeReq && (
                           <button onClick={() => {
+                            trackClick('lease_check_deficiency');
                             setLeaseDeficiencyEmail(activeReq.counterparty_email || '');
                             setLeaseDeficiencyName(activeReq.counterparty_name || '');
                             setLeaseDeficiencyNotes('');
@@ -2795,7 +2881,7 @@ export default function PolicyDetailPage() {
                         )}
                         {/* Send to Broker — tenant only */}
                         {!isLandlord && hasResults && (
-                          <button onClick={() => leaseActiveReqId && handleLeaseBrokerEmail(leaseActiveReqId)} style={{ padding: '6px 14px', backgroundColor: '#2563eb', color: '#fff', border: 'none', borderRadius: 'var(--radius-sm)', fontWeight: 600, cursor: 'pointer', fontSize: 12 }}>Send to Broker</button>
+                          <button onClick={() => { trackClick('lease_check_send_broker'); leaseActiveReqId && handleLeaseBrokerEmail(leaseActiveReqId); }} style={{ padding: '6px 14px', backgroundColor: '#2563eb', color: '#fff', border: 'none', borderRadius: 'var(--radius-sm)', fontWeight: 600, cursor: 'pointer', fontSize: 12 }}>Send to Broker</button>
                         )}
                         {/* View Document — landlord only, when tenant submitted COI */}
                         {activeReq && (() => {
@@ -2803,6 +2889,7 @@ export default function PolicyDetailPage() {
                           if (isLandlord && submittedTenant) {
                             return (
                               <button onClick={async () => {
+                                trackClick('lease_check_view_tenant_doc');
                                 try {
                                   const blob = await leaseComplianceApi.downloadCoiDocument(submittedTenant.check_id);
                                   const url = URL.createObjectURL(blob);
@@ -2819,12 +2906,12 @@ export default function PolicyDetailPage() {
                         })()}
                         {/* Share — always available */}
                         {activeReq && (
-                          <button onClick={() => handleLeaseShare(activeReq)} style={{ padding: '6px 14px', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)', backgroundColor: '#fff', cursor: 'pointer', fontWeight: 600, fontSize: 12 }}>
+                          <button onClick={() => { trackClick('lease_check_results_share'); handleLeaseShare(activeReq); }} style={{ padding: '6px 14px', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)', backgroundColor: '#fff', cursor: 'pointer', fontWeight: 600, fontSize: 12 }}>
                             Share
                           </button>
                         )}
                         {activeReq && (
-                          <button onClick={() => { const url = getLeaseShareUrl(activeReq.access_code); window.open(url + '?print=1', '_blank'); }} style={{ padding: '6px 14px', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)', backgroundColor: '#fff', cursor: 'pointer', fontWeight: 600, fontSize: 12 }}>Print</button>
+                          <button onClick={() => { trackClick('lease_check_results_print'); const url = getLeaseShareUrl(activeReq.access_code); window.open(url + '?print=1', '_blank'); }} style={{ padding: '6px 14px', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)', backgroundColor: '#fff', cursor: 'pointer', fontWeight: 600, fontSize: 12 }}>Print</button>
                         )}
                       </div>
                     </>
@@ -2946,7 +3033,7 @@ export default function PolicyDetailPage() {
                     <p style={{ color: 'var(--color-text-secondary)', textAlign: 'center', padding: 20 }}>Generating email...</p>
                   ) : leaseBrokerEmail ? (
                     <>
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
+                      <div className="form-grid-2" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
                         <div>
                           <label style={labelStyle}>Broker Name</label>
                           <input
@@ -3033,7 +3120,7 @@ export default function PolicyDetailPage() {
                         <label style={labelStyle}>Send As (your name or company name)</label>
                         <input style={inputStyle} value={leaseSenderName} onChange={e => setLeaseSenderName(e.target.value)} placeholder="e.g., Abergel Properties LLC" />
                       </div>
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
+                      <div className="form-grid-2" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
                         <div>
                           <label style={labelStyle}>Tenant Name</label>
                           <input style={inputStyle} value={leaseTenantName} onChange={e => setLeaseTenantName(e.target.value)} placeholder="Optional" />
@@ -3088,7 +3175,7 @@ export default function PolicyDetailPage() {
                   <p style={{ fontSize: 13, color: 'var(--color-text-secondary)', margin: '0 0 16px', lineHeight: 1.5 }}>
                     Send your compliance check results to your landlord or property manager.
                   </p>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
+                  <div className="form-grid-2" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
                     <div>
                       <label style={labelStyle}>Landlord Name</label>
                       <input style={inputStyle} value={leaseLandlordName} onChange={e => setLeaseLandlordName(e.target.value)} placeholder="Optional" />
@@ -3148,7 +3235,7 @@ export default function PolicyDetailPage() {
               <input style={{ width: '100%', padding: '8px 10px', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)', fontSize: 13 }} value={leaseSenderName} onChange={e => setLeaseSenderName(e.target.value)} placeholder="e.g., Abergel Properties LLC" />
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 12 }}>
+            <div className="form-grid-2" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 12 }}>
               <div>
                 <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--color-text-muted)', marginBottom: 4 }}>Tenant Email *</label>
                 <input style={{ width: '100%', padding: '8px 10px', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)', fontSize: 13 }} type="email" value={leaseDeficiencyEmail} onChange={e => setLeaseDeficiencyEmail(e.target.value)} placeholder="tenant@email.com" />
