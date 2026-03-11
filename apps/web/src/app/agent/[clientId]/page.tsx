@@ -68,7 +68,7 @@ export default function ClientDetailPage() {
       <BackButton href="/agent" label={data.client?.email || 'Client'} parentLabel="Advisor" />
 
       {/* Client Header */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 20, marginBottom: 32 }}>
+      <div className="mobile-col" style={{ display: 'flex', alignItems: 'center', gap: 20, marginBottom: 32 }}>
         <div>
           <h1 style={{ fontSize: 22, fontWeight: 700, margin: '0 0 4px', color: 'var(--color-text)' }}>
             {data.client.email}
@@ -116,12 +116,12 @@ export default function ClientDetailPage() {
         const hasGroups = groupKeys.length > 0;
 
         const renderPolicy = (p: typeof data.policies[0]) => (
-          <div key={p.id} className="card" style={{
+          <div key={p.id} className="card mobile-grid-1" style={{
             padding: '14px 20px',
             display: 'grid',
             gridTemplateColumns: '1fr auto auto auto',
             alignItems: 'center',
-            gap: 20,
+            gap: '12px 20px',
           }}>
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>

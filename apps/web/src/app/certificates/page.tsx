@@ -601,7 +601,7 @@ function CertificatesContent() {
       {/* Add/Edit Form Modal */}
       {showForm && (
         <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
-          <div style={{ backgroundColor: '#fff', borderRadius: 'var(--radius-lg)', padding: 28, maxWidth: 560, width: '100%', maxHeight: '90vh', overflowY: 'auto' }}>
+          <div style={{ backgroundColor: '#fff', borderRadius: 'var(--radius-lg)', padding: 20, maxWidth: 560, width: '100%', maxHeight: '90vh', overflowY: 'auto' }}>
             <h2 style={{ fontSize: 18, fontWeight: 700, marginBottom: 20 }}>
               {editingId ? 'Edit Certificate' : 'Add Certificate'}
             </h2>
@@ -809,7 +809,7 @@ function CertificatesContent() {
         const vcSc = CERT_STATUS_COLORS[vc.status] || CERT_STATUS_COLORS.pending;
         return (
           <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
-            <div style={{ backgroundColor: '#fff', borderRadius: 'var(--radius-lg)', padding: 28, maxWidth: 560, width: '100%', maxHeight: '90vh', overflowY: 'auto' }}>
+            <div style={{ backgroundColor: '#fff', borderRadius: 'var(--radius-lg)', padding: 20, maxWidth: 560, width: '100%', maxHeight: '90vh', overflowY: 'auto' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20 }}>
                 <h2 style={{ fontSize: 18, fontWeight: 700, margin: 0 }}>Certificate Details</h2>
                 <button onClick={() => setViewingCert(null)} style={{ background: 'none', border: 'none', fontSize: 20, cursor: 'pointer', color: 'var(--color-text-muted)', padding: 0, lineHeight: 1 }}>&times;</button>

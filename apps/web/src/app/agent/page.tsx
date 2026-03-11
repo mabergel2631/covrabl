@@ -89,7 +89,7 @@ export default function AdvisorDashboard() {
       </p>
 
       {/* Overview Cards */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 16, marginBottom: 40 }}>
+      <div className="mobile-grid-2" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 16, marginBottom: 40 }}>
         {statCards.map(card => (
           <div key={card.label} className="card" style={{ padding: 20, textAlign: 'center' }}>
             <div style={{ fontSize: 28, fontWeight: 700, color: 'var(--color-primary)', marginBottom: 4 }}>
@@ -114,7 +114,7 @@ export default function AdvisorDashboard() {
           {clients.map(client => (
             <div
               key={client.id}
-              className="card"
+              className="card mobile-grid-1"
               onClick={() => { trackClick('client_row', { client_id: client.id }); router.push(`/agent/${client.id}`); }}
               style={{
                 padding: '16px 20px',

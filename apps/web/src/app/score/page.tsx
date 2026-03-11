@@ -88,66 +88,65 @@ function CategoryCard({ name, data, defaultOpen, onDismiss, onRestore, onDismiss
       borderRadius: 'var(--radius-lg)', overflow: 'hidden',
       opacity: isCategoryDismissed ? 0.7 : 1,
     }}>
-      <div style={{ display: 'flex', alignItems: 'center' }}>
-        <button
-          onClick={() => setOpen(!open)}
-          style={{
-            flex: 1, display: 'flex', alignItems: 'center', gap: 16,
-            padding: '16px 20px', background: 'none', border: 'none', cursor: 'pointer',
-            textAlign: 'left',
-          }}
-        >
-          {/* Status icon */}
-          <div style={{
-            width: 40, height: 40, borderRadius: '50%', flexShrink: 0,
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            backgroundColor: status.bg, color: status.color,
-            fontSize: 18, fontWeight: 700,
-          }}>
-            {status.icon}
-          </div>
+      <button
+        onClick={() => setOpen(!open)}
+        style={{
+          width: '100%', display: 'flex', alignItems: 'center', gap: 12,
+          padding: '16px 20px', background: 'none', border: 'none', cursor: 'pointer',
+          textAlign: 'left',
+        }}
+      >
+        {/* Status icon */}
+        <div style={{
+          width: 36, height: 36, borderRadius: '50%', flexShrink: 0,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          backgroundColor: status.bg, color: status.color,
+          fontSize: 16, fontWeight: 700,
+        }}>
+          {status.icon}
+        </div>
 
-          <div style={{ flex: 1 }}>
-            <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--color-text)' }}>{label}</div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 2 }}>
-              <span style={{
-                fontSize: 11, fontWeight: 600, color: status.color,
-                padding: '1px 8px', borderRadius: 10, backgroundColor: status.bg,
-              }}>
-                {status.label}
-              </span>
-              <span style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>
-                {data.components.length} components
-              </span>
-            </div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--color-text)' }}>{label}</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 2 }}>
+            <span style={{
+              fontSize: 11, fontWeight: 600, color: status.color,
+              padding: '1px 8px', borderRadius: 10, backgroundColor: status.bg,
+            }}>
+              {status.label}
+            </span>
+            <span style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>
+              {data.components.length} components
+            </span>
           </div>
+        </div>
 
-          <span style={{ fontSize: 16, color: 'var(--color-text-muted)', transition: 'transform 0.2s', transform: open ? 'rotate(180deg)' : 'none' }}>
-            &#9662;
-          </span>
-        </button>
-        {/* Category-level dismiss/restore button */}
+        {/* Category-level dismiss/restore */}
         {isCategoryDismissed ? (
           onRestoreCategory && (
-            <button
+            <span
               onClick={(e) => { e.stopPropagation(); onRestoreCategory(name); }}
-              style={{ marginRight: 16, padding: '4px 12px', fontSize: 11, fontWeight: 600, border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)', backgroundColor: '#fff', cursor: 'pointer', color: 'var(--color-primary)', whiteSpace: 'nowrap' }}
+              style={{ padding: '4px 10px', fontSize: 11, fontWeight: 600, border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)', backgroundColor: '#fff', cursor: 'pointer', color: 'var(--color-primary)', whiteSpace: 'nowrap', flexShrink: 0 }}
             >
-              Restore Category
-            </button>
+              Restore
+            </span>
           )
         ) : (
           onDismissCategory && (
-            <button
+            <span
               onClick={(e) => { e.stopPropagation(); onDismissCategory(name); }}
-              title="Not relevant to my business"
-              style={{ marginRight: 16, padding: '4px 12px', fontSize: 11, fontWeight: 600, border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)', backgroundColor: '#fff', cursor: 'pointer', color: 'var(--color-text-muted)', whiteSpace: 'nowrap' }}
+              title="Not relevant to my coverage"
+              style={{ padding: '4px 10px', fontSize: 11, fontWeight: 600, border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)', backgroundColor: '#fff', cursor: 'pointer', color: 'var(--color-text-muted)', whiteSpace: 'nowrap', flexShrink: 0 }}
             >
-              Dismiss Category
-            </button>
+              Dismiss
+            </span>
           )
         )}
-      </div>
+
+        <span style={{ fontSize: 14, color: 'var(--color-text-muted)', transition: 'transform 0.2s', transform: open ? 'rotate(180deg)' : 'none', flexShrink: 0 }}>
+          &#9662;
+        </span>
+      </button>
 
       {open && (
         <div style={{ padding: '0 20px 20px', borderTop: '1px solid var(--color-border)' }}>

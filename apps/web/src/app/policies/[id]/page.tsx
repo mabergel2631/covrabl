@@ -3271,7 +3271,7 @@ export default function PolicyDetailPage() {
 
         {showCoverageForm && (
           <form onSubmit={async (e) => { e.preventDefault(); try { await coverageApi.create(policyId, coverageForm); setShowCoverageForm(false); setCoverageForm({ item_type: 'inclusion', description: '', limit: '' }); setCoverageItems(await coverageApi.list(policyId)); } catch (err: any) { setError(err.message); } }} style={{ padding: 16, marginBottom: 16, backgroundColor: 'var(--color-bg)', borderRadius: 'var(--radius-md)', border: '1px solid var(--color-border)' }}>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr 1fr', gap: 12 }}>
+            <div className="mobile-grid-1" style={{ display: 'grid', gridTemplateColumns: '1fr 2fr 1fr', gap: 12 }}>
               <div>
                 <label style={labelStyle}>Type</label>
                 <select value={coverageForm.item_type} onChange={e => setCoverageForm({ ...coverageForm, item_type: e.target.value })} style={inputStyle}>
@@ -3842,7 +3842,7 @@ export default function PolicyDetailPage() {
                 </div>
               )}
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 16, marginBottom: 20 }}>
+              <div className="mobile-grid-1" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 16, marginBottom: 20 }}>
                 {vc.coverage_amount != null && <div>
                   <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-text-secondary)', marginBottom: 4 }}>Coverage Amount</div>
                   <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--color-text)' }}>${(vc.coverage_amount / 100).toLocaleString()}</div>
