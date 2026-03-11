@@ -5,7 +5,7 @@ export const API_BASE =
 
 function getToken(): string | null {
   if (typeof window === "undefined") return null;
-  return localStorage.getItem("pv_token");
+  return sessionStorage.getItem("pv_token");
 }
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
@@ -27,12 +27,12 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
     if (res.status === 401 && token) {
       // Only show "session expired" if the user was recently active (within 5 min).
       // Otherwise it's a stale token from a previous visit — just redirect cleanly.
-      const lastActive = parseInt(localStorage.getItem("pv_last_active") || "0", 10);
+      const lastActive = parseInt(sessionStorage.getItem("pv_last_active") || "0", 10);
       const recentlyActive = Date.now() - lastActive < 5 * 60 * 1000;
-      localStorage.removeItem("pv_token");
-      localStorage.removeItem("pv_role");
-      localStorage.removeItem("pv_plan");
-      localStorage.removeItem("pv_last_active");
+      sessionStorage.removeItem("pv_token");
+      sessionStorage.removeItem("pv_role");
+      sessionStorage.removeItem("pv_plan");
+      sessionStorage.removeItem("pv_last_active");
       if (typeof window !== "undefined") {
         window.location.href = recentlyActive ? "/login?expired=1" : "/login";
         return undefined as never;
@@ -48,8 +48,8 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   }
 
   // Track last successful authenticated request
-  if (token && typeof localStorage !== "undefined") {
-    localStorage.setItem("pv_last_active", Date.now().toString());
+  if (token && typeof sessionStorage !== "undefined") {
+    sessionStorage.setItem("pv_last_active", Date.now().toString());
   }
 
   return data as T;

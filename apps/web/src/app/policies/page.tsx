@@ -185,7 +185,7 @@ function PoliciesPageInner() {
         formData.append('file', file);
         formData.append('policy_id', String(newPolicy.id));
         formData.append('doc_type', 'policy');
-        const tkn = localStorage.getItem('pv_token');
+        const tkn = sessionStorage.getItem('pv_token');
         xhr.open('POST', `${API_BASE}/files/direct-upload`);
         if (tkn) xhr.setRequestHeader('Authorization', `Bearer ${tkn}`);
         xhr.send(formData);
@@ -303,7 +303,7 @@ function PoliciesPageInner() {
         formData.append('file', file);
         formData.append('policy_id', String(newPolicy.id));
         formData.append('doc_type', 'policy');
-        const tkn = localStorage.getItem('pv_token');
+        const tkn = sessionStorage.getItem('pv_token');
         xhr.open('POST', `${API_BASE}/files/direct-upload`);
         if (tkn) xhr.setRequestHeader('Authorization', `Bearer ${tkn}`);
         xhr.send(formData);

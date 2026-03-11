@@ -57,7 +57,7 @@ function flush() {
   if (queue.length === 0) return;
 
   const batch = queue.splice(0, MAX_BATCH_SIZE);
-  const token = typeof localStorage !== 'undefined' ? localStorage.getItem('pv_token') : null;
+  const token = typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('pv_token') : null;
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
   if (token) headers['Authorization'] = `Bearer ${token}`;
 

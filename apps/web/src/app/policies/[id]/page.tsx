@@ -439,7 +439,7 @@ export default function PolicyDetailPage() {
           } catch { reject(new Error('Upload failed')); }
         };
         xhr.onerror = () => reject(new Error('Upload failed'));
-        const token = localStorage.getItem('pv_token');
+        const token = sessionStorage.getItem('pv_token');
         xhr.open('POST', `${API_BASE}/files/direct-upload`);
         if (token) xhr.setRequestHeader('Authorization', `Bearer ${token}`);
         xhr.send(formData);

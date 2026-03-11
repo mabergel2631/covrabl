@@ -6,6 +6,7 @@ import { AuthProvider } from '../../lib/auth';
 import AppShell from './components/AppShell';
 import { ToastProvider } from './components/Toast';
 import InstallPrompt from './components/InstallPrompt';
+import SessionWarning from './components/SessionWarning';
 import { APP_NAME, APP_THEME_COLOR } from './config';
 import { isNativeApp } from '../../lib/capacitor';
 import { initNativePlugins } from '../../lib/capacitor-init';
@@ -60,6 +61,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <AppShell>{children}</AppShell>
             <InstallPrompt />
           </ToastProvider>
+          <SessionWarning />
         </AuthProvider>
       </body>
     </html>
