@@ -7,6 +7,7 @@ import { scoresApi, deltasApi, renewalsApi, policiesApi, CoverageScoresResult, D
 import { APP_NAME, APP_TAGLINE, APP_CONTACT_EMAIL, ANNOUNCEMENT_BAR } from './config';
 import { POLICY_TYPE_CONFIG } from './constants';
 import Logo from './components/Logo';
+import { trackClick, trackPageView } from '../../lib/track';
 
 /* ── Scroll-reveal hook ─────────────────────────────── */
 function useScrollReveal() {
@@ -399,7 +400,7 @@ function ProductDemo() {
                   </div>
                   {sceneProgress > 0.65 && (
                     <button
-                      onClick={() => router.push('/login')}
+                      onClick={() => { trackClick('landing_demo_start_free'); router.push('/login'); }}
                       style={{
                         padding: '10px 28px', fontSize: 14, fontWeight: 600,
                         backgroundColor: 'var(--color-primary)', color: '#fff',
@@ -838,8 +839,8 @@ export default function Home() {
     setMobileMenuOpen(false);
   };
 
-  const ctaAction = () => router.push(showAsPublic ? '/login' : '/policies');
-  const ctaLabel = showAsPublic ? 'Upload Policies \u2014 See Your Coverage' : 'View My Coverage';
+  const ctaAction = () => { trackClick('landing_cta_primary'); router.push(showAsPublic ? '/login' : '/policies'); };
+  const ctaLabel = showAsPublic ? 'Analyze Your Coverage Free' : 'View My Coverage';
 
   /* Scroll-reveal refs for each animated section */
   const step1Ref = useScrollReveal();
@@ -869,7 +870,7 @@ export default function Home() {
           <a href={ANNOUNCEMENT_BAR.linkUrl} target="_blank" rel="noopener noreferrer" style={{
             color: '#fff', fontWeight: 700, textDecoration: 'underline',
           }}>{ANNOUNCEMENT_BAR.linkText}</a>
-          <button onClick={() => setAnnouncementDismissed(true)} style={{
+          <button onClick={() => { trackClick('landing_announcement_dismiss'); setAnnouncementDismissed(true); }} style={{
             position: 'absolute', right: 12, background: 'none', border: 'none',
             color: '#fff', fontSize: 16, cursor: 'pointer', opacity: 0.8, padding: 4,
           }}>&times;</button>
@@ -887,16 +888,16 @@ export default function Home() {
           padding: '12px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
         }}>
           <div
-            onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+            onClick={() => { trackClick('landing_logo_click'); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
             style={{ cursor: 'pointer' }}
           >
             <Logo size="md" variant="dark" />
           </div>
           <nav className="landing-nav-links">
-            <span onClick={() => scrollTo('how-it-works')} style={{ fontSize: 14, color: 'var(--color-text-secondary)', cursor: 'pointer' }}>How it works</span>
-            <span onClick={() => router.push('/pricing')} style={{ fontSize: 14, color: 'var(--color-text-secondary)', cursor: 'pointer' }}>Pricing</span>
-            <span onClick={() => scrollTo('faq')} style={{ fontSize: 14, color: 'var(--color-text-secondary)', cursor: 'pointer' }}>FAQ</span>
-            <button onClick={() => router.push('/login')} style={{
+            <span onClick={() => { trackClick('landing_nav_how_it_works'); scrollTo('how-it-works'); }} style={{ fontSize: 14, color: 'var(--color-text-secondary)', cursor: 'pointer' }}>How it works</span>
+            <span onClick={() => { trackClick('landing_nav_pricing'); router.push('/pricing'); }} style={{ fontSize: 14, color: 'var(--color-text-secondary)', cursor: 'pointer' }}>Pricing</span>
+            <span onClick={() => { trackClick('landing_nav_faq'); scrollTo('faq'); }} style={{ fontSize: 14, color: 'var(--color-text-secondary)', cursor: 'pointer' }}>FAQ</span>
+            <button onClick={() => { trackClick('landing_nav_sign_in'); router.push('/login'); }} style={{
               padding: '8px 20px', fontSize: 14, fontWeight: 600,
               backgroundColor: 'var(--color-primary)', color: '#fff',
               border: 'none', borderRadius: 'var(--radius-md)', cursor: 'pointer',
@@ -907,7 +908,7 @@ export default function Home() {
           {/* Hamburger menu button — mobile only */}
           <button
             className="hamburger-btn"
-            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            onClick={() => { trackClick('landing_hamburger_toggle'); setMobileMenuOpen(!mobileMenuOpen); }}
             aria-label="Toggle navigation menu"
             style={{
               display: 'none', background: 'none', border: 'none', cursor: 'pointer', padding: 4,
@@ -930,16 +931,16 @@ export default function Home() {
           padding: '12px 24px',
           display: 'flex', flexDirection: 'column', gap: 4,
         }}>
-          <button onClick={() => scrollTo('how-it-works')} style={{ padding: '12px 0', background: 'none', border: 'none', fontSize: 15, color: 'var(--color-text)', cursor: 'pointer', textAlign: 'left' }}>
+          <button onClick={() => { trackClick('landing_mobile_how_it_works'); scrollTo('how-it-works'); }} style={{ padding: '12px 0', background: 'none', border: 'none', fontSize: 15, color: 'var(--color-text)', cursor: 'pointer', textAlign: 'left' }}>
             How it works
           </button>
-          <button onClick={() => { router.push('/pricing'); setMobileMenuOpen(false); }} style={{ padding: '12px 0', background: 'none', border: 'none', fontSize: 15, color: 'var(--color-text)', cursor: 'pointer', textAlign: 'left' }}>
+          <button onClick={() => { trackClick('landing_mobile_pricing'); router.push('/pricing'); setMobileMenuOpen(false); }} style={{ padding: '12px 0', background: 'none', border: 'none', fontSize: 15, color: 'var(--color-text)', cursor: 'pointer', textAlign: 'left' }}>
             Pricing
           </button>
-          <button onClick={() => scrollTo('faq')} style={{ padding: '12px 0', background: 'none', border: 'none', fontSize: 15, color: 'var(--color-text)', cursor: 'pointer', textAlign: 'left' }}>
+          <button onClick={() => { trackClick('landing_mobile_faq'); scrollTo('faq'); }} style={{ padding: '12px 0', background: 'none', border: 'none', fontSize: 15, color: 'var(--color-text)', cursor: 'pointer', textAlign: 'left' }}>
             FAQ
           </button>
-          <button onClick={() => { router.push('/login'); setMobileMenuOpen(false); }} style={{
+          <button onClick={() => { trackClick('landing_mobile_sign_in'); router.push('/login'); setMobileMenuOpen(false); }} style={{
             padding: '10px 20px', fontSize: 15, fontWeight: 600, marginTop: 4,
             backgroundColor: 'var(--color-primary)', color: '#fff',
             border: 'none', borderRadius: 'var(--radius-md)', cursor: 'pointer', textAlign: 'center',
@@ -987,13 +988,13 @@ export default function Home() {
             letterSpacing: 'var(--letter-spacing-tight)',
             fontFamily: 'var(--font-heading)',
           }}>
-            Insurance gets complex fast. Covrabl makes it visible.
+            Finally understand what your insurance actually covers.
           </h1>
           <p style={{ fontSize: 18, opacity: 0.95, margin: '0 0 8px', lineHeight: 1.7, maxWidth: 720, marginLeft: 'auto', marginRight: 'auto', fontWeight: 500 }}>
-            Upload your policies, verify compliance requirements, and catch coverage gaps before they become problems.
+            Covrabl analyzes your policies and shows you what&apos;s covered, what isn&apos;t, and where you may still have risk.
           </p>
-          <p style={{ fontSize: 15, opacity: 0.7, margin: '0 0 8px', lineHeight: 1.7, maxWidth: 600, marginLeft: 'auto', marginRight: 'auto', letterSpacing: 'var(--letter-spacing-wide)' }}>
-            See what you have. Verify what&apos;s required. Stay ahead of changes.
+          <p style={{ fontSize: 15, opacity: 0.7, margin: '0 0 8px', lineHeight: 1.7, maxWidth: 650, marginLeft: 'auto', marginRight: 'auto', letterSpacing: 'var(--letter-spacing-wide)' }}>
+            No legal jargon. No 200-page documents. Just clear explanations of what you&apos;re actually covered for.
           </p>
           <p style={{ fontSize: 15, opacity: 0.7, margin: '0 0 36px', lineHeight: 1.7, maxWidth: 600, marginLeft: 'auto', marginRight: 'auto', letterSpacing: 'var(--letter-spacing-wide)' }}>
             Free for up to 3 policies. No credit card required.
@@ -1008,7 +1009,7 @@ export default function Home() {
             }}>
               {ctaLabel}
             </button>
-            <button onClick={() => scrollTo('how-it-works')} style={{
+            <button onClick={() => { trackClick('landing_cta_how_it_works'); scrollTo('how-it-works'); }} style={{
               padding: '14px 32px', fontSize: 16, fontWeight: 500,
               backgroundColor: 'rgba(255,255,255,0.08)', color: '#fff',
               border: '1px solid rgba(255,255,255,0.2)', borderRadius: 'var(--radius-md)', cursor: 'pointer',
@@ -1020,11 +1021,11 @@ export default function Home() {
           </div>
           <div style={{ display: 'flex', gap: 32, justifyContent: 'center', flexWrap: 'wrap', fontSize: 13, opacity: 0.6, letterSpacing: 'var(--letter-spacing-wide)' }}>
             <span>Not an insurance company</span>
-            <span>Not a lead generator</span>
+            <span>We never sell insurance</span>
             <span>Your data stays yours</span>
           </div>
           <div style={{ marginTop: 20, fontSize: 14, opacity: 0.5, letterSpacing: 'var(--letter-spacing-wide)' }}>
-            Built for people managing layered personal and business coverage.
+            Works across all your insurance — home, auto, umbrella, business, specialty, and more.
           </div>
         </div>
       </section>
@@ -1078,6 +1079,61 @@ export default function Home() {
       </section>
 
       {/* ═══════════════════════════════════════════════════════════════
+          REAL COVERAGE GAPS — concrete examples
+      ═══════════════════════════════════════════════════════════════ */}
+      <section style={{ padding: '72px 24px', background: 'var(--color-surface)' }}>
+        <div style={{ maxWidth: 880, margin: '0 auto' }}>
+          <h2 style={{ fontSize: 26, fontWeight: 700, margin: '0 0 8px', textAlign: 'center', color: 'var(--color-text)' }}>
+            Gaps your policy won&apos;t tell you about
+          </h2>
+          <p style={{ fontSize: 15, color: 'var(--color-text-muted)', textAlign: 'center', margin: '0 0 40px' }}>
+            These are real coverage gaps Covrabl users have discovered in their policies.
+          </p>
+          <div className="landing-trust" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 20 }}>
+            {[
+              {
+                icon: '\u26A0\uFE0F',
+                gap: 'Umbrella requires higher auto limits',
+                detail: 'Your umbrella policy requires $500K auto liability, but your auto policy only has $300K. A claim over $300K would leave you exposed.',
+                color: '#dc2626',
+              },
+              {
+                icon: '\u{1F3E0}',
+                gap: 'Home replacement below rebuild cost',
+                detail: 'Your dwelling coverage is $320K, but construction costs in your area suggest $410K to rebuild. A total loss could leave a $90K gap.',
+                color: '#d97706',
+              },
+              {
+                icon: '\u{1F3E2}',
+                gap: 'Rental property excluded from umbrella',
+                detail: 'Your rental property liability isn\'t listed as an underlying policy on your umbrella. A tenant lawsuit could bypass your excess coverage entirely.',
+                color: '#dc2626',
+              },
+            ].map(g => (
+              <div key={g.gap} style={{
+                backgroundColor: '#fff', border: '1px solid var(--color-border)',
+                borderRadius: 'var(--radius-lg)', padding: '24px 20px',
+                borderLeft: `4px solid ${g.color}`,
+              }}>
+                <div style={{ fontSize: 24, marginBottom: 10 }}>{g.icon}</div>
+                <h4 style={{ fontSize: 14, fontWeight: 700, margin: '0 0 8px', color: 'var(--color-text)' }}>{g.gap}</h4>
+                <p style={{ fontSize: 13, color: 'var(--color-text-secondary)', margin: 0, lineHeight: 1.6 }}>{g.detail}</p>
+              </div>
+            ))}
+          </div>
+          <div style={{ textAlign: 'center', marginTop: 32 }}>
+            <button onClick={() => { trackClick('landing_gaps_cta'); router.push('/login'); }} style={{
+              padding: '12px 28px', fontSize: 15, fontWeight: 600,
+              backgroundColor: 'var(--color-primary)', color: '#fff',
+              border: 'none', borderRadius: 'var(--radius-md)', cursor: 'pointer',
+            }}>
+              Check your coverage for gaps
+            </button>
+          </div>
+        </div>
+      </section>
+
+      {/* ═══════════════════════════════════════════════════════════════
           2. HOW IT WORKS (4 steps — animated)
       ═══════════════════════════════════════════════════════════════ */}
       <section id="how-it-works" style={{ padding: '80px 24px', background: '#fff' }}>
@@ -1085,8 +1141,8 @@ export default function Home() {
           <h2 style={{ fontSize: 28, fontWeight: 700, margin: '0 0 10px', textAlign: 'center', color: 'var(--color-text)' }}>
             How it works
           </h2>
-          <p style={{ fontSize: 15, color: 'var(--color-text-secondary)', textAlign: 'center', margin: '0 0 56px', maxWidth: 540, marginLeft: 'auto', marginRight: 'auto' }}>
-            Add your policies once. Get intelligent coverage analysis, a personalized health score, and ongoing protection insights.
+          <p style={{ fontSize: 15, color: 'var(--color-text-secondary)', textAlign: 'center', margin: '0 0 56px', maxWidth: 580, marginLeft: 'auto', marginRight: 'auto' }}>
+            Upload any policy — personal or business. Covrabl reads it, explains what it covers in plain English, and shows you where you may still be exposed.
           </p>
 
           {/* Timeline container — wraps all 4 steps */}
@@ -1202,7 +1258,7 @@ export default function Home() {
                   }}>Active</span>
                 </div>
                 {/* Coverage breakdown cards */}
-                <div className="stagger-4" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 6 }}>
+                <div className="stagger-4 landing-inner-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 6 }}>
                   {[
                     { label: 'Liability', value: '$500K/$1M', status: 'Good', color: 'var(--color-success)' },
                     { label: 'Comprehensive', value: '$500 ded', status: 'Good', color: 'var(--color-success)' },
@@ -1441,17 +1497,19 @@ export default function Home() {
         <div style={{ maxWidth: 960, margin: '0 auto' }}>
           <div className="landing-steps" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 48, alignItems: 'center' }}>
             <div>
+              <div style={{ fontSize: 13, fontWeight: 700, color: '#dc2626', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 12 }}>Emergency Access</div>
               <h2 style={{ fontSize: 28, fontWeight: 700, margin: '0 0 16px', color: 'var(--color-text)' }}>
-                Ready when something goes wrong.
+                When something happens, instantly see everything you need.
               </h2>
               <p style={{ fontSize: 15, color: 'var(--color-text-secondary)', margin: '0 0 24px', lineHeight: 1.7 }}>
-                Your Emergency Coverage Card puts critical policy details, claims numbers, and step-by-step guidance in one place — accessible offline and shareable with family.
+                Policy numbers. Claim phone numbers. Coverage summary. Next steps. All in one place — no digging through email or filing cabinets. This is the feature people keep the app installed for.
               </p>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                 {[
-                  'Offline access',
-                  'Shareable via secure PIN',
-                  'Step-by-step emergency checklists',
+                  'Instant access — no login required in emergencies',
+                  'Shareable with family via secure PIN',
+                  'Step-by-step emergency checklists for every policy type',
+                  'Works offline — even without cell service',
                 ].map(item => (
                   <div key={item} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                     <span style={{ color: 'var(--color-success)', fontSize: 16, lineHeight: '20px', flexShrink: 0 }}>&#10003;</span>
@@ -1609,7 +1667,7 @@ export default function Home() {
             ].map((faq, i) => (
               <div key={i} style={{ borderBottom: '1px solid var(--color-border)' }}>
                 <button
-                  onClick={() => setOpenFaq(openFaq === i ? null : i)}
+                  onClick={() => { trackClick('landing_faq_toggle', { index: i }); setOpenFaq(openFaq === i ? null : i); }}
                   style={{
                     width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
                     padding: '20px 0', background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left',
@@ -1648,12 +1706,12 @@ export default function Home() {
         }} />
         <div style={{ maxWidth: 600, margin: '0 auto', position: 'relative' }}>
           <h2 style={{ fontSize: 32, fontWeight: 700, margin: '0 0 16px', letterSpacing: 'var(--letter-spacing-tight)' }}>
-            Know where you stand.
+            Stop guessing. Start knowing.
           </h2>
           <p style={{ fontSize: 18, opacity: 0.9, margin: '0 0 32px' }}>
-            Your coverage is too important to guess about.
+            See what your insurance actually covers — and where you may still be exposed.
           </p>
-          <button onClick={ctaAction} style={{
+          <button onClick={() => { trackClick('landing_cta_final'); ctaAction(); }} style={{
             padding: '16px 40px', fontSize: 18, fontWeight: 600,
             backgroundColor: 'var(--color-secondary)', color: '#fff',
             border: 'none', borderRadius: 'var(--radius-md)', cursor: 'pointer',
@@ -1678,11 +1736,11 @@ export default function Home() {
             <span>&#128737;&#65039; Secure Infrastructure</span>
             <span>&#128272; Private Access</span>
           </div>
-          <div style={{ display: 'flex', justifyContent: 'center', gap: 24, marginBottom: 16 }}>
-            <span onClick={() => router.push('/privacy')} style={{ cursor: 'pointer' }}>Privacy</span>
-            <span onClick={() => router.push('/terms')} style={{ cursor: 'pointer' }}>Terms</span>
-            <span onClick={() => router.push('/security')} style={{ cursor: 'pointer' }}>Security</span>
-            <span onClick={() => router.push('/support')} style={{ cursor: 'pointer' }}>Support</span>
+          <div style={{ display: 'flex', justifyContent: 'center', gap: 24, marginBottom: 16, flexWrap: 'wrap' }}>
+            <span onClick={() => { trackClick('landing_footer_privacy'); router.push('/privacy'); }} style={{ cursor: 'pointer' }}>Privacy</span>
+            <span onClick={() => { trackClick('landing_footer_terms'); router.push('/terms'); }} style={{ cursor: 'pointer' }}>Terms</span>
+            <span onClick={() => { trackClick('landing_footer_security'); router.push('/security'); }} style={{ cursor: 'pointer' }}>Security</span>
+            <span onClick={() => { trackClick('landing_footer_support'); router.push('/support'); }} style={{ cursor: 'pointer' }}>Support</span>
             <a href={`mailto:${APP_CONTACT_EMAIL}`} style={{ color: 'var(--color-text-muted)', textDecoration: 'none' }}>{APP_CONTACT_EMAIL}</a>
           </div>
           <div style={{ textAlign: 'center' }}>

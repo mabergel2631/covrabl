@@ -543,7 +543,8 @@ h1, h2, h3, h4, h5, h6 {
 
   /* Landing page: stack feature grids */
   .landing-steps { grid-template-columns: 1fr !important; gap: 24px !important; }
-  .landing-trust { grid-template-columns: 1fr 1fr !important; }
+  .landing-trust { grid-template-columns: 1fr !important; }
+  .landing-inner-grid { grid-template-columns: 1fr !important; }
 }
 
 /* ── Print styles ──────────────────────────────────── */
