@@ -497,7 +497,7 @@ function CertificatesContent() {
           <div
             className="mobile-grid-1"
             style={{
-              display: 'grid', gridTemplateColumns: '2fr 2fr 1fr 1fr',
+              display: 'grid', gridTemplateColumns: '2fr 2fr 1fr 1fr auto',
               gap: 12, padding: '10px 16px', fontSize: 12, fontWeight: 600,
               color: 'var(--color-text-secondary)', borderBottom: '1px solid var(--color-border)',
             }}
@@ -506,6 +506,7 @@ function CertificatesContent() {
             <span>Evidence</span>
             <span>Status</span>
             <span>Expiration</span>
+            <span>Actions</span>
           </div>
 
           {/* Rows */}
@@ -514,18 +515,20 @@ function CertificatesContent() {
             return (
               <div
                 key={row.id}
-                onClick={() => handleRowClick(row)}
                 style={{
-                  display: 'grid', gridTemplateColumns: '2fr 2fr 1fr 1fr',
+                  display: 'grid', gridTemplateColumns: '2fr 2fr 1fr 1fr auto',
                   gap: 12, padding: '14px 16px', borderBottom: '1px solid var(--color-border)',
-                  cursor: 'pointer', backgroundColor: '#fff', transition: 'background-color 0.1s',
+                  backgroundColor: '#fff', transition: 'background-color 0.1s',
                   alignItems: 'center',
                 }}
                 className="mobile-grid-1 compliance-row"
                 onMouseEnter={e => (e.currentTarget.style.backgroundColor = '#f9fafb')}
                 onMouseLeave={e => (e.currentTarget.style.backgroundColor = '#fff')}
               >
-                <div style={{ minWidth: 0 }}>
+                <div
+                  style={{ minWidth: 0, cursor: 'pointer' }}
+                  onClick={() => handleRowClick(row)}
+                >
                   <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--color-text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     {row.entity}
                   </div>
@@ -533,7 +536,10 @@ function CertificatesContent() {
                     {row.sourceType === 'certificate' ? 'Certificate' : 'Lease Check'}
                   </div>
                 </div>
-                <div style={{ fontSize: 13, color: 'var(--color-text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>
+                <div
+                  style={{ fontSize: 13, color: 'var(--color-text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0, cursor: 'pointer' }}
+                  onClick={() => handleRowClick(row)}
+                >
                   {row.evidenceLabel}
                 </div>
                 <div>
@@ -547,6 +553,30 @@ function CertificatesContent() {
                 </div>
                 <div style={{ fontSize: 13, color: row.expiration ? 'var(--color-text)' : 'var(--color-text-muted)' }}>
                   {row.expiration || '\u2014'}
+                </div>
+                {/* Inline actions */}
+                <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); trackClick('row_view', { type: row.sourceType, id: row.sourceId }); handleRowClick(row); }}
+                    style={{ padding: '4px 10px', fontSize: 12, border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)', backgroundColor: '#fff', cursor: 'pointer', whiteSpace: 'nowrap' }}
+                  >
+                    View
+                  </button>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      trackClick('row_delete', { type: row.sourceType, id: row.sourceId });
+                      if (row.sourceType === 'certificate') {
+                        setDeleteConfirm(row.sourceId);
+                      } else {
+                        if (!confirm('Delete this lease check?')) return;
+                        leaseComplianceApi.remove(row.sourceId).then(() => { toast('Lease check deleted'); load(); }).catch(() => toast('Failed to delete', 'error'));
+                      }
+                    }}
+                    style={{ padding: '4px 10px', fontSize: 12, border: '1px solid #fecaca', borderRadius: 'var(--radius-sm)', backgroundColor: '#fff', color: 'var(--color-danger)', cursor: 'pointer', whiteSpace: 'nowrap' }}
+                  >
+                    Delete
+                  </button>
                 </div>
               </div>
             );
@@ -976,15 +1006,22 @@ function CertificatesContent() {
                 </div>
               )}
 
-              {/* Auto-prompt: Check against lease requirements */}
-              {matchingLeaseReqs.length > 0 && (
+              {/* Check against requirements — always show for received certs linked to a policy */}
+              {vc.policy_id && (
                 <div style={{
                   marginBottom: 20, padding: '12px 16px', borderRadius: 'var(--radius-md)',
                   backgroundColor: '#f0f9ff', border: '1px solid #bae6fd',
                   display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap',
                 }}>
-                  <div style={{ fontSize: 13, color: '#0c4a6e', fontWeight: 600 }}>
-                    Check this COI against lease requirements?
+                  <div>
+                    <div style={{ fontSize: 13, color: '#0c4a6e', fontWeight: 600 }}>
+                      {matchingLeaseReqs.length > 0 ? 'Check this COI against lease requirements' : 'Run a compliance check on this certificate'}
+                    </div>
+                    <div style={{ fontSize: 11, color: '#6b7280', marginTop: 2 }}>
+                      {matchingLeaseReqs.length > 0
+                        ? `${matchingLeaseReqs.length} requirement${matchingLeaseReqs.length !== 1 ? 's' : ''} defined for this policy`
+                        : 'Define requirements on the policy page, then verify this certificate'}
+                    </div>
                   </div>
                   <button
                     onClick={() => {
@@ -999,13 +1036,23 @@ function CertificatesContent() {
                       whiteSpace: 'nowrap',
                     }}
                   >
-                    Run Check
+                    {matchingLeaseReqs.length > 0 ? 'Run Check' : 'Go to Policy'}
                   </button>
                 </div>
               )}
 
               {/* Actions */}
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, borderTop: '1px solid var(--color-border)', paddingTop: 16, flexWrap: 'wrap' }}>
+                <button
+                  onClick={() => {
+                    trackClick('cert_detail_delete', { id: vc.id });
+                    setViewingCert(null);
+                    setDeleteConfirm(vc.id);
+                  }}
+                  style={{ padding: '8px 20px', border: '1px solid #fecaca', borderRadius: 'var(--radius-sm)', backgroundColor: '#fff', color: 'var(--color-danger)', cursor: 'pointer', fontSize: 14 }}
+                >
+                  Delete
+                </button>
                 <button onClick={() => { trackClick('cert_detail_close'); setViewingCert(null); }} style={{ padding: '8px 20px', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)', backgroundColor: '#fff', cursor: 'pointer', fontSize: 14 }}>Close</button>
                 <button onClick={() => { trackClick('cert_detail_edit', { id: vc.id }); setViewingCert(null); startEdit(vc); }} style={{ padding: '8px 20px', backgroundColor: 'var(--color-primary)', color: '#fff', border: 'none', borderRadius: 'var(--radius-sm)', fontWeight: 600, cursor: 'pointer', fontSize: 14 }}>Edit</button>
               </div>
