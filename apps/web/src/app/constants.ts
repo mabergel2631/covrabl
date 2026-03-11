@@ -68,6 +68,16 @@ export const CERT_STATUS_COLORS: Record<string, { bg: string; fg: string }> = {
   pending: { bg: '#f3f4f6', fg: '#374151' },
 };
 
+/** Unified compliance status colors */
+export const COMPLIANCE_STATUS_COLORS: Record<string, { bg: string; fg: string; label: string }> = {
+  compliant: { bg: '#dcfce7', fg: '#166534', label: 'Compliant' },
+  non_compliant: { bg: '#fee2e2', fg: '#991b1b', label: 'Non-Compliant' },
+  partial: { bg: '#fef3c7', fg: '#92400e', label: 'Partially Compliant' },
+  expiring: { bg: '#fef3c7', fg: '#92400e', label: 'Expiring' },
+  expired: { bg: '#fee2e2', fg: '#991b1b', label: 'Expired' },
+  pending: { bg: '#f3f4f6', fg: '#374151', label: 'Pending' },
+};
+
 /** Alert severity config (used by audit page) */
 export const ALERT_SEVERITY_CONFIG: Record<string, { bg: string; fg: string; label: string; icon: string }> = {
   critical: { bg: 'var(--color-danger-light)', fg: 'var(--color-danger-dark)', label: 'Critical', icon: '🚨' },

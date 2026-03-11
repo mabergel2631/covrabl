@@ -1,16 +1,15 @@
 'use client';
 
-import { useState, useEffect, useRef, Suspense } from 'react';
+import { useState, useEffect, useRef, useMemo, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '../../../lib/auth';
 import { certificatesApi, policiesApi, leaseComplianceApi, Certificate, CertificateCreate, Policy, LeaseRequirement, checkFeatureAccess } from '../../../lib/api';
 import { useToast } from '../components/Toast';
 import ConfirmDialog from '../components/ConfirmDialog';
-import TabNav from '../components/TabNav';
 import UpgradePrompt from '../components/UpgradePrompt';
 import BackButton from '../components/BackButton';
-import { trackClick } from '../../../lib/track';
-import { CERT_STATUS_COLORS } from '../constants';
+import { trackClick, trackPageView, trackFeatureUse } from '../../../lib/track';
+import { CERT_STATUS_COLORS, COMPLIANCE_STATUS_COLORS } from '../constants';
 
 const COUNTERPARTY_TYPES = [
   { value: 'landlord', label: 'Landlord' },
@@ -23,9 +22,104 @@ const COUNTERPARTY_TYPES = [
   { value: 'other', label: 'Other' },
 ];
 
-// Use CERT_STATUS_COLORS from constants
-
 const COVERAGE_TYPE_OPTIONS = ['General Liability', 'Auto', 'Workers Comp', 'Umbrella', 'Professional Liability', 'Property'];
+
+type ComplianceRow = {
+  id: string;
+  sourceType: 'certificate' | 'lease_check';
+  sourceId: number;
+  entity: string;
+  evidenceLabel: string;
+  status: string;
+  statusLabel: string;
+  expiration: string | null;
+  raw: Certificate | LeaseRequirement;
+};
+
+const STATUS_PRIORITY: Record<string, number> = {
+  non_compliant: 0, expired: 1, expiring: 2, partial: 3, pending: 4, compliant: 5,
+};
+
+function buildComplianceRows(
+  certificates: Certificate[],
+  leaseReqs: LeaseRequirement[],
+  policyMap: Map<number, Policy>,
+): ComplianceRow[] {
+  const rows: ComplianceRow[] = [];
+
+  for (const cert of certificates) {
+    const policy = cert.policy_id ? policyMap.get(cert.policy_id) : null;
+    let entity = cert.counterparty_name;
+    if (policy?.business_name) entity = policy.business_name;
+    else if (policy?.scope === 'personal') entity = 'Personal';
+
+    let status = 'pending';
+    if (cert.status === 'active') {
+      if (cert.direction === 'received' && cert.minimum_coverage != null && cert.coverage_amount != null) {
+        status = cert.coverage_amount >= cert.minimum_coverage ? 'compliant' : 'non_compliant';
+      } else {
+        status = 'compliant';
+      }
+    } else if (cert.status === 'expiring') {
+      status = 'expiring';
+    } else if (cert.status === 'expired') {
+      status = 'expired';
+    }
+
+    const sc = COMPLIANCE_STATUS_COLORS[status] || COMPLIANCE_STATUS_COLORS.pending;
+    rows.push({
+      id: `cert-${cert.id}`,
+      sourceType: 'certificate',
+      sourceId: cert.id,
+      entity,
+      evidenceLabel: `COI${cert.coverage_types ? ' \u2014 ' + cert.coverage_types : ''}`,
+      status,
+      statusLabel: sc.label,
+      expiration: cert.expiration_date || null,
+      raw: cert,
+    });
+  }
+
+  for (const req of leaseReqs) {
+    const policy = req.policy_id ? policyMap.get(req.policy_id) : null;
+    let entity = req.counterparty_name || req.label;
+    if (policy?.business_name) entity = policy.business_name;
+
+    let status = 'pending';
+    if (req.latest_check) {
+      const lc = req.latest_check;
+      if (lc.fail_count === 0 && lc.unclear_count === 0 && lc.pass_count > 0) status = 'compliant';
+      else if (lc.fail_count > 0 && lc.pass_count > 0) status = 'partial';
+      else if (lc.fail_count > 0) status = 'non_compliant';
+      else status = 'pending';
+    }
+
+    const sc = COMPLIANCE_STATUS_COLORS[status] || COMPLIANCE_STATUS_COLORS.pending;
+    rows.push({
+      id: `lease-${req.id}`,
+      sourceType: 'lease_check',
+      sourceId: req.id,
+      entity,
+      evidenceLabel: `Lease Check \u2014 ${req.label}`,
+      status,
+      statusLabel: sc.label,
+      expiration: null,
+      raw: req,
+    });
+  }
+
+  rows.sort((a, b) => {
+    const pa = STATUS_PRIORITY[a.status] ?? 5;
+    const pb = STATUS_PRIORITY[b.status] ?? 5;
+    if (pa !== pb) return pa - pb;
+    if (a.expiration && b.expiration) return a.expiration.localeCompare(b.expiration);
+    if (a.expiration) return -1;
+    if (b.expiration) return 1;
+    return a.entity.localeCompare(b.entity);
+  });
+
+  return rows;
+}
 
 export default function CertificatesPage() {
   return <Suspense><CertificatesContent /></Suspense>;
@@ -40,10 +134,14 @@ function CertificatesContent() {
 
   const [certificates, setCertificates] = useState<Certificate[]>([]);
   const [policies, setPolicies] = useState<Policy[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [topTab, setTopTab] = useState<'certificates' | 'lease-check'>('certificates');
   const [leaseReqs, setLeaseReqs] = useState<LeaseRequirement[]>([]);
-  const [tab, setTab] = useState<'all' | 'issued' | 'received'>('all');
+  const [loading, setLoading] = useState(true);
+
+  // Filters
+  const [typeFilter, setTypeFilter] = useState<'all' | 'certificates' | 'lease_checks'>('all');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'compliant' | 'issues'>('all');
+
+  // Certificate form state
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<number | null>(null);
@@ -57,8 +155,15 @@ function CertificatesContent() {
   const [viewingCert, setViewingCert] = useState<Certificate | null>(null);
   const coiFileRef = useRef<HTMLInputElement>(null);
 
+  // Add Verification choice modal
+  const [showAddChoice, setShowAddChoice] = useState(false);
+
+  // Lease detail modal
+  const [viewingLease, setViewingLease] = useState<LeaseRequirement | null>(null);
+
   useEffect(() => {
     if (!token) { router.replace('/login'); return; }
+    trackPageView('compliance_verification');
     load();
   }, [token]);
 
@@ -72,25 +177,40 @@ function CertificatesContent() {
       setCertificates(certs);
       setPolicies(pols);
       setLeaseReqs(reqs);
-      // Auto-open form if navigated from a policy page with ?addFor=<policyId>
       if (addForPolicyId && pols.some(p => p.id === addForPolicyId)) {
         setForm(f => ({ ...f, policy_id: addForPolicyId }));
         setShowForm(true);
       }
     } catch {
-      toast('Failed to load certificates', 'error');
+      toast('Failed to load data', 'error');
     } finally {
       setLoading(false);
     }
   }
 
-  const filtered = tab === 'all' ? certificates : certificates.filter(c => c.direction === tab);
+  const policyMap = useMemo(() => new Map(policies.map(p => [p.id, p])), [policies]);
 
-  // Build a lookup from policy_id → policy for entity grouping
-  const policyMap = new Map(policies.map(p => [p.id, p]));
+  const complianceRows = useMemo(
+    () => buildComplianceRows(certificates, leaseReqs, policyMap),
+    [certificates, leaseReqs, policyMap],
+  );
 
-  // Group policies for dropdown: Personal, then Business groups
-  const policyOptGroups = (() => {
+  const filteredRows = useMemo(() => {
+    let rows = complianceRows;
+    if (typeFilter === 'certificates') rows = rows.filter(r => r.sourceType === 'certificate');
+    if (typeFilter === 'lease_checks') rows = rows.filter(r => r.sourceType === 'lease_check');
+    if (statusFilter === 'compliant') rows = rows.filter(r => r.status === 'compliant');
+    if (statusFilter === 'issues') rows = rows.filter(r => r.status !== 'compliant');
+    return rows;
+  }, [complianceRows, typeFilter, statusFilter]);
+
+  // Summary counts
+  const totalCount = complianceRows.length;
+  const compliantCount = complianceRows.filter(r => r.status === 'compliant').length;
+  const issuesCount = complianceRows.filter(r => ['non_compliant', 'partial', 'expired', 'expiring'].includes(r.status)).length;
+
+  // Policy dropdown groups for certificate form
+  const policyOptGroups = useMemo(() => {
     const personal = policies.filter(p => p.scope === 'personal');
     const bizMap = new Map<string, Policy[]>();
     for (const p of policies.filter(p => p.scope === 'business')) {
@@ -104,43 +224,7 @@ function CertificatesContent() {
       groups.push({ label: name, items });
     }
     return groups;
-  })();
-
-  // Group filtered certificates by entity
-  const entityGroups: { key: string; label: string; icon: string; certs: Certificate[] }[] = (() => {
-    const groups: Record<string, Certificate[]> = {};
-    for (const cert of filtered) {
-      const policy = cert.policy_id ? policyMap.get(cert.policy_id) : null;
-      let groupKey: string;
-      if (!policy) {
-        groupKey = '__unlinked__';
-      } else if (policy.scope === 'business' && policy.business_name) {
-        groupKey = `biz:${policy.business_name}`;
-      } else {
-        groupKey = '__personal__';
-      }
-      if (!groups[groupKey]) groups[groupKey] = [];
-      groups[groupKey].push(cert);
-    }
-
-    const result: { key: string; label: string; icon: string; certs: Certificate[] }[] = [];
-    // Personal first
-    if (groups['__personal__']) {
-      result.push({ key: '__personal__', label: 'Personal', icon: '👤', certs: groups['__personal__'] });
-    }
-    // Business entities sorted by name
-    const bizKeys = Object.keys(groups).filter(k => k.startsWith('biz:')).sort();
-    for (const k of bizKeys) {
-      result.push({ key: k, label: k.replace('biz:', ''), icon: '🏢', certs: groups[k] });
-    }
-    // Unlinked last
-    if (groups['__unlinked__']) {
-      result.push({ key: '__unlinked__', label: 'Unlinked', icon: '📎', certs: groups['__unlinked__'] });
-    }
-    return result;
-  })();
-
-  const hasMultipleGroups = entityGroups.length > 1;
+  }, [policies]);
 
   function resetForm() {
     setForm({ direction: 'issued', counterparty_name: '', counterparty_type: 'client' });
@@ -149,6 +233,7 @@ function CertificatesContent() {
   }
 
   function startEdit(cert: Certificate) {
+    trackClick('cert_edit', { id: cert.id });
     setForm({
       direction: cert.direction,
       policy_id: cert.policy_id,
@@ -174,14 +259,24 @@ function CertificatesContent() {
     if (!form.counterparty_name.trim()) { toast('Counterparty name is required', 'error'); return; }
     try {
       if (editingId) {
+        trackClick('cert_save_edit', { id: editingId });
         await certificatesApi.update(editingId, form);
         toast('Certificate updated');
       } else {
-        trackClick('create_certificate');
+        trackClick('cert_save_new');
         await certificatesApi.create(form);
         toast('Certificate added');
-        if (!form.policy_id) {
-          setTimeout(() => toast('Tip: Link this certificate to a policy so it appears in your policy details.', 'info'), 500);
+        // Auto-prompt: check against lease requirements for received certs
+        if (form.direction === 'received' && leaseReqs.length > 0) {
+          const matchingReqs = form.policy_id
+            ? leaseReqs.filter(r => r.policy_id === form.policy_id)
+            : leaseReqs;
+          if (matchingReqs.length > 0 && matchingReqs[0].policy_id) {
+            trackFeatureUse('coi_lease_check_prompt');
+            setTimeout(() => {
+              toast('Check this COI against lease requirements on the policy page', 'info');
+            }, 500);
+          }
         }
       }
       resetForm();
@@ -192,6 +287,7 @@ function CertificatesContent() {
   }
 
   async function handleDelete(id: number) {
+    trackClick('cert_delete', { id });
     try {
       await certificatesApi.remove(id);
       toast('Certificate deleted');
@@ -206,10 +302,10 @@ function CertificatesContent() {
     const file = coiFileRef.current?.files?.[0];
     if (!file) { toast('Please select a PDF file', 'error'); return; }
     if (!file.name.toLowerCase().endsWith('.pdf')) { toast('Only PDF files are supported', 'error'); return; }
+    trackClick('cert_extract_coi');
     setExtracting(true);
     try {
       const { extraction } = await certificatesApi.extractFromPdf(file);
-      // Auto-match to an existing policy by carrier or policy number
       let matchedPolicyId: number | null = null;
       if (extraction.policy_number || extraction.carrier) {
         const match = policies.find(p =>
@@ -243,15 +339,25 @@ function CertificatesContent() {
     }
   }
 
+  function handleRowClick(row: ComplianceRow) {
+    trackClick('compliance_row_view', { type: row.sourceType, id: row.sourceId });
+    if (row.sourceType === 'certificate') {
+      setViewingCert(row.raw as Certificate);
+    } else {
+      setViewingLease(row.raw as LeaseRequirement);
+    }
+  }
+
   const labelStyle: React.CSSProperties = { display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--color-text-secondary)', marginBottom: 4 };
   const inputStyle: React.CSSProperties = { width: '100%', padding: '8px 10px', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)', fontSize: 14 };
+  const pillBase: React.CSSProperties = { padding: '6px 14px', borderRadius: 20, fontSize: 13, fontWeight: 600, cursor: 'pointer', border: 'none', transition: 'all 0.15s' };
 
   if (loading) {
     return (
       <div style={{ padding: 32, maxWidth: 960, margin: '0 auto' }}>
         <div style={{ height: 32, width: 200, backgroundColor: '#f3f4f6', borderRadius: 8, marginBottom: 24 }} />
         {[1, 2, 3].map(i => (
-          <div key={i} style={{ height: 100, backgroundColor: '#f3f4f6', borderRadius: 12, marginBottom: 12 }} />
+          <div key={i} style={{ height: 72, backgroundColor: '#f3f4f6', borderRadius: 12, marginBottom: 12 }} />
         ))}
       </div>
     );
@@ -265,340 +371,259 @@ function CertificatesContent() {
   return (
     <div style={{ padding: 32, maxWidth: 960, margin: '0 auto' }}>
       <BackButton href="/" label="Compliance" parentLabel="Home" />
+
       {/* Page Header */}
-      <div style={{ marginBottom: 20 }}>
-        <h1 style={{ fontSize: 22, fontWeight: 700 }}>Compliance</h1>
-        <p style={{ fontSize: 13, color: 'var(--color-text-secondary)', marginTop: 4 }}>Certificates of insurance and lease compliance checks</p>
-      </div>
-
-      {/* Top-level tab nav */}
-      <div style={{ marginBottom: 24 }}>
-        <TabNav
-          variant="segmented"
-          activeKey={topTab}
-          onSelect={(key) => setTopTab(key as 'certificates' | 'lease-check')}
-          tabs={[
-            { key: 'certificates', label: 'Certificates' },
-            { key: 'lease-check', label: 'Lease Check' },
-          ]}
-        />
-      </div>
-
-      {topTab === 'lease-check' && (() => {
-        const businessPolicies = policies.filter(p => p.scope === 'business' && p.status === 'active');
-        const checksWithResults = leaseReqs.filter(r => r.latest_check);
-        const checksAllPass = checksWithResults.filter(r => r.latest_check && r.latest_check.fail_count === 0 && r.latest_check.unclear_count === 0).length;
-        const checksWithIssues = checksWithResults.length - checksAllPass;
-
-        return (
-          <div>
-            {/* How it works */}
-            <div style={{ marginBottom: 28, padding: 24, backgroundColor: '#f0f9ff', border: '1px solid #bae6fd', borderRadius: 'var(--radius-lg)' }}>
-              <h2 style={{ fontSize: 16, fontWeight: 700, marginBottom: 16, color: '#0c4a6e' }}>How Lease Check Works</h2>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 20 }}>
-                <div style={{ textAlign: 'center' }}>
-                  <div style={{ fontSize: 28, marginBottom: 8 }}>1</div>
-                  <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 4 }}>Upload Lease</div>
-                  <div style={{ fontSize: 12, color: 'var(--color-text-secondary)' }}>Paste lease text or upload a PDF with insurance requirements</div>
-                </div>
-                <div style={{ textAlign: 'center' }}>
-                  <div style={{ fontSize: 28, marginBottom: 8 }}>2</div>
-                  <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 4 }}>AI Extracts Requirements</div>
-                  <div style={{ fontSize: 12, color: 'var(--color-text-secondary)' }}>We automatically identify coverage types, limits, and special endorsements</div>
-                </div>
-                <div style={{ textAlign: 'center' }}>
-                  <div style={{ fontSize: 28, marginBottom: 8 }}>3</div>
-                  <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 4 }}>Check Compliance</div>
-                  <div style={{ fontSize: 12, color: 'var(--color-text-secondary)' }}>Compare your policy against requirements to see what passes, fails, or needs review</div>
-                </div>
-              </div>
-            </div>
-
-            {/* Summary */}
-            {checksWithResults.length > 0 && (
-              <div style={{ marginBottom: 24, padding: '14px 20px', backgroundColor: '#fff', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-                <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--color-text)' }}>
-                  {leaseReqs.length} lease check{leaseReqs.length !== 1 ? 's' : ''}
-                </span>
-                {checksAllPass > 0 && (
-                  <span style={{ padding: '2px 10px', borderRadius: 10, fontSize: 12, fontWeight: 600, backgroundColor: '#dcfce7', color: '#166534' }}>
-                    {checksAllPass} fully compliant
-                  </span>
-                )}
-                {checksWithIssues > 0 && (
-                  <span style={{ padding: '2px 10px', borderRadius: 10, fontSize: 12, fontWeight: 600, backgroundColor: '#fee2e2', color: '#991b1b' }}>
-                    {checksWithIssues} with issues
-                  </span>
-                )}
-              </div>
-            )}
-
-            {/* Business policies list */}
-            <h2 style={{ fontSize: 16, fontWeight: 700, marginBottom: 12 }}>Business Policies</h2>
-            {businessPolicies.length === 0 ? (
-              <div style={{ textAlign: 'center', padding: '48px 20px', color: 'var(--color-text-secondary)' }}>
-                <div style={{ fontSize: 40, marginBottom: 12 }}>&#128188;</div>
-                <p style={{ fontSize: 15, fontWeight: 600, marginBottom: 6 }}>No business policies yet</p>
-                <p style={{ fontSize: 13, marginBottom: 16 }}>Add a business-scope policy first, then you can run lease compliance checks on it.</p>
-                <button
-                  className="btn btn-primary"
-                  onClick={() => router.push('/policies')}
-                >
-                  Go to Policies
-                </button>
-              </div>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                {businessPolicies.map(p => {
-                  const policyReqs = leaseReqs.filter(r => r.policy_id === p.id);
-                  const policyPass = policyReqs.reduce((s, r) => s + (r.latest_check?.pass_count || 0), 0);
-                  const policyFail = policyReqs.reduce((s, r) => s + (r.latest_check?.fail_count || 0), 0);
-                  return (
-                    <div
-                      key={p.id}
-                      onClick={() => router.push(`/policies/${p.id}`)}
-                      style={{
-                        padding: 16, border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)',
-                        backgroundColor: '#fff', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                      }}
-                    >
-                      <div>
-                        <div style={{ fontWeight: 600, fontSize: 15 }}>
-                          {p.nickname || p.carrier || 'Untitled'}
-                          {p.business_name && <span style={{ fontWeight: 400, color: 'var(--color-text-secondary)', marginLeft: 8, fontSize: 13 }}>{p.business_name}</span>}
-                        </div>
-                        <div style={{ fontSize: 12, color: 'var(--color-text-muted)', marginTop: 4 }}>
-                          {p.policy_type} · {p.carrier || 'No carrier'}
-                          {policyReqs.length > 0 && (
-                            <span style={{ marginLeft: 8 }}>
-                              {policyReqs.length} lease check{policyReqs.length !== 1 ? 's' : ''}
-                              {(policyPass > 0 || policyFail > 0) && (
-                                <span style={{ marginLeft: 6 }}>
-                                  <span style={{ color: '#166534' }}>{policyPass}P</span>
-                                  {' / '}
-                                  <span style={{ color: '#991b1b' }}>{policyFail}F</span>
-                                </span>
-                              )}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                      <span style={{ color: 'var(--color-primary)', fontSize: 13, fontWeight: 600 }}>View</span>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        );
-      })()}
-
-      {topTab === 'certificates' && <>
-      {/* Certificates Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24, flexWrap: 'wrap', gap: 12 }}>
-        <h2 style={{ fontSize: 18, fontWeight: 700 }}>Certificates of Insurance</h2>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 24, flexWrap: 'wrap', gap: 12 }}>
+        <div>
+          <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0 }}>Compliance Verification</h1>
+          <p style={{ fontSize: 13, color: 'var(--color-text-secondary)', margin: '4px 0 0' }}>
+            Verify insurance requirements against certificates and policies
+          </p>
+        </div>
         <button
-          onClick={() => { resetForm(); setShowForm(true); }}
+          onClick={() => { trackClick('add_verification_open'); setShowAddChoice(true); }}
           style={{
             padding: '10px 20px', backgroundColor: 'var(--color-primary)', color: '#fff',
             border: 'none', borderRadius: 'var(--radius-md)', fontWeight: 600, fontSize: 14, cursor: 'pointer',
           }}
         >
-          + Add Certificate
+          + Add Verification
         </button>
       </div>
 
-      {/* Sub-Tabs */}
-      <div style={{ marginBottom: 24 }}>
-        <TabNav
-          variant="underline"
-          activeKey={tab}
-          onSelect={(key) => setTab(key as 'all' | 'issued' | 'received')}
-          tabs={[
-            { key: 'all', label: `All (${certificates.length})` },
-            { key: 'issued', label: `Shared (${certificates.filter(c => c.direction === 'issued').length})` },
-            { key: 'received', label: `Received (${certificates.filter(c => c.direction === 'received').length})` },
-          ]}
-        />
-      </div>
-
-      {/* Empty state */}
-      {filtered.length === 0 && !showForm && (
-        <div style={{ textAlign: 'center', padding: '60px 20px', color: 'var(--color-text-secondary)' }}>
-          <div style={{ fontSize: 48, marginBottom: 16 }}>&#x1F4DC;</div>
-          <p style={{ fontSize: 16, fontWeight: 600, marginBottom: 8 }}>No certificates yet</p>
-          <p style={{ fontSize: 13 }}>
-            {tab === 'issued' ? 'Track COIs you share with landlords, lenders, or clients.' :
-             tab === 'received' ? 'Track COIs you receive from vendors, contractors, or tenants.' :
-             'Add certificates to track proof of insurance you share or receive.'}
-          </p>
+      {/* Summary Bar */}
+      {totalCount > 0 && (
+        <div style={{
+          marginBottom: 20, padding: '12px 20px', backgroundColor: '#fff',
+          border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)',
+          display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap',
+        }}>
+          <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--color-text)' }}>
+            {totalCount} verification{totalCount !== 1 ? 's' : ''}
+          </span>
+          {compliantCount > 0 && (
+            <span style={{ padding: '2px 10px', borderRadius: 10, fontSize: 12, fontWeight: 600, backgroundColor: '#dcfce7', color: '#166534' }}>
+              {compliantCount} compliant
+            </span>
+          )}
+          {issuesCount > 0 && (
+            <span style={{ padding: '2px 10px', borderRadius: 10, fontSize: 12, fontWeight: 600, backgroundColor: '#fee2e2', color: '#991b1b' }}>
+              {issuesCount} need{issuesCount === 1 ? 's' : ''} attention
+            </span>
+          )}
         </div>
       )}
 
-      {/* Certificate cards grouped by entity */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 32 }}>
-        {entityGroups.map(group => (
-          <div key={group.key}>
-            {/* Entity header — only show if multiple groups exist */}
-            {hasMultipleGroups && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
-                <span style={{ fontSize: 16 }}>{group.icon}</span>
-                <h3 style={{ fontSize: 14, fontWeight: 700, color: 'var(--color-text)', margin: 0 }}>
-                  {group.label}
-                </h3>
-                <span style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>
-                  {group.certs.length} certificate{group.certs.length !== 1 ? 's' : ''}
-                </span>
-                {group.key !== '__unlinked__' && group.key !== '__personal__' && (
-                  <span
-                    onClick={() => router.push(`/policies/business/${encodeURIComponent(group.label)}`)}
-                    style={{ fontSize: 12, color: 'var(--color-primary)', cursor: 'pointer', marginLeft: 4 }}
-                  >
-                    View entity &rarr;
-                  </span>
-                )}
-              </div>
-            )}
+      {/* Filter Bar */}
+      <div className="search-toolbar" style={{ display: 'flex', gap: 8, marginBottom: 24, flexWrap: 'wrap', alignItems: 'center' }}>
+        {/* Type filter pills */}
+        <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+          {([
+            { key: 'all', label: 'All' },
+            { key: 'certificates', label: 'Certificates' },
+            { key: 'lease_checks', label: 'Lease Checks' },
+          ] as const).map(f => (
+            <button
+              key={f.key}
+              onClick={() => { trackClick('compliance_filter_type', { value: f.key }); setTypeFilter(f.key); }}
+              style={{
+                ...pillBase,
+                backgroundColor: typeFilter === f.key ? 'var(--color-primary)' : '#f3f4f6',
+                color: typeFilter === f.key ? '#fff' : 'var(--color-text)',
+              }}
+            >
+              {f.label}
+            </button>
+          ))}
+        </div>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-              {group.certs.map(cert => {
-                const sc = CERT_STATUS_COLORS[cert.status] || CERT_STATUS_COLORS.pending;
-                const ctLabel = COUNTERPARTY_TYPES.find(ct => ct.value === cert.counterparty_type)?.label || cert.counterparty_type;
-                const linkedPolicy = cert.policy_id ? policyMap.get(cert.policy_id) : null;
-                return (
-                  <div
-                    key={cert.id}
-                    style={{
-                      border: '1px solid var(--color-border)', borderRadius: 'var(--radius-lg)',
-                      padding: 20, backgroundColor: '#fff',
-                    }}
-                  >
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
-                      <div style={{ flex: 1 }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4, flexWrap: 'wrap' }}>
-                          <span style={{ fontSize: 16, fontWeight: 700 }}>{cert.counterparty_name}</span>
-                          <span style={{
-                            display: 'inline-block', padding: '2px 8px', borderRadius: 12, fontSize: 11, fontWeight: 600,
-                            backgroundColor: cert.direction === 'issued' ? '#dbeafe' : '#fce7f3',
-                            color: cert.direction === 'issued' ? '#1e40af' : '#9d174d',
-                          }}>
-                            {cert.direction === 'issued' ? 'Shared' : 'Received'}
-                          </span>
-                          <span style={{
-                            display: 'inline-block', padding: '2px 8px', borderRadius: 12, fontSize: 11, fontWeight: 600,
-                            backgroundColor: sc.bg, color: sc.fg,
-                          }}>
-                            {cert.status}
-                          </span>
-                        </div>
-                        <div style={{ fontSize: 12, color: 'var(--color-text-secondary)' }}>{ctLabel}</div>
-                      </div>
-                      <div style={{ display: 'flex', gap: 6 }}>
-                        <button onClick={() => setViewingCert(cert)} style={{ padding: '4px 10px', fontSize: 12, border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)', backgroundColor: '#fff', cursor: 'pointer' }}>View</button>
-                        <button onClick={() => startEdit(cert)} style={{ padding: '4px 10px', fontSize: 12, border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)', backgroundColor: '#fff', cursor: 'pointer' }}>Edit</button>
-                        <button onClick={() => setDeleteConfirm(cert.id)} style={{ padding: '4px 10px', fontSize: 12, border: '1px solid var(--color-danger-border)', borderRadius: 'var(--radius-sm)', backgroundColor: '#fff', color: 'var(--color-danger)', cursor: 'pointer' }}>Delete</button>
-                      </div>
-                    </div>
+        <div style={{ width: 1, height: 24, backgroundColor: 'var(--color-border)', margin: '0 4px' }} />
 
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 8, fontSize: 13 }}>
-                      {cert.coverage_types && (
-                        <div><span style={{ color: 'var(--color-text-secondary)' }}>Coverage: </span>{cert.coverage_types}</div>
-                      )}
-                      {cert.coverage_amount != null && (
-                        <div><span style={{ color: 'var(--color-text-secondary)' }}>Amount: </span>${(cert.coverage_amount / 100).toLocaleString()}</div>
-                      )}
-                      {cert.expiration_date && (
-                        <div><span style={{ color: 'var(--color-text-secondary)' }}>Expires: </span>{cert.expiration_date}</div>
-                      )}
-                      {cert.direction === 'received' && cert.carrier && (
-                        <div><span style={{ color: 'var(--color-text-secondary)' }}>Carrier: </span>{cert.carrier}</div>
-                      )}
-                      {cert.additional_insured && (
-                        <div style={{ color: '#166534', fontWeight: 600 }}>Additional Insured</div>
-                      )}
-                      {cert.waiver_of_subrogation && (
-                        <div style={{ color: '#166534', fontWeight: 600 }}>Waiver of Subrogation</div>
-                      )}
-                    </div>
+        {/* Status filter pills */}
+        <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+          {([
+            { key: 'all', label: 'All Statuses' },
+            { key: 'compliant', label: 'Compliant' },
+            { key: 'issues', label: 'Issues' },
+          ] as const).map(f => (
+            <button
+              key={f.key}
+              onClick={() => { trackClick('compliance_filter_status', { value: f.key }); setStatusFilter(f.key); }}
+              style={{
+                ...pillBase,
+                backgroundColor: statusFilter === f.key ? (f.key === 'issues' ? '#991b1b' : f.key === 'compliant' ? '#166534' : 'var(--color-primary)') : '#f3f4f6',
+                color: statusFilter === f.key ? '#fff' : 'var(--color-text)',
+              }}
+            >
+              {f.label}
+            </button>
+          ))}
+        </div>
+      </div>
 
-                    {/* Linked policy */}
-                    {linkedPolicy ? (
-                      <div style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 8, fontSize: 12 }}>
-                        <span style={{ color: 'var(--color-text-muted)' }}>Linked:</span>
-                        <span
-                          onClick={(e) => { e.stopPropagation(); router.push(`/policies/${linkedPolicy.id}`); }}
-                          style={{ color: 'var(--color-primary)', cursor: 'pointer', fontWeight: 600 }}
-                        >
-                          {linkedPolicy.nickname || linkedPolicy.carrier} &middot; {linkedPolicy.policy_type} &rarr;
-                        </span>
-                      </div>
-                    ) : (
-                      <div style={{ marginTop: 10 }}>
-                        {cert.id === linkingCertId ? (
-                          <select
-                            autoFocus
-                            onClick={(e) => e.stopPropagation()}
-                            onBlur={() => setLinkingCertId(null)}
-                            onChange={async (e) => {
-                              const policyId = Number(e.target.value);
-                              if (!policyId) { setLinkingCertId(null); return; }
-                              try {
-                                await certificatesApi.update(cert.id, { policy_id: policyId });
-                                toast('Certificate linked to policy');
-                                setLinkingCertId(null);
-                                load();
-                              } catch { toast('Failed to link', 'error'); }
-                            }}
-                            value=""
-                            style={{ width: '100%', padding: '6px 10px', fontSize: 13, border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)' }}
-                          >
-                            <option value="">Select a policy...</option>
-                            {policyOptGroups.map(g => (
-                              <optgroup key={g.label} label={g.label}>
-                                {g.items.map(p => <option key={p.id} value={p.id}>{p.nickname || p.carrier} - {p.policy_type.replace(/_/g, ' ')}</option>)}
-                              </optgroup>
-                            ))}
-                          </select>
-                        ) : (
-                          <div
-                            onClick={(e) => { e.stopPropagation(); setLinkingCertId(cert.id); }}
-                            style={{
-                              display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px',
-                              backgroundColor: '#fef3c7', border: '1px solid #fcd34d', borderRadius: 'var(--radius-sm)',
-                              cursor: 'pointer', fontSize: 12, color: '#92400e', fontWeight: 600,
-                            }}
-                          >
-                            <span style={{ fontSize: 14 }}>&#9432;</span>
-                            Not linked to a policy &mdash; <span style={{ textDecoration: 'underline' }}>Link now</span>
-                          </div>
-                        )}
-                      </div>
-                    )}
+      {/* Empty State */}
+      {filteredRows.length === 0 && (
+        <div style={{ textAlign: 'center', padding: '60px 20px', color: 'var(--color-text-secondary)' }}>
+          <div style={{ fontSize: 48, marginBottom: 16 }}>&#128203;</div>
+          {totalCount === 0 ? (
+            <>
+              <p style={{ fontSize: 16, fontWeight: 600, marginBottom: 8 }}>No compliance verifications yet</p>
+              <p style={{ fontSize: 13, maxWidth: '90%', margin: '0 auto 20px' }}>
+                Upload a certificate of insurance or define lease requirements to start verifying compliance.
+              </p>
+              <button
+                onClick={() => { trackClick('empty_add_verification'); setShowAddChoice(true); }}
+                style={{
+                  padding: '10px 24px', backgroundColor: 'var(--color-primary)', color: '#fff',
+                  border: 'none', borderRadius: 'var(--radius-md)', fontWeight: 600, fontSize: 14, cursor: 'pointer',
+                }}
+              >
+                + Add Verification
+              </button>
+            </>
+          ) : (
+            <>
+              <p style={{ fontSize: 16, fontWeight: 600, marginBottom: 8 }}>No matches</p>
+              <p style={{ fontSize: 13 }}>Try adjusting your filters.</p>
+            </>
+          )}
+        </div>
+      )}
 
-                    {/* Compliance check for received certificates */}
-                    {cert.direction === 'received' && cert.minimum_coverage != null && cert.coverage_amount != null && (
-                      <div style={{
-                        marginTop: 10, padding: '6px 10px', borderRadius: 'var(--radius-sm)', fontSize: 12, fontWeight: 600,
-                        backgroundColor: cert.coverage_amount >= cert.minimum_coverage ? '#dcfce7' : '#fee2e2',
-                        color: cert.coverage_amount >= cert.minimum_coverage ? '#166534' : '#991b1b',
-                      }}>
-                        {cert.coverage_amount >= cert.minimum_coverage
-                          ? `Meets requirement ($${(cert.minimum_coverage / 100).toLocaleString()} minimum)`
-                          : `Below requirement: $${(cert.coverage_amount / 100).toLocaleString()} / $${(cert.minimum_coverage / 100).toLocaleString()} required`
-                        }
-                      </div>
-                    )}
+      {/* Unified Compliance Table */}
+      {filteredRows.length > 0 && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
+          {/* Table header — desktop */}
+          <div
+            className="mobile-grid-1"
+            style={{
+              display: 'grid', gridTemplateColumns: '2fr 2fr 1fr 1fr',
+              gap: 12, padding: '10px 16px', fontSize: 12, fontWeight: 600,
+              color: 'var(--color-text-secondary)', borderBottom: '1px solid var(--color-border)',
+            }}
+          >
+            <span>Entity / Tenant</span>
+            <span>Evidence</span>
+            <span>Status</span>
+            <span>Expiration</span>
+          </div>
 
+          {/* Rows */}
+          {filteredRows.map(row => {
+            const sc = COMPLIANCE_STATUS_COLORS[row.status] || COMPLIANCE_STATUS_COLORS.pending;
+            return (
+              <div
+                key={row.id}
+                onClick={() => handleRowClick(row)}
+                style={{
+                  display: 'grid', gridTemplateColumns: '2fr 2fr 1fr 1fr',
+                  gap: 12, padding: '14px 16px', borderBottom: '1px solid var(--color-border)',
+                  cursor: 'pointer', backgroundColor: '#fff', transition: 'background-color 0.1s',
+                  alignItems: 'center',
+                }}
+                className="mobile-grid-1 compliance-row"
+                onMouseEnter={e => (e.currentTarget.style.backgroundColor = '#f9fafb')}
+                onMouseLeave={e => (e.currentTarget.style.backgroundColor = '#fff')}
+              >
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--color-text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {row.entity}
                   </div>
-                );
-              })}
+                  <div style={{ fontSize: 11, color: 'var(--color-text-muted)', marginTop: 2 }}>
+                    {row.sourceType === 'certificate' ? 'Certificate' : 'Lease Check'}
+                  </div>
+                </div>
+                <div style={{ fontSize: 13, color: 'var(--color-text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>
+                  {row.evidenceLabel}
+                </div>
+                <div>
+                  <span style={{
+                    display: 'inline-block', padding: '3px 10px', borderRadius: 12,
+                    fontSize: 12, fontWeight: 600, backgroundColor: sc.bg, color: sc.fg,
+                    whiteSpace: 'nowrap',
+                  }}>
+                    {sc.label}
+                  </span>
+                </div>
+                <div style={{ fontSize: 13, color: row.expiration ? 'var(--color-text)' : 'var(--color-text-muted)' }}>
+                  {row.expiration || '\u2014'}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* ── Add Verification Choice Modal ── */}
+      {showAddChoice && (
+        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+          <div style={{ backgroundColor: '#fff', borderRadius: 'var(--radius-lg)', padding: 20, maxWidth: 520, width: '100%' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
+              <h2 style={{ fontSize: 18, fontWeight: 700, margin: 0 }}>Add Verification</h2>
+              <button
+                onClick={() => { trackClick('add_verification_close'); setShowAddChoice(false); }}
+                style={{ background: 'none', border: 'none', fontSize: 20, cursor: 'pointer', color: 'var(--color-text-muted)', padding: 0, lineHeight: 1 }}
+              >&times;</button>
+            </div>
+            <p style={{ fontSize: 14, color: 'var(--color-text-secondary)', margin: '0 0 20px' }}>
+              What would you like to do?
+            </p>
+            <div className="form-grid-2" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+              <button
+                onClick={() => {
+                  trackClick('add_verification_upload');
+                  setShowAddChoice(false);
+                  resetForm();
+                  setShowForm(true);
+                }}
+                style={{
+                  padding: 24, border: '2px solid var(--color-border)', borderRadius: 'var(--radius-lg)',
+                  backgroundColor: '#fff', cursor: 'pointer', textAlign: 'center', transition: 'border-color 0.15s',
+                }}
+                onMouseEnter={e => (e.currentTarget.style.borderColor = 'var(--color-primary)')}
+                onMouseLeave={e => (e.currentTarget.style.borderColor = 'var(--color-border)')}
+              >
+                <div style={{ fontSize: 32, marginBottom: 12 }}>&#128196;</div>
+                <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 6, color: 'var(--color-text)' }}>Upload Evidence</div>
+                <div style={{ fontSize: 12, color: 'var(--color-text-secondary)', lineHeight: 1.5 }}>
+                  Upload a COI or proof of insurance document
+                </div>
+              </button>
+              <button
+                onClick={() => {
+                  trackClick('add_verification_define_reqs');
+                  setShowAddChoice(false);
+                  const bizPolicies = policies.filter(p => p.scope === 'business' && p.status === 'active');
+                  if (bizPolicies.length === 0) {
+                    toast('Add a business policy first, then define lease requirements on it.', 'info');
+                    router.push('/policies');
+                  } else if (bizPolicies.length === 1) {
+                    router.push(`/policies/${bizPolicies[0].id}`);
+                  } else {
+                    // Show policy picker by navigating to policies
+                    toast('Select a business policy to define requirements on.', 'info');
+                    router.push('/policies');
+                  }
+                }}
+                style={{
+                  padding: 24, border: '2px solid var(--color-border)', borderRadius: 'var(--radius-lg)',
+                  backgroundColor: '#fff', cursor: 'pointer', textAlign: 'center', transition: 'border-color 0.15s',
+                }}
+                onMouseEnter={e => (e.currentTarget.style.borderColor = 'var(--color-primary)')}
+                onMouseLeave={e => (e.currentTarget.style.borderColor = 'var(--color-border)')}
+              >
+                <div style={{ fontSize: 32, marginBottom: 12 }}>&#128203;</div>
+                <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 6, color: 'var(--color-text)' }}>Define Requirements</div>
+                <div style={{ fontSize: 12, color: 'var(--color-text-secondary)', lineHeight: 1.5 }}>
+                  Set lease or contract insurance requirements to check against
+                </div>
+              </button>
             </div>
           </div>
-        ))}
-      </div>
-      </>}
+        </div>
+      )}
 
-      {/* Add/Edit Form Modal */}
+      {/* ── Add/Edit Certificate Form Modal ── */}
       {showForm && (
         <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
           <div style={{ backgroundColor: '#fff', borderRadius: 'var(--radius-lg)', padding: 20, maxWidth: 560, width: '100%', maxHeight: '90vh', overflowY: 'auto' }}>
@@ -645,7 +670,7 @@ function CertificatesContent() {
                 {(['issued', 'received'] as const).map(d => (
                   <button
                     key={d}
-                    onClick={() => setForm(f => ({ ...f, direction: d }))}
+                    onClick={() => { trackClick('cert_form_direction', { value: d }); setForm(f => ({ ...f, direction: d })); }}
                     style={{
                       flex: 1, padding: '8px 16px', border: 'none', fontSize: 13, fontWeight: 600, cursor: 'pointer',
                       backgroundColor: form.direction === d ? 'var(--color-primary)' : '#fff',
@@ -658,7 +683,7 @@ function CertificatesContent() {
               </div>
             </div>
 
-            {/* Linked policy — prominent with warning when unlinked */}
+            {/* Linked policy */}
             <div style={{
               marginBottom: 16, padding: 12, borderRadius: 'var(--radius-sm)',
               backgroundColor: form.policy_id ? '#f0fdf4' : '#fef3c7',
@@ -670,7 +695,7 @@ function CertificatesContent() {
               <select
                 style={{ ...inputStyle, borderColor: form.policy_id ? '#86efac' : '#d97706' }}
                 value={form.policy_id ?? ''}
-                onChange={e => setForm(f => ({ ...f, policy_id: e.target.value ? Number(e.target.value) : null }))}
+                onChange={e => { trackClick('cert_form_link_policy'); setForm(f => ({ ...f, policy_id: e.target.value ? Number(e.target.value) : null })); }}
               >
                 <option value="">Select a policy...</option>
                 {policyOptGroups.map(g => (
@@ -731,6 +756,7 @@ function CertificatesContent() {
                       key={ct}
                       type="button"
                       onClick={() => {
+                        trackClick('cert_form_coverage_toggle', { type: ct, active: !active });
                         const updated = active ? current.filter(c => c !== ct) : [...current, ct];
                         setForm(f => ({ ...f, coverage_types: updated.join(', ') || null }));
                       }}
@@ -773,13 +799,13 @@ function CertificatesContent() {
             )}
 
             {/* Compliance checkboxes */}
-            <div style={{ display: 'flex', gap: 20, marginBottom: 16 }}>
+            <div style={{ display: 'flex', gap: 20, marginBottom: 16, flexWrap: 'wrap' }}>
               <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, cursor: 'pointer' }}>
-                <input type="checkbox" checked={form.additional_insured || false} onChange={e => setForm(f => ({ ...f, additional_insured: e.target.checked }))} />
+                <input type="checkbox" checked={form.additional_insured || false} onChange={e => { trackClick('cert_form_additional_insured', { checked: e.target.checked }); setForm(f => ({ ...f, additional_insured: e.target.checked })); }} />
                 Additional Insured
               </label>
               <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, cursor: 'pointer' }}>
-                <input type="checkbox" checked={form.waiver_of_subrogation || false} onChange={e => setForm(f => ({ ...f, waiver_of_subrogation: e.target.checked }))} />
+                <input type="checkbox" checked={form.waiver_of_subrogation || false} onChange={e => { trackClick('cert_form_waiver_subrogation', { checked: e.target.checked }); setForm(f => ({ ...f, waiver_of_subrogation: e.target.checked })); }} />
                 Waiver of Subrogation
               </label>
             </div>
@@ -791,8 +817,8 @@ function CertificatesContent() {
             </div>
 
             {/* Buttons */}
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
-              <button onClick={resetForm} style={{ padding: '8px 20px', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)', backgroundColor: '#fff', cursor: 'pointer', fontSize: 14 }}>Cancel</button>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, flexWrap: 'wrap' }}>
+              <button onClick={() => { trackClick('cert_form_cancel'); resetForm(); }} style={{ padding: '8px 20px', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)', backgroundColor: '#fff', cursor: 'pointer', fontSize: 14 }}>Cancel</button>
               <button onClick={handleSave} style={{ padding: '8px 20px', backgroundColor: 'var(--color-primary)', color: '#fff', border: 'none', borderRadius: 'var(--radius-sm)', fontWeight: 600, cursor: 'pointer', fontSize: 14 }}>
                 {editingId ? 'Save Changes' : 'Add Certificate'}
               </button>
@@ -801,22 +827,26 @@ function CertificatesContent() {
         </div>
       )}
 
-      {/* View Certificate Modal */}
+      {/* ── View Certificate Detail Modal ── */}
       {viewingCert && (() => {
         const vc = viewingCert;
         const vcCtLabel = COUNTERPARTY_TYPES.find(ct => ct.value === vc.counterparty_type)?.label || vc.counterparty_type;
         const vcLinkedPolicy = vc.policy_id ? policyMap.get(vc.policy_id) : null;
         const vcSc = CERT_STATUS_COLORS[vc.status] || CERT_STATUS_COLORS.pending;
+        // Check if there are matching lease requirements to prompt
+        const matchingLeaseReqs = vc.direction === 'received' && vc.policy_id
+          ? leaseReqs.filter(r => r.policy_id === vc.policy_id)
+          : [];
         return (
           <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
             <div style={{ backgroundColor: '#fff', borderRadius: 'var(--radius-lg)', padding: 20, maxWidth: 560, width: '100%', maxHeight: '90vh', overflowY: 'auto' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20 }}>
                 <h2 style={{ fontSize: 18, fontWeight: 700, margin: 0 }}>Certificate Details</h2>
-                <button onClick={() => setViewingCert(null)} style={{ background: 'none', border: 'none', fontSize: 20, cursor: 'pointer', color: 'var(--color-text-muted)', padding: 0, lineHeight: 1 }}>&times;</button>
+                <button onClick={() => { trackClick('cert_detail_close'); setViewingCert(null); }} style={{ background: 'none', border: 'none', fontSize: 20, cursor: 'pointer', color: 'var(--color-text-muted)', padding: 0, lineHeight: 1 }}>&times;</button>
               </div>
 
               {/* Direction + Status badges */}
-              <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
+              <div style={{ display: 'flex', gap: 8, marginBottom: 20, flexWrap: 'wrap' }}>
                 <span style={{
                   padding: '3px 12px', borderRadius: 12, fontSize: 12, fontWeight: 600,
                   backgroundColor: vc.direction === 'issued' ? '#dbeafe' : '#fce7f3',
@@ -833,7 +863,7 @@ function CertificatesContent() {
               </div>
 
               {/* Counterparty */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 20 }}>
+              <div className="form-grid-2" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 20 }}>
                 <div>
                   <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-text-secondary)', marginBottom: 4 }}>Counterparty</div>
                   <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--color-text)' }}>{vc.counterparty_name}</div>
@@ -864,9 +894,9 @@ function CertificatesContent() {
                 </div>
               )}
 
-              {/* Carrier + Policy # (received) */}
+              {/* Carrier + Policy # */}
               {(vc.carrier || vc.policy_number) && (
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 20 }}>
+                <div className="form-grid-2" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 20 }}>
                   {vc.carrier && <div>
                     <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-text-secondary)', marginBottom: 4 }}>{vc.direction === 'received' ? 'Their Carrier' : 'Carrier'}</div>
                     <div style={{ fontSize: 14, color: 'var(--color-text)' }}>{vc.carrier}</div>
@@ -894,7 +924,7 @@ function CertificatesContent() {
               )}
 
               {/* Amount + Dates */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 16, marginBottom: 20 }}>
+              <div className="mobile-grid-1" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 16, marginBottom: 20 }}>
                 {vc.coverage_amount != null && <div>
                   <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-text-secondary)', marginBottom: 4 }}>Coverage Amount</div>
                   <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--color-text)' }}>${(vc.coverage_amount / 100).toLocaleString()}</div>
@@ -927,7 +957,7 @@ function CertificatesContent() {
               )}
 
               {/* Compliance flags */}
-              <div style={{ display: 'flex', gap: 20, marginBottom: 20 }}>
+              <div style={{ display: 'flex', gap: 20, marginBottom: 20, flexWrap: 'wrap' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13 }}>
                   <span style={{ color: vc.additional_insured ? '#166534' : 'var(--color-text-muted)', fontSize: 16 }}>{vc.additional_insured ? '\u2713' : '\u2717'}</span>
                   <span style={{ color: vc.additional_insured ? '#166534' : 'var(--color-text-muted)', fontWeight: vc.additional_insured ? 600 : 400 }}>Additional Insured</span>
@@ -946,10 +976,149 @@ function CertificatesContent() {
                 </div>
               )}
 
+              {/* Auto-prompt: Check against lease requirements */}
+              {matchingLeaseReqs.length > 0 && (
+                <div style={{
+                  marginBottom: 20, padding: '12px 16px', borderRadius: 'var(--radius-md)',
+                  backgroundColor: '#f0f9ff', border: '1px solid #bae6fd',
+                  display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap',
+                }}>
+                  <div style={{ fontSize: 13, color: '#0c4a6e', fontWeight: 600 }}>
+                    Check this COI against lease requirements?
+                  </div>
+                  <button
+                    onClick={() => {
+                      trackClick('cert_check_against_lease', { cert_id: vc.id, policy_id: vc.policy_id });
+                      setViewingCert(null);
+                      router.push(`/policies/${vc.policy_id}`);
+                    }}
+                    style={{
+                      padding: '6px 14px', fontSize: 12, fontWeight: 600,
+                      backgroundColor: 'var(--color-primary)', color: '#fff',
+                      border: 'none', borderRadius: 'var(--radius-sm)', cursor: 'pointer',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    Run Check
+                  </button>
+                </div>
+              )}
+
               {/* Actions */}
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, borderTop: '1px solid var(--color-border)', paddingTop: 16 }}>
-                <button onClick={() => setViewingCert(null)} style={{ padding: '8px 20px', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)', backgroundColor: '#fff', cursor: 'pointer', fontSize: 14 }}>Close</button>
-                <button onClick={() => { setViewingCert(null); startEdit(vc); }} style={{ padding: '8px 20px', backgroundColor: 'var(--color-primary)', color: '#fff', border: 'none', borderRadius: 'var(--radius-sm)', fontWeight: 600, cursor: 'pointer', fontSize: 14 }}>Edit</button>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, borderTop: '1px solid var(--color-border)', paddingTop: 16, flexWrap: 'wrap' }}>
+                <button onClick={() => { trackClick('cert_detail_close'); setViewingCert(null); }} style={{ padding: '8px 20px', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)', backgroundColor: '#fff', cursor: 'pointer', fontSize: 14 }}>Close</button>
+                <button onClick={() => { trackClick('cert_detail_edit', { id: vc.id }); setViewingCert(null); startEdit(vc); }} style={{ padding: '8px 20px', backgroundColor: 'var(--color-primary)', color: '#fff', border: 'none', borderRadius: 'var(--radius-sm)', fontWeight: 600, cursor: 'pointer', fontSize: 14 }}>Edit</button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* ── View Lease Check Detail Modal ── */}
+      {viewingLease && (() => {
+        const req = viewingLease;
+        const lc = req.latest_check;
+        let verdict = 'Pending';
+        let verdictColor = '#374151';
+        let verdictBg = '#f3f4f6';
+        if (lc) {
+          if (lc.fail_count === 0 && lc.unclear_count === 0 && lc.pass_count > 0) {
+            verdict = 'Compliant'; verdictColor = '#166534'; verdictBg = '#dcfce7';
+          } else if (lc.fail_count > 0 && lc.pass_count > 0) {
+            verdict = 'Partially Compliant'; verdictColor = '#92400e'; verdictBg = '#fef3c7';
+          } else if (lc.fail_count > 0) {
+            verdict = 'Non-Compliant'; verdictColor = '#991b1b'; verdictBg = '#fee2e2';
+          } else {
+            verdict = 'Needs Verification'; verdictColor = '#92400e'; verdictBg = '#fef3c7';
+          }
+        }
+
+        return (
+          <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+            <div style={{ backgroundColor: '#fff', borderRadius: 'var(--radius-lg)', padding: 20, maxWidth: 560, width: '100%', maxHeight: '90vh', overflowY: 'auto' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20 }}>
+                <h2 style={{ fontSize: 18, fontWeight: 700, margin: 0 }}>Lease Check Details</h2>
+                <button onClick={() => { trackClick('lease_detail_close'); setViewingLease(null); }} style={{ background: 'none', border: 'none', fontSize: 20, cursor: 'pointer', color: 'var(--color-text-muted)', padding: 0, lineHeight: 1 }}>&times;</button>
+              </div>
+
+              {/* Verdict banner */}
+              <div style={{
+                padding: '12px 16px', borderRadius: 'var(--radius-md)', marginBottom: 20,
+                backgroundColor: verdictBg, textAlign: 'center',
+              }}>
+                <div style={{ fontSize: 16, fontWeight: 700, color: verdictColor }}>{verdict}</div>
+                {lc && (
+                  <div style={{ fontSize: 12, color: verdictColor, marginTop: 4 }}>
+                    {lc.pass_count} passed &middot; {lc.fail_count} failed &middot; {lc.unclear_count} unclear
+                  </div>
+                )}
+              </div>
+
+              {/* Details */}
+              <div style={{ marginBottom: 16 }}>
+                <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 8, color: 'var(--color-text)' }}>{req.label}</div>
+                <div className="form-grid-2" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                  <div>
+                    <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-text-secondary)', marginBottom: 2 }}>Role</div>
+                    <div style={{ fontSize: 14 }}>{req.role === 'tenant' ? 'Tenant' : 'Landlord'}</div>
+                  </div>
+                  {req.counterparty_name && (
+                    <div>
+                      <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-text-secondary)', marginBottom: 2 }}>Counterparty</div>
+                      <div style={{ fontSize: 14 }}>{req.counterparty_name}</div>
+                    </div>
+                  )}
+                  {req.property_address && (
+                    <div>
+                      <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-text-secondary)', marginBottom: 2 }}>Property</div>
+                      <div style={{ fontSize: 14 }}>{req.property_address}</div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Actions */}
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, borderTop: '1px solid var(--color-border)', paddingTop: 16, flexWrap: 'wrap' }}>
+                {req.policy_id && (
+                  <button
+                    onClick={() => {
+                      trackClick('lease_detail_view_policy', { id: req.id, policy_id: req.policy_id });
+                      setViewingLease(null);
+                      router.push(`/policies/${req.policy_id}`);
+                    }}
+                    style={{ padding: '8px 20px', backgroundColor: 'var(--color-primary)', color: '#fff', border: 'none', borderRadius: 'var(--radius-sm)', fontWeight: 600, cursor: 'pointer', fontSize: 14 }}
+                  >
+                    View on Policy
+                  </button>
+                )}
+                <button
+                  onClick={() => {
+                    trackClick('lease_detail_share', { id: req.id });
+                    const url = `${window.location.origin}/lease-compliance/${req.access_code}`;
+                    navigator.clipboard.writeText(url);
+                    toast('Link copied to clipboard');
+                  }}
+                  style={{ padding: '8px 20px', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)', backgroundColor: '#fff', cursor: 'pointer', fontSize: 14 }}
+                >
+                  Copy Link
+                </button>
+                <button
+                  onClick={async () => {
+                    trackClick('lease_detail_delete', { id: req.id });
+                    if (!confirm('Delete this lease check?')) return;
+                    try {
+                      await leaseComplianceApi.remove(req.id);
+                      toast('Lease check deleted');
+                      setViewingLease(null);
+                      load();
+                    } catch {
+                      toast('Failed to delete', 'error');
+                    }
+                  }}
+                  style={{ padding: '8px 20px', border: '1px solid #fecaca', borderRadius: 'var(--radius-sm)', backgroundColor: '#fff', color: 'var(--color-danger)', cursor: 'pointer', fontSize: 14 }}
+                >
+                  Delete
+                </button>
               </div>
             </div>
           </div>
@@ -965,7 +1134,7 @@ function CertificatesContent() {
           confirmLabel="Delete"
           danger
           onConfirm={() => handleDelete(deleteConfirm)}
-          onCancel={() => setDeleteConfirm(null)}
+          onCancel={() => { trackClick('cert_delete_cancel'); setDeleteConfirm(null); }}
         />
       )}
     </div>
