@@ -123,6 +123,7 @@ function PolicyDetailContent() {
 
   // Lease Check
   const [leaseReqs, setLeaseReqs] = useState<LeaseRequirement[]>([]);
+  const [allLeaseReqs, setAllLeaseReqs] = useState<LeaseRequirement[]>([]);
   const [leaseView, setLeaseView] = useState<'list' | 'create' | 'results'>('list');
   const [leaseCreateStep, setLeaseCreateStep] = useState(1);
   const [leaseClauseText, setLeaseClauseText] = useState('');
@@ -316,6 +317,8 @@ function PolicyDetailContent() {
       setLeaseReqs(leaseReqsResult);
       // Load version history (non-blocking)
       policiesApi.versions(policyId).then(setVersionHistory).catch(() => setVersionHistory([]));
+      // Load ALL lease reqs across policies for "reuse" templates (non-blocking)
+      leaseComplianceApi.list().then(setAllLeaseReqs).catch(() => setAllLeaseReqs([]));
       // Load sender name for lease share/deficiency emails (non-blocking)
       profileApi.get().then(({ profile }) => {
         if (profile?.full_name) setLeaseSenderName(profile.full_name);
@@ -2374,13 +2377,19 @@ function PolicyDetailContent() {
               <>
                 {leaseCreateStep === 1 && (
                   <>
-                    {/* Use existing requirements if available */}
-                    {leaseReqs.length > 0 && (
+                    {/* Use existing requirements if available — from this policy or any other */}
+                    {(() => {
+                      const currentPolicyReqIds = new Set(leaseReqs.map(r => r.id));
+                      const otherPolicyReqs = allLeaseReqs.filter(r => !currentPolicyReqIds.has(r.id));
+                      const allReusable = [...leaseReqs, ...otherPolicyReqs];
+                      if (allReusable.length === 0) return null;
+                      return (
                       <div style={{ marginBottom: 16 }}>
-                        <label style={{ ...labelStyle, marginBottom: 8 }}>Use existing requirements</label>
+                        <label style={{ ...labelStyle, marginBottom: 8 }}>Use previous requirements</label>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                          {leaseReqs.map(existing => {
+                          {allReusable.map(existing => {
                             const reqItems: LeaseRequirementItem[] = (() => { try { return JSON.parse(existing.requirements_json); } catch { return []; } })();
+                            const isOtherPolicy = !currentPolicyReqIds.has(existing.id);
                             return (
                               <button
                                 key={existing.id}
@@ -2396,6 +2405,7 @@ function PolicyDetailContent() {
                                   <div style={{ fontSize: 11, color: 'var(--color-text-muted)', marginTop: 2 }}>
                                     {reqItems.length} requirement{reqItems.length !== 1 ? 's' : ''}
                                     {existing.property_address ? ` \u2022 ${existing.property_address}` : ''}
+                                    {isOtherPolicy ? ' \u2022 from another policy' : ''}
                                   </div>
                                 </div>
                                 <span style={{ fontSize: 12, color: 'var(--color-primary)', fontWeight: 600, whiteSpace: 'nowrap' }}>Use &rsaquo;</span>
@@ -2409,7 +2419,8 @@ function PolicyDetailContent() {
                           <div style={{ flex: 1, height: 1, backgroundColor: 'var(--color-border)' }} />
                         </div>
                       </div>
-                    )}
+                      );
+                    })()}
 
                     <div style={{ marginBottom: 12 }}>
                       <label style={labelStyle}>
