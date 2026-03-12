@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useEffect, useRef, useCallback } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useState, useEffect, useRef, useCallback, Suspense } from 'react';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '../../../../lib/auth';
 import { API_BASE, policiesApi, contactsApi, documentsApi, coverageApi, policyDetailsApi, claimsApi, sharingApi, exportApi, premiumHistoryApi, exposuresApi, gapsApi, certificatesApi, leaseComplianceApi, chatApi, profileApi, Policy, Contact, DocMeta, ContactCreate, ExtractionData, CoverageItem, CoverageItemCreate, PolicyDetail, PolicyDetailCreate, PolicyUpdate, Claim, ClaimCreate, PolicyShareType, ShareCreate, PremiumHistoryEntry, Exposure, CoverageGap, Certificate, LeaseRequirement, LeaseRequirementTenant, LeaseRequirementItem, ComplianceResultItem, LeaseExtraction, BrokerEmail, PolicyVersionEntry, PotentialRenewal, checkFeatureAccess, parseUpgradeError } from '../../../../lib/api';
 import { formatPhone, cleanPhone } from '../../../../lib/format';
@@ -45,10 +45,18 @@ const SUGGESTED_FIELDS: Record<string, string[]> = {
 };
 
 export default function PolicyDetailPage() {
+  return <Suspense><PolicyDetailContent /></Suspense>;
+}
+
+function PolicyDetailContent() {
   const { id } = useParams();
   const policyId = Number(id);
   const { token, plan, logout } = useAuth();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const cameFrom = searchParams.get('from');
+  const backHref = cameFrom === 'certificates' ? '/certificates' : '/policies';
+  const backParentLabel = cameFrom === 'certificates' ? 'Compliance' : 'Policies';
 
   const [policy, setPolicy] = useState<Policy | null>(null);
   const [contacts, setContacts] = useState<Contact[]>([]);
@@ -548,7 +556,7 @@ export default function PolicyDetailPage() {
   if (!token) return null;
   if (!policy) return (
     <div style={{ padding: 24, maxWidth: 900, margin: '0 auto' }}>
-      <BackButton href="/policies" label="Policy" parentLabel="Policies" />
+      <BackButton href={backHref} label="Policy" parentLabel={backParentLabel} />
       {error ? <div className="alert alert-error">{error}</div> : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           <Skeleton width={200} height={28} />
@@ -566,7 +574,7 @@ export default function PolicyDetailPage() {
   return (
     <div style={{ maxWidth: 960, margin: '0 auto', padding: 24, overflowX: 'hidden' }}>
       {/* Back Navigation */}
-      <BackButton href="/policies" label={policy?.nickname || policy?.carrier || 'Policy'} parentLabel="Policies" />
+      <BackButton href={backHref} label={policy?.nickname || policy?.carrier || 'Policy'} parentLabel={backParentLabel} />
 
       {error && <div className="alert alert-error">{error}</div>}
 

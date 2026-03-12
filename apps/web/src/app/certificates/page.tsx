@@ -159,6 +159,7 @@ function CertificatesContent() {
   // Add Verification choice modal
   const [showAddChoice, setShowAddChoice] = useState(false);
   const [addForUsed, setAddForUsed] = useState(false);
+  const [showPolicyPicker, setShowPolicyPicker] = useState(false);
 
   // Lease detail modal
   const [viewingLease, setViewingLease] = useState<LeaseRequirement | null>(null);
@@ -564,6 +565,18 @@ function CertificatesContent() {
                   >
                     View
                   </button>
+                  {row.sourceType === 'certificate' && (row.raw as Certificate).policy_id && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        trackClick('row_verify', { type: row.sourceType, id: row.sourceId });
+                        router.push(`/policies/${(row.raw as Certificate).policy_id}?from=certificates`);
+                      }}
+                      style={{ padding: '4px 10px', fontSize: 12, border: '1px solid #bae6fd', borderRadius: 'var(--radius-sm)', backgroundColor: '#f0f9ff', color: '#0c4a6e', cursor: 'pointer', whiteSpace: 'nowrap', fontWeight: 600 }}
+                    >
+                      Verify
+                    </button>
+                  )}
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
@@ -628,13 +641,10 @@ function CertificatesContent() {
                   const bizPolicies = policies.filter(p => p.scope === 'business' && p.status === 'active');
                   if (bizPolicies.length === 0) {
                     toast('Add a business policy first, then define lease requirements on it.', 'info');
-                    router.push('/policies');
                   } else if (bizPolicies.length === 1) {
-                    router.push(`/policies/${bizPolicies[0].id}`);
+                    router.push(`/policies/${bizPolicies[0].id}?from=certificates`);
                   } else {
-                    // Show policy picker by navigating to policies
-                    toast('Select a business policy to define requirements on.', 'info');
-                    router.push('/policies');
+                    setShowPolicyPicker(true);
                   }
                 }}
                 style={{
@@ -654,6 +664,48 @@ function CertificatesContent() {
           </div>
         </div>
       )}
+
+      {/* ── Policy Picker for Define Requirements ── */}
+      {showPolicyPicker && (() => {
+        const bizPolicies = policies.filter(p => p.scope === 'business' && p.status === 'active');
+        return (
+          <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+            <div style={{ backgroundColor: '#fff', borderRadius: 'var(--radius-lg)', padding: 20, maxWidth: 480, width: '100%' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                <h2 style={{ fontSize: 18, fontWeight: 700, margin: 0 }}>Select a Policy</h2>
+                <button
+                  onClick={() => { trackClick('policy_picker_close'); setShowPolicyPicker(false); }}
+                  style={{ background: 'none', border: 'none', fontSize: 20, cursor: 'pointer', color: 'var(--color-text-muted)', padding: 0, lineHeight: 1 }}
+                >&times;</button>
+              </div>
+              <p style={{ fontSize: 13, color: 'var(--color-text-secondary)', margin: '0 0 16px' }}>
+                Choose which business policy to define lease requirements on.
+              </p>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {bizPolicies.map(p => (
+                  <button
+                    key={p.id}
+                    onClick={() => {
+                      trackClick('policy_picker_select', { policy_id: p.id });
+                      setShowPolicyPicker(false);
+                      router.push(`/policies/${p.id}?from=certificates`);
+                    }}
+                    style={{
+                      padding: '12px 16px', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)',
+                      backgroundColor: '#fff', cursor: 'pointer', textAlign: 'left', transition: 'border-color 0.15s',
+                    }}
+                    onMouseEnter={e => (e.currentTarget.style.borderColor = 'var(--color-primary)')}
+                    onMouseLeave={e => (e.currentTarget.style.borderColor = 'var(--color-border)')}
+                  >
+                    <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--color-text)' }}>{p.nickname || p.carrier || 'Unnamed Policy'}</div>
+                    <div style={{ fontSize: 12, color: 'var(--color-text-secondary)', marginTop: 2 }}>{p.policy_type.replace(/_/g, ' ')}</div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* ── Add/Edit Certificate Form Modal ── */}
       {showForm && (
@@ -1045,7 +1097,7 @@ function CertificatesContent() {
                     onClick={() => {
                       trackClick('cert_check_against_lease', { cert_id: vc.id, policy_id: vc.policy_id });
                       setViewingCert(null);
-                      router.push(`/policies/${vc.policy_id}`);
+                      router.push(`/policies/${vc.policy_id}?from=certificates`);
                     }}
                     style={{
                       padding: '6px 14px', fontSize: 12, fontWeight: 600,
@@ -1173,7 +1225,7 @@ function CertificatesContent() {
                     onClick={() => {
                       trackClick('lease_detail_view_policy', { id: req.id, policy_id: req.policy_id });
                       setViewingLease(null);
-                      router.push(`/policies/${req.policy_id}`);
+                      router.push(`/policies/${req.policy_id}?from=certificates`);
                     }}
                     style={{ padding: '8px 20px', backgroundColor: 'var(--color-primary)', color: '#fff', border: 'none', borderRadius: 'var(--radius-sm)', fontWeight: 600, cursor: 'pointer', fontSize: 14 }}
                   >
