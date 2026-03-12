@@ -553,7 +553,11 @@ function PolicyDetailContent() {
   const usedFieldNames = details.map(d => d.field_name);
   const availableSuggestions = suggestedFields.filter(f => !usedFieldNames.includes(f));
 
-  if (!token) return null;
+  if (!token) return (
+    <div style={{ padding: 24, maxWidth: 900, margin: '0 auto', textAlign: 'center', paddingTop: 80 }}>
+      <p style={{ color: 'var(--color-text-secondary)', fontSize: 14 }}>Redirecting to login...</p>
+    </div>
+  );
   if (!policy) return (
     <div style={{ padding: 24, maxWidth: 900, margin: '0 auto' }}>
       <BackButton href={backHref} label="Policy" parentLabel={backParentLabel} />
