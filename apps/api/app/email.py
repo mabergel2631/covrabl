@@ -91,7 +91,8 @@ async def send_share_email(
     policy_count: int,
     permission: str,
 ) -> None:
-    app_url = settings.app_url.rstrip("/")
+    _raw_url = settings.app_url.rstrip("/")
+    app_url = _raw_url if "localhost" not in _raw_url and "127.0.0.1" not in _raw_url else "https://covrabl.vercel.app"
     html = f"""\
 <html>
 <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 480px; margin: 0 auto; padding: 40px 20px;">

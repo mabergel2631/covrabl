@@ -444,7 +444,11 @@ def _process_coi_check(check_id: int, requirements_json: str, content: bytes,
             owner = db.execute(select(User).where(User.id == notify_owner_id)).scalar_one_or_none()
             if owner and owner.email:
                 from .email import send_coi_submission_email, log_email_send
-                review_url = f"{settings.app_url}/policies/{policy_id}#lease" if policy_id else f"{settings.app_url}/lease-compliance"
+                # Build review URL — use app_url but ensure it's not localhost
+                base_url = settings.app_url
+                if "localhost" in base_url or "127.0.0.1" in base_url:
+                    base_url = "https://covrabl.vercel.app"
+                review_url = f"{base_url}/policies/{policy_id}#lease" if policy_id else f"{base_url}/lease-compliance"
                 submitter_name = tenant_name or tenant_email or "A tenant"
                 import asyncio
                 # Run the async email function from sync context
@@ -797,8 +801,9 @@ async def send_to_tenant(
         req.counterparty_name = payload.tenant_name
     db.commit()
 
-    # Send email
-    public_url = f"{settings.app_url}/lease-compliance/{req.access_code}"
+    # Send email — ensure URL is never localhost
+    _base = settings.app_url if "localhost" not in settings.app_url and "127.0.0.1" not in settings.app_url else "https://covrabl.vercel.app"
+    public_url = f"{_base}/lease-compliance/{req.access_code}"
     from .email import send_lease_requirements_email
 
     # Get sender name: use custom from_name if provided, else fall back to profile
@@ -931,7 +936,8 @@ async def send_deficiency_notice(
             for r in results if r.get("status") == "fail"
         ]
 
-    resubmit_url = f"{settings.app_url}/lease-compliance/{req.access_code}"
+    _base2 = settings.app_url if "localhost" not in settings.app_url and "127.0.0.1" not in settings.app_url else "https://covrabl.vercel.app"
+    resubmit_url = f"{_base2}/lease-compliance/{req.access_code}"
 
     # Get sender name: use custom from_name if provided, else fall back to profile
     if payload.from_name and payload.from_name.strip():

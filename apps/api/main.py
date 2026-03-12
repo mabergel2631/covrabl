@@ -83,6 +83,12 @@ async def global_exception_handler(request: Request, exc: Exception):
     )
 
 
+@app.get("/health")
+def health_check():
+    from app.config import settings
+    return {"status": "ok", "app_url": settings.app_url}
+
+
 @app.on_event("startup")
 def on_startup():
     logging.info("Starting up — running Alembic migrations")
