@@ -208,6 +208,8 @@ class Certificate(Base):
     expiration_date: Mapped[Date | None] = mapped_column(Date, nullable=True)
     status: Mapped[str] = mapped_column(String(20), default="active")  # active, expiring, expired, pending
     notes: Mapped[str | None] = mapped_column(String(2000), nullable=True)
+    coi_file_key: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    coi_file_data: Mapped[bytes | None] = mapped_column(LargeBinary, nullable=True)
     created_at: Mapped[DateTime] = mapped_column(DateTime, server_default=func.now())
 
 

@@ -395,7 +395,7 @@ export default function BusinessEntityPage() {
               {data.certificates.map(cert => (
                 <div
                   key={cert.id}
-                  onClick={() => router.push('/certificates')}
+                  onClick={() => router.push(`/certificates?from=${cert.policy_id}`)}
                   style={{ padding: 16, backgroundColor: '#fff', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', cursor: 'pointer', transition: 'border-color 0.15s' }}
                   onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--color-primary)'; }}
                   onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--color-border)'; }}

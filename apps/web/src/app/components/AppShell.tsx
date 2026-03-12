@@ -26,7 +26,7 @@ const NAV_SECTIONS: NavSection[] = [
     label: 'INTELLIGENCE',
     items: [
       { href: '/score', label: 'Coverage Status', icon: '📊' },
-      { href: '/chat', label: 'Insights', icon: '💬' },
+      { href: '/chat', label: 'Ask Covrabl', icon: '💬' },
       { href: '/audit', label: 'Alerts', icon: '🔔' },
       { href: '/renewals', label: 'Renewals', icon: '🔄', feature: 'deltas' },
       { href: '/policies/compare', label: 'Compare', icon: '⚖️' },
@@ -339,6 +339,45 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           <span onClick={() => router.push('/security')} style={{ cursor: 'pointer', color: 'var(--color-text-muted)' }}>Security &amp; Privacy</span>
         </div>
       </div>
+
+      {/* Floating Ask Covrabl Button — hidden on chat page */}
+      {!pathname.startsWith('/chat') && (
+        <button
+          onClick={() => { trackClick('ask_covrabl_fab'); router.push('/chat'); }}
+          aria-label="Ask Covrabl"
+          style={{
+            position: 'fixed',
+            bottom: 100,
+            right: 24,
+            height: 44,
+            padding: '0 18px',
+            borderRadius: 22,
+            backgroundColor: 'var(--color-primary)',
+            color: '#fff',
+            border: '2px solid rgba(255,255,255,0.9)',
+            fontSize: 13,
+            fontWeight: 700,
+            cursor: 'pointer',
+            boxShadow: '0 4px 14px rgba(37, 99, 235, 0.4)',
+            zIndex: 999,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+            transition: 'transform 0.15s, box-shadow 0.15s',
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.transform = 'scale(1.05)';
+            e.currentTarget.style.boxShadow = '0 6px 20px rgba(37, 99, 235, 0.5)';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.transform = 'scale(1)';
+            e.currentTarget.style.boxShadow = '0 4px 14px rgba(37, 99, 235, 0.4)';
+          }}
+          title="Ask anything about your policies"
+        >
+          <span style={{ fontSize: 16 }}>&#128172;</span> Ask Covrabl
+        </button>
+      )}
 
       {/* Floating SOS Button — hidden on emergency and chat pages */}
       {!pathname.startsWith('/emergency') && !pathname.startsWith('/chat') && (

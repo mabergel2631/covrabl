@@ -1,8 +1,11 @@
 import io
+import uuid as _uuid
 from datetime import date, timedelta
+from pathlib import Path
 
 import pdfplumber
 from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File
+from fastapi.responses import Response, FileResponse
 from sqlalchemy import select, delete
 from sqlalchemy.orm import Session
 
@@ -16,6 +19,8 @@ from .audit_helper import log_action
 from .routes_billing import check_feature
 
 router = APIRouter(prefix="/certificates", tags=["certificates"])
+
+_temp_pdf_cache: dict[str, bytes] = {}  # file_token -> pdf_bytes
 
 
 def ensure_certificate_reminders(certificate_id: int, expiration_date: date | None, db: Session):
@@ -71,6 +76,7 @@ def _enrich(cert: Certificate, db: Session, policy_map: dict[int, Policy] | None
         "expiration_date": str(cert.expiration_date) if cert.expiration_date else None,
         "status": cert.status,
         "notes": cert.notes,
+        "has_document": bool(cert.coi_file_key),
         "created_at": str(cert.created_at),
         "policy_carrier": policy_carrier,
         "policy_type": policy_type,
@@ -80,9 +86,19 @@ def _enrich(cert: Certificate, db: Session, policy_map: dict[int, Policy] | None
 @router.post("", status_code=201)
 def create_certificate(payload: CertificateCreate, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     check_feature(user, "certificates")
-    cert = Certificate(**payload.model_dump(), user_id=user.id)
+    cert = Certificate(**payload.model_dump(exclude={"file_token"}), user_id=user.id)
     db.add(cert)
     db.flush()
+    # Attach PDF from temporary cache if file_token was provided
+    if payload.file_token and payload.file_token in _temp_pdf_cache:
+        pdf_bytes = _temp_pdf_cache.pop(payload.file_token)
+        file_key = f"coi-cert/{cert.id}/{_uuid.uuid4()}.pdf"
+        upload_dir = Path(__file__).resolve().parent.parent / "uploads"
+        dest = upload_dir / file_key
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        dest.write_bytes(pdf_bytes)
+        cert.coi_file_key = file_key
+        cert.coi_file_data = pdf_bytes
     ensure_certificate_reminders(cert.id, cert.expiration_date, db)
     log_action(db, user.id, "created", "certificate", cert.id)
     db.commit()
@@ -156,8 +172,13 @@ async def extract_coi_pdf(
     coverage_types_str = ", ".join(result.coverage_types) if result.coverage_types else None
     coverage_cents = result.primary_coverage_amount * 100 if result.primary_coverage_amount else None
 
+    # Cache PDF bytes so they can be attached when the certificate is created
+    file_token = str(_uuid.uuid4())
+    _temp_pdf_cache[file_token] = pdf_bytes
+
     return {
         "ok": True,
+        "file_token": file_token,
         "extraction": {
             "counterparty_name": result.certificate_holder_name or "",
             "counterparty_type": result.certificate_holder_type or "other",
@@ -213,3 +234,27 @@ def delete_certificate(cert_id: int, db: Session = Depends(get_db), user: User =
     db.delete(cert)
     db.commit()
     return {"ok": True}
+
+
+@router.get("/{cert_id}/document")
+def download_certificate_document(cert_id: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """Serve the stored COI PDF for a certificate."""
+    check_feature(user, "certificates")
+    cert = db.get(Certificate, cert_id)
+    if not cert or cert.user_id != user.id:
+        raise HTTPException(status_code=404, detail="Certificate not found")
+    if not cert.coi_file_key:
+        raise HTTPException(status_code=404, detail="No document attached")
+    # Prefer in-DB bytes; fall back to file on disk
+    if cert.coi_file_data:
+        filename = Path(cert.coi_file_key).name
+        return Response(
+            content=cert.coi_file_data,
+            media_type="application/pdf",
+            headers={"Content-Disposition": f'inline; filename="{filename}"'},
+        )
+    upload_dir = Path(__file__).resolve().parent.parent / "uploads"
+    file_path = upload_dir / cert.coi_file_key
+    if not file_path.exists():
+        raise HTTPException(status_code=404, detail="Document file not found")
+    return FileResponse(path=str(file_path), media_type="application/pdf", filename=file_path.name)

@@ -143,6 +143,7 @@ export default function PolicyDetailPage() {
   const [leaseTenantName, setLeaseTenantName] = useState('');
   const [leaseTenantNotes, setLeaseTenantNotes] = useState('');
   const [leaseSending, setLeaseSending] = useState(false);
+  const [leaseSentToTenant, setLeaseSentToTenant] = useState(false);
   const [leaseDeficiencyModal, setLeaseDeficiencyModal] = useState(false);
   const [leaseDeficiencyEmail, setLeaseDeficiencyEmail] = useState('');
   const [leaseDeficiencyName, setLeaseDeficiencyName] = useState('');
@@ -1906,7 +1907,7 @@ export default function PolicyDetailPage() {
       <div className="card" style={{ marginBottom: 32 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 12 }}>
           <h2 className="section-title" style={{ margin: 0 }}>Certificates of Insurance</h2>
-          {canEdit && <button onClick={() => router.push(`/certificates?addFor=${policyId}`)} className="btn btn-primary">+ Add COI</button>}
+          {canEdit && <button onClick={() => router.push(`/certificates?addFor=${policyId}&from=${policyId}`)} className="btn btn-primary">+ Add COI</button>}
         </div>
         {policyCertificates.length === 0 ? (
           <p style={{ color: '#999', margin: 0, fontSize: 14 }}>No certificates linked to this policy.</p>
@@ -1937,7 +1938,7 @@ export default function PolicyDetailPage() {
                   </div>
                   <div style={{ display: 'flex', gap: 6 }}>
                     <button onClick={() => setViewingPolicyCert(cert)} style={{ padding: '4px 10px', fontSize: 12, border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)', backgroundColor: '#fff', cursor: 'pointer' }}>View</button>
-                    <button onClick={() => router.push('/certificates')} style={{ padding: '4px 10px', fontSize: 12, border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)', backgroundColor: '#fff', cursor: 'pointer' }}>Edit</button>
+                    <button onClick={() => router.push(`/certificates?from=${policyId}`)} style={{ padding: '4px 10px', fontSize: 12, border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)', backgroundColor: '#fff', cursor: 'pointer' }}>Edit</button>
                   </div>
                 </div>
               );
@@ -2614,15 +2615,22 @@ export default function PolicyDetailPage() {
                   {/* Landlord: next-steps card when no check has been run */}
                   {landlordNoCheck ? (
                     <div style={{ border: '1px solid #bfdbfe', borderRadius: 'var(--radius-md)', padding: 20, backgroundColor: '#f0f9ff', marginBottom: 16 }}>
-                      <h4 style={{ fontSize: 14, fontWeight: 700, margin: '0 0 6px', color: '#1e40af' }}>Requirements saved. Now collect your tenant&apos;s proof of insurance.</h4>
+                      <h4 style={{ fontSize: 14, fontWeight: 700, margin: '0 0 6px', color: '#1e40af' }}>
+                        {leaseSentToTenant ? 'Sent! Waiting for your tenant to upload their COI.' : 'Requirements saved. Now collect your tenant\u0027s proof of insurance.'}
+                      </h4>
+                      {leaseSentToTenant && (
+                        <p style={{ fontSize: 13, color: 'var(--color-text-secondary)', margin: '0 0 8px' }}>
+                          Your tenant received an email with a link to upload their certificate. You&apos;ll be able to run a compliance check once they submit.
+                        </p>
+                      )}
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 14, marginTop: 14 }}>
                         {/* Option 1: Send to Tenant */}
                         <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
                           <span style={{ fontSize: 18, flexShrink: 0 }}>1.</span>
                           <div style={{ flex: 1 }}>
-                            <p style={{ fontSize: 13, fontWeight: 600, margin: '0 0 4px' }}>Send to Tenant</p>
-                            <p style={{ fontSize: 12, color: 'var(--color-text-secondary)', margin: '0 0 8px' }}>Email a link where your tenant can upload their COI directly</p>
-                            {activeReq && <button onClick={() => handleLeaseShare(activeReq)} style={{ padding: '6px 14px', backgroundColor: 'var(--color-primary)', color: '#fff', border: 'none', borderRadius: 'var(--radius-sm)', fontWeight: 600, cursor: 'pointer', fontSize: 12 }}>Send to Tenant</button>}
+                            <p style={{ fontSize: 13, fontWeight: 600, margin: '0 0 4px' }}>{leaseSentToTenant ? 'Send Again' : 'Send to Tenant'}</p>
+                            <p style={{ fontSize: 12, color: 'var(--color-text-secondary)', margin: '0 0 8px' }}>{leaseSentToTenant ? 'Send to another tenant or resend the link' : 'Email a link where your tenant can upload their COI directly'}</p>
+                            {activeReq && <button onClick={() => handleLeaseShare(activeReq)} style={{ padding: '6px 14px', backgroundColor: leaseSentToTenant ? '#fff' : 'var(--color-primary)', color: leaseSentToTenant ? 'var(--color-primary)' : '#fff', border: leaseSentToTenant ? '1px solid var(--color-primary)' : 'none', borderRadius: 'var(--radius-sm)', fontWeight: 600, cursor: 'pointer', fontSize: 12 }}>{leaseSentToTenant ? 'Send Again' : 'Send to Tenant'}</button>}
                           </div>
                         </div>
                         {/* Option 2: Check a Certificate */}
@@ -2883,7 +2891,7 @@ export default function PolicyDetailPage() {
                         {!isLandlord && hasResults && (
                           <button onClick={() => { trackClick('lease_check_send_broker'); leaseActiveReqId && handleLeaseBrokerEmail(leaseActiveReqId); }} style={{ padding: '6px 14px', backgroundColor: '#2563eb', color: '#fff', border: 'none', borderRadius: 'var(--radius-sm)', fontWeight: 600, cursor: 'pointer', fontSize: 12 }}>Send to Broker</button>
                         )}
-                        {/* View Document — landlord only, when tenant submitted COI */}
+                        {/* View Certificate — landlord only, when tenant submitted COI */}
                         {activeReq && (() => {
                           const submittedTenant = activeReq.tenants?.find(t => t.submitted_at && t.has_document);
                           if (isLandlord && submittedTenant) {
@@ -2898,7 +2906,7 @@ export default function PolicyDetailPage() {
                                   toast('Document not available', 'error');
                                 }
                               }} style={{ padding: '6px 14px', backgroundColor: '#2563eb', color: '#fff', border: 'none', borderRadius: 'var(--radius-sm)', fontWeight: 600, cursor: 'pointer', fontSize: 12 }}>
-                                View Document
+                                View Certificate
                               </button>
                             );
                           }
@@ -2952,11 +2960,29 @@ export default function PolicyDetailPage() {
                               </div>
                               {!isPending && (
                                 <div style={{ display: 'flex', gap: 6, marginTop: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                                  {t.has_document && (
+                                    <button
+                                      onClick={async () => {
+                                        trackClick('lease_tenant_view_cert', { check_id: t.check_id });
+                                        try {
+                                          const blob = await leaseComplianceApi.downloadCoiDocument(t.check_id);
+                                          const url = URL.createObjectURL(blob);
+                                          window.open(url, '_blank');
+                                        } catch {
+                                          toast('Document not available', 'error');
+                                        }
+                                      }}
+                                      style={{ padding: '4px 10px', fontSize: 11, fontWeight: 600, border: 'none', borderRadius: 'var(--radius-sm)', backgroundColor: 'var(--color-primary)', cursor: 'pointer', color: '#fff' }}
+                                    >
+                                      View Certificate
+                                    </button>
+                                  )}
                                   {isCurrentlyViewing ? (
                                     <span style={{ fontSize: 11, color: 'var(--color-text-muted)', fontStyle: 'italic' }}>Results shown above</span>
                                   ) : (
                                     <button
                                       onClick={async () => {
+                                        trackClick('lease_tenant_view_results', { check_id: t.check_id });
                                         try {
                                           const checks = await leaseComplianceApi.listChecks(activeReq.id);
                                           const tenantCheck = checks.find((c: any) => c.id === t.check_id);
@@ -2978,22 +3004,6 @@ export default function PolicyDetailPage() {
                                       style={{ padding: '4px 10px', fontSize: 11, fontWeight: 600, border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)', backgroundColor: '#fff', cursor: 'pointer', color: 'var(--color-primary)' }}
                                     >
                                       View Results
-                                    </button>
-                                  )}
-                                  {t.has_document && (
-                                    <button
-                                      onClick={async () => {
-                                        try {
-                                          const blob = await leaseComplianceApi.downloadCoiDocument(t.check_id);
-                                          const url = URL.createObjectURL(blob);
-                                          window.open(url, '_blank');
-                                        } catch {
-                                          toast('Document not available', 'error');
-                                        }
-                                      }}
-                                      style={{ padding: '4px 10px', fontSize: 11, fontWeight: 600, border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)', backgroundColor: '#fff', cursor: 'pointer', color: 'var(--color-text-secondary)' }}
-                                    >
-                                      View Document
                                     </button>
                                   )}
                                   {hasFail && (
@@ -3147,6 +3157,7 @@ export default function PolicyDetailPage() {
                             await leaseComplianceApi.sendToTenant(leaseShareReq!.id, leaseTenantEmail, leaseTenantName || undefined, leaseTenantNotes || undefined, leaseSenderName || undefined);
                             toast('Requirements sent to tenant');
                             setLeaseShareModal(false);
+                            setLeaseSentToTenant(true);
                             leaseComplianceApi.list(undefined, policyId).then(setLeaseReqs).catch(() => {});
                           } catch (err: any) {
                             toast(err.message || 'Failed to send', 'error');
@@ -3877,94 +3888,148 @@ export default function PolicyDetailPage() {
                   backgroundColor: vc.direction === 'issued' ? '#dbeafe' : '#fce7f3',
                   color: vc.direction === 'issued' ? '#1e40af' : '#9d174d',
                 }}>
-                  {vc.direction === 'issued' ? 'Shared (outgoing)' : 'Received (incoming)'}
+                  {vc.direction === 'issued' ? 'I shared my proof' : 'I received their proof'}
                 </span>
                 <span style={{ padding: '3px 12px', borderRadius: 12, fontSize: 12, fontWeight: 600, backgroundColor: vcBadgeBg, color: vcBadgeColor }}>
                   {vc.status}
                 </span>
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 20 }}>
-                <div>
-                  <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-text-secondary)', marginBottom: 4 }}>Counterparty</div>
-                  <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--color-text)' }}>{vc.counterparty_name}</div>
-                </div>
-                <div>
-                  <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-text-secondary)', marginBottom: 4 }}>Type</div>
-                  <div style={{ fontSize: 15, color: 'var(--color-text)' }}>{vc.counterparty_type}</div>
-                </div>
-              </div>
-
-              {vc.counterparty_email && (
-                <div style={{ marginBottom: 20 }}>
-                  <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-text-secondary)', marginBottom: 4 }}>Email</div>
-                  <div style={{ fontSize: 14, color: 'var(--color-text)' }}>{vc.counterparty_email}</div>
-                </div>
+              {/* View uploaded PDF */}
+              {vc.has_document && (
+                <button
+                  onClick={async () => {
+                    trackClick('cert_detail_view_pdf', { id: vc.id });
+                    try {
+                      const blob = await certificatesApi.downloadDocument(vc.id);
+                      const url = URL.createObjectURL(blob);
+                      window.open(url, '_blank');
+                    } catch {
+                      toast('Document not available', 'error');
+                    }
+                  }}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '12px 16px',
+                    marginBottom: 20, borderRadius: 'var(--radius-md)', border: '1px solid #bae6fd',
+                    backgroundColor: '#f0f9ff', cursor: 'pointer', fontSize: 14, fontWeight: 600,
+                    color: '#0c4a6e',
+                  }}
+                >
+                  <span style={{ fontSize: 18 }}>&#128196;</span>
+                  View Uploaded Certificate (PDF)
+                </button>
               )}
 
-              {(vc.carrier || vc.policy_number) && (
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 20 }}>
-                  {vc.carrier && <div>
-                    <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-text-secondary)', marginBottom: 4 }}>Carrier</div>
-                    <div style={{ fontSize: 14, color: 'var(--color-text)' }}>{vc.carrier}</div>
-                  </div>}
-                  {vc.policy_number && <div>
-                    <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-text-secondary)', marginBottom: 4 }}>Policy #</div>
-                    <div style={{ fontSize: 14, color: 'var(--color-text)' }}>{vc.policy_number}</div>
-                  </div>}
-                </div>
-              )}
+              {/* All fields — always shown, with placeholders for empty values */}
+              {(() => {
+                const dim = 'var(--color-text-muted)';
+                const na = <span style={{ color: dim, fontStyle: 'italic' }}>Not provided</span>;
+                return (
+                  <>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 }}>
+                      <div>
+                        <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-text-secondary)', marginBottom: 4 }}>{vc.direction === 'issued' ? 'Requested by' : 'Provided by'}</div>
+                        <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--color-text)' }}>{vc.counterparty_name || na}</div>
+                      </div>
+                      <div>
+                        <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-text-secondary)', marginBottom: 4 }}>Their Role</div>
+                        <div style={{ fontSize: 15, color: 'var(--color-text)' }}>{vc.counterparty_type || na}</div>
+                      </div>
+                    </div>
 
-              {vc.coverage_types && (
-                <div style={{ marginBottom: 20 }}>
-                  <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-text-secondary)', marginBottom: 6 }}>Coverage Types</div>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                    {vc.coverage_types.split(',').map(ct => ct.trim()).filter(Boolean).map(ct => (
-                      <span key={ct} style={{
-                        padding: '4px 12px', borderRadius: 12, fontSize: 12, fontWeight: 600,
-                        border: '1px solid var(--color-primary)', backgroundColor: 'var(--color-primary)', color: '#fff',
-                      }}>{ct}</span>
-                    ))}
-                  </div>
-                </div>
-              )}
+                    <div style={{ marginBottom: 16 }}>
+                      <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-text-secondary)', marginBottom: 4 }}>Email</div>
+                      <div style={{ fontSize: 14, color: vc.counterparty_email ? 'var(--color-text)' : dim }}>{vc.counterparty_email || na}</div>
+                    </div>
 
-              <div className="mobile-grid-1" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 16, marginBottom: 20 }}>
-                {vc.coverage_amount != null && <div>
-                  <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-text-secondary)', marginBottom: 4 }}>Coverage Amount</div>
-                  <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--color-text)' }}>${(vc.coverage_amount / 100).toLocaleString()}</div>
-                </div>}
-                {vc.effective_date && <div>
-                  <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-text-secondary)', marginBottom: 4 }}>Effective Date</div>
-                  <div style={{ fontSize: 14, color: 'var(--color-text)' }}>{vc.effective_date}</div>
-                </div>}
-                {vc.expiration_date && <div>
-                  <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-text-secondary)', marginBottom: 4 }}>Expiration Date</div>
-                  <div style={{ fontSize: 14, color: 'var(--color-text)' }}>{vc.expiration_date}</div>
-                </div>}
-              </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 }}>
+                      <div>
+                        <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-text-secondary)', marginBottom: 4 }}>{vc.direction === 'received' ? 'Their Insurance Company' : 'Carrier'}</div>
+                        <div style={{ fontSize: 14, color: vc.carrier ? 'var(--color-text)' : dim }}>{vc.carrier || na}</div>
+                      </div>
+                      <div>
+                        <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-text-secondary)', marginBottom: 4 }}>{vc.direction === 'received' ? 'Their Policy #' : 'Policy #'}</div>
+                        <div style={{ fontSize: 14, color: vc.policy_number ? 'var(--color-text)' : dim }}>{vc.policy_number || na}</div>
+                      </div>
+                    </div>
 
-              <div style={{ display: 'flex', gap: 20, marginBottom: 20 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13 }}>
-                  <span style={{ color: vc.additional_insured ? '#166534' : 'var(--color-text-muted)', fontSize: 16 }}>{vc.additional_insured ? '\u2713' : '\u2717'}</span>
-                  <span style={{ color: vc.additional_insured ? '#166534' : 'var(--color-text-muted)', fontWeight: vc.additional_insured ? 600 : 400 }}>Additional Insured</span>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13 }}>
-                  <span style={{ color: vc.waiver_of_subrogation ? '#166534' : 'var(--color-text-muted)', fontSize: 16 }}>{vc.waiver_of_subrogation ? '\u2713' : '\u2717'}</span>
-                  <span style={{ color: vc.waiver_of_subrogation ? '#166534' : 'var(--color-text-muted)', fontWeight: vc.waiver_of_subrogation ? 600 : 400 }}>Waiver of Subrogation</span>
-                </div>
-              </div>
+                    <div style={{ marginBottom: 16 }}>
+                      <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-text-secondary)', marginBottom: 6 }}>Coverage Types</div>
+                      {vc.coverage_types ? (
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                          {vc.coverage_types.split(',').map(ct => ct.trim()).filter(Boolean).map(ct => (
+                            <span key={ct} style={{ padding: '4px 12px', borderRadius: 12, fontSize: 12, fontWeight: 600, border: '1px solid var(--color-primary)', backgroundColor: 'var(--color-primary)', color: '#fff' }}>{ct}</span>
+                          ))}
+                        </div>
+                      ) : <div style={{ color: dim, fontStyle: 'italic', fontSize: 14 }}>Not provided</div>}
+                    </div>
 
-              {vc.notes && (
-                <div style={{ marginBottom: 20 }}>
-                  <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-text-secondary)', marginBottom: 4 }}>Notes</div>
-                  <div style={{ fontSize: 14, color: 'var(--color-text)', lineHeight: 1.6, fontStyle: 'italic' }}>{vc.notes}</div>
-                </div>
-              )}
+                    <div className="mobile-grid-1" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 16, marginBottom: 16 }}>
+                      <div>
+                        <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-text-secondary)', marginBottom: 4 }}>Coverage Amount</div>
+                        <div style={{ fontSize: 15, fontWeight: 600, color: vc.coverage_amount != null ? 'var(--color-text)' : dim }}>{vc.coverage_amount != null ? `$${(vc.coverage_amount / 100).toLocaleString()}` : na}</div>
+                      </div>
+                      <div>
+                        <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-text-secondary)', marginBottom: 4 }}>Effective Date</div>
+                        <div style={{ fontSize: 14, color: vc.effective_date ? 'var(--color-text)' : dim }}>{vc.effective_date || na}</div>
+                      </div>
+                      <div>
+                        <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-text-secondary)', marginBottom: 4 }}>Expiration Date</div>
+                        <div style={{ fontSize: 14, color: vc.expiration_date ? 'var(--color-text)' : dim }}>{vc.expiration_date || na}</div>
+                      </div>
+                    </div>
+
+                    {vc.direction === 'received' && (
+                      <div style={{ marginBottom: 16 }}>
+                        <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-text-secondary)', marginBottom: 4 }}>Minimum Required Coverage</div>
+                        <div style={{ fontSize: 14, color: vc.minimum_coverage != null ? 'var(--color-text)' : dim }}>
+                          {vc.minimum_coverage != null ? `$${(vc.minimum_coverage / 100).toLocaleString()}` : na}
+                        </div>
+                        {vc.minimum_coverage != null && vc.coverage_amount != null && (
+                          <div style={{ marginTop: 6, padding: '4px 10px', borderRadius: 'var(--radius-sm)', fontSize: 12, fontWeight: 600, display: 'inline-block', backgroundColor: vc.coverage_amount >= vc.minimum_coverage ? '#dcfce7' : '#fee2e2', color: vc.coverage_amount >= vc.minimum_coverage ? '#166534' : '#991b1b' }}>
+                            {vc.coverage_amount >= vc.minimum_coverage ? 'Meets requirement' : 'Below requirement'}
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    <div style={{ display: 'flex', gap: 20, marginBottom: 16, flexWrap: 'wrap' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13 }}>
+                        <span style={{ color: vc.additional_insured ? '#166534' : dim, fontSize: 16 }}>{vc.additional_insured ? '\u2713' : '\u2717'}</span>
+                        <span style={{ color: vc.additional_insured ? '#166534' : dim, fontWeight: vc.additional_insured ? 600 : 400 }}>Additional Insured</span>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13 }}>
+                        <span style={{ color: vc.waiver_of_subrogation ? '#166534' : dim, fontSize: 16 }}>{vc.waiver_of_subrogation ? '\u2713' : '\u2717'}</span>
+                        <span style={{ color: vc.waiver_of_subrogation ? '#166534' : dim, fontWeight: vc.waiver_of_subrogation ? 600 : 400 }}>Waiver of Subrogation</span>
+                      </div>
+                    </div>
+
+                    <div style={{ marginBottom: 20 }}>
+                      <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-text-secondary)', marginBottom: 4 }}>Notes</div>
+                      <div style={{ fontSize: 14, color: vc.notes ? 'var(--color-text)' : dim, lineHeight: 1.6, fontStyle: vc.notes ? 'italic' : 'normal' }}>{vc.notes || na}</div>
+                    </div>
+                  </>
+                );
+              })()}
 
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, borderTop: '1px solid var(--color-border)', paddingTop: 16 }}>
+                <button
+                  onClick={async () => {
+                    if (!confirm('Delete this certificate? This cannot be undone.')) return;
+                    trackClick('cert_detail_delete_from_policy', { id: vc.id });
+                    try {
+                      await certificatesApi.remove(vc.id);
+                      toast('Certificate deleted');
+                      setViewingPolicyCert(null);
+                      setPolicyCertificates(prev => prev.filter(c => c.id !== vc.id));
+                    } catch {
+                      toast('Failed to delete', 'error');
+                    }
+                  }}
+                  style={{ padding: '8px 20px', border: '1px solid #fecaca', borderRadius: 'var(--radius-sm)', backgroundColor: '#fff', color: 'var(--color-danger)', cursor: 'pointer', fontSize: 14 }}
+                >Delete</button>
                 <button onClick={() => setViewingPolicyCert(null)} style={{ padding: '8px 20px', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)', backgroundColor: '#fff', cursor: 'pointer', fontSize: 14 }}>Close</button>
-                <button onClick={() => { setViewingPolicyCert(null); router.push('/certificates'); }} style={{ padding: '8px 20px', backgroundColor: 'var(--color-primary)', color: '#fff', border: 'none', borderRadius: 'var(--radius-sm)', fontWeight: 600, cursor: 'pointer', fontSize: 14 }}>Edit</button>
+                <button onClick={() => { setViewingPolicyCert(null); router.push(`/certificates?from=${policyId}`); }} style={{ padding: '8px 20px', backgroundColor: 'var(--color-primary)', color: '#fff', border: 'none', borderRadius: 'var(--radius-sm)', fontWeight: 600, cursor: 'pointer', fontSize: 14 }}>Edit</button>
               </div>
             </div>
           </div>

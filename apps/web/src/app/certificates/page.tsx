@@ -130,6 +130,7 @@ function CertificatesContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const addForPolicyId = searchParams.get('addFor') ? Number(searchParams.get('addFor')) : null;
+  const fromPolicyId = searchParams.get('from') ? Number(searchParams.get('from')) : addForPolicyId;
   const { toast } = useToast();
 
   const [certificates, setCertificates] = useState<Certificate[]>([]);
@@ -157,6 +158,7 @@ function CertificatesContent() {
 
   // Add Verification choice modal
   const [showAddChoice, setShowAddChoice] = useState(false);
+  const [addForUsed, setAddForUsed] = useState(false);
 
   // Lease detail modal
   const [viewingLease, setViewingLease] = useState<LeaseRequirement | null>(null);
@@ -177,9 +179,10 @@ function CertificatesContent() {
       setCertificates(certs);
       setPolicies(pols);
       setLeaseReqs(reqs);
-      if (addForPolicyId && pols.some(p => p.id === addForPolicyId)) {
+      if (addForPolicyId && !addForUsed && pols.some(p => p.id === addForPolicyId)) {
         setForm(f => ({ ...f, policy_id: addForPolicyId }));
         setShowForm(true);
+        setAddForUsed(true);
       }
     } catch {
       toast('Failed to load data', 'error');
@@ -256,7 +259,8 @@ function CertificatesContent() {
   }
 
   async function handleSave() {
-    if (!form.counterparty_name.trim()) { toast('Counterparty name is required', 'error'); return; }
+    if (!form.counterparty_name.trim()) { toast('Name is required', 'error'); return; }
+    const isNew = !editingId;
     try {
       if (editingId) {
         trackClick('cert_save_edit', { id: editingId });
@@ -266,20 +270,13 @@ function CertificatesContent() {
         trackClick('cert_save_new');
         await certificatesApi.create(form);
         toast('Certificate added');
-        // Auto-prompt: check against lease requirements for received certs
-        if (form.direction === 'received' && leaseReqs.length > 0) {
-          const matchingReqs = form.policy_id
-            ? leaseReqs.filter(r => r.policy_id === form.policy_id)
-            : leaseReqs;
-          if (matchingReqs.length > 0 && matchingReqs[0].policy_id) {
-            trackFeatureUse('coi_lease_check_prompt');
-            setTimeout(() => {
-              toast('Check this COI against lease requirements on the policy page', 'info');
-            }, 500);
-          }
-        }
       }
       resetForm();
+      // If user came from a policy page, navigate back after creating
+      if (isNew && fromPolicyId) {
+        router.push(`/policies/${fromPolicyId}`);
+        return;
+      }
       load();
     } catch {
       toast('Failed to save certificate', 'error');
@@ -305,7 +302,7 @@ function CertificatesContent() {
     trackClick('cert_extract_coi');
     setExtracting(true);
     try {
-      const { extraction } = await certificatesApi.extractFromPdf(file);
+      const { extraction, file_token } = await certificatesApi.extractFromPdf(file);
       let matchedPolicyId: number | null = null;
       if (extraction.policy_number || extraction.carrier) {
         const match = policies.find(p =>
@@ -329,6 +326,7 @@ function CertificatesContent() {
         expiration_date: extraction.expiration_date || f.expiration_date,
         notes: extraction.notes || f.notes,
         policy_id: matchedPolicyId ?? f.policy_id,
+        file_token: file_token || null,
       }));
       toast(matchedPolicyId ? 'COI extracted and linked to matching policy' : 'COI data extracted successfully');
       if (coiFileRef.current) coiFileRef.current.value = '';
@@ -370,7 +368,11 @@ function CertificatesContent() {
 
   return (
     <div style={{ padding: 32, maxWidth: 960, margin: '0 auto' }}>
-      <BackButton href="/" label="Compliance" parentLabel="Home" />
+      <BackButton
+        href={fromPolicyId ? `/policies/${fromPolicyId}` : '/'}
+        label="Compliance"
+        parentLabel={fromPolicyId ? (policyMap.get(fromPolicyId)?.nickname || policyMap.get(fromPolicyId)?.carrier || 'Policy') : 'Home'}
+      />
 
       {/* Page Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 24, flexWrap: 'wrap', gap: 12 }}>
@@ -657,9 +659,12 @@ function CertificatesContent() {
       {showForm && (
         <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
           <div style={{ backgroundColor: '#fff', borderRadius: 'var(--radius-lg)', padding: 20, maxWidth: 560, width: '100%', maxHeight: '90vh', overflowY: 'auto' }}>
-            <h2 style={{ fontSize: 18, fontWeight: 700, marginBottom: 20 }}>
-              {editingId ? 'Edit Certificate' : 'Add Certificate'}
-            </h2>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+              <h2 style={{ fontSize: 18, fontWeight: 700, margin: 0 }}>
+                {editingId ? 'Edit Certificate' : 'Add Certificate'}
+              </h2>
+              <button onClick={() => { trackClick('cert_form_close'); resetForm(); }} style={{ background: 'none', border: 'none', fontSize: 22, cursor: 'pointer', color: 'var(--color-text-muted)', padding: '0 4px', lineHeight: 1 }} aria-label="Close">&times;</button>
+            </div>
 
             {/* Upload & Extract COI */}
             {!editingId && (
@@ -693,21 +698,25 @@ function CertificatesContent() {
               </div>
             )}
 
-            {/* Direction toggle */}
+            {/* Direction toggle — plain language */}
             <div style={{ marginBottom: 16 }}>
-              <label style={labelStyle}>Direction</label>
-              <div style={{ display: 'flex', gap: 0, borderRadius: 'var(--radius-sm)', overflow: 'hidden', border: '1px solid var(--color-border)' }}>
-                {(['issued', 'received'] as const).map(d => (
+              <label style={labelStyle}>What are you doing?</label>
+              <div style={{ display: 'flex', gap: 8 }}>
+                {([
+                  { value: 'issued' as const, label: 'Sharing my insurance proof', desc: 'Someone asked me to prove I have coverage' },
+                  { value: 'received' as const, label: 'I received their proof', desc: 'Someone sent me proof they have coverage' },
+                ] as const).map(d => (
                   <button
-                    key={d}
-                    onClick={() => { trackClick('cert_form_direction', { value: d }); setForm(f => ({ ...f, direction: d })); }}
+                    key={d.value}
+                    onClick={() => { trackClick('cert_form_direction', { value: d.value }); setForm(f => ({ ...f, direction: d.value })); }}
                     style={{
-                      flex: 1, padding: '8px 16px', border: 'none', fontSize: 13, fontWeight: 600, cursor: 'pointer',
-                      backgroundColor: form.direction === d ? 'var(--color-primary)' : '#fff',
-                      color: form.direction === d ? '#fff' : 'var(--color-text)',
+                      flex: 1, padding: '10px 12px', borderRadius: 'var(--radius-sm)', cursor: 'pointer', textAlign: 'left',
+                      border: form.direction === d.value ? '2px solid var(--color-primary)' : '1px solid var(--color-border)',
+                      backgroundColor: form.direction === d.value ? '#eff6ff' : '#fff',
                     }}
                   >
-                    {d === 'issued' ? 'Shared (outgoing)' : 'Received (incoming)'}
+                    <div style={{ fontSize: 13, fontWeight: 600, color: form.direction === d.value ? 'var(--color-primary)' : 'var(--color-text)' }}>{d.label}</div>
+                    <div style={{ fontSize: 11, color: 'var(--color-text-secondary)', marginTop: 2 }}>{d.desc}</div>
                   </button>
                 ))}
               </div>
@@ -741,14 +750,14 @@ function CertificatesContent() {
               )}
             </div>
 
-            {/* Counterparty */}
+            {/* Who is the other party */}
             <div className="form-grid-2" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
               <div>
-                <label style={labelStyle}>Counterparty Name *</label>
-                <input style={inputStyle} value={form.counterparty_name} onChange={e => setForm(f => ({ ...f, counterparty_name: e.target.value }))} placeholder="e.g. ABC Property Management" />
+                <label style={labelStyle}>{form.direction === 'issued' ? 'Who requested this? *' : 'Who provided this? *'}</label>
+                <input style={inputStyle} value={form.counterparty_name} onChange={e => setForm(f => ({ ...f, counterparty_name: e.target.value }))} placeholder={form.direction === 'issued' ? 'e.g. ABC Property Management' : 'e.g. John Smith Contracting'} />
               </div>
               <div>
-                <label style={labelStyle}>Counterparty Type</label>
+                <label style={labelStyle}>Their role</label>
                 <select style={inputStyle} value={form.counterparty_type} onChange={e => setForm(f => ({ ...f, counterparty_type: e.target.value }))}>
                   {COUNTERPARTY_TYPES.map(ct => <option key={ct.value} value={ct.value}>{ct.label}</option>)}
                 </select>
@@ -756,19 +765,19 @@ function CertificatesContent() {
             </div>
 
             <div style={{ marginBottom: 12 }}>
-              <label style={labelStyle}>Counterparty Email</label>
-              <input style={inputStyle} type="email" value={form.counterparty_email || ''} onChange={e => setForm(f => ({ ...f, counterparty_email: e.target.value || null }))} placeholder="Optional - for reminders" />
+              <label style={labelStyle}>Their email</label>
+              <input style={inputStyle} type="email" value={form.counterparty_email || ''} onChange={e => setForm(f => ({ ...f, counterparty_email: e.target.value || null }))} placeholder="Optional — for expiration reminders" />
             </div>
 
-            {/* Carrier + policy number (for received) */}
+            {/* Their insurance details (for received) */}
             {form.direction === 'received' && (
               <div className="form-grid-2" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
                 <div>
-                  <label style={labelStyle}>Their Carrier</label>
+                  <label style={labelStyle}>Their insurance company</label>
                   <input style={inputStyle} value={form.carrier || ''} onChange={e => setForm(f => ({ ...f, carrier: e.target.value || null }))} placeholder="e.g. State Farm" />
                 </div>
                 <div>
-                  <label style={labelStyle}>Their Policy #</label>
+                  <label style={labelStyle}>Their policy number</label>
                   <input style={inputStyle} value={form.policy_number || ''} onChange={e => setForm(f => ({ ...f, policy_number: e.target.value || null }))} placeholder="Optional" />
                 </div>
               </div>
@@ -823,8 +832,8 @@ function CertificatesContent() {
             {/* Minimum coverage for received */}
             {form.direction === 'received' && (
               <div style={{ marginBottom: 12 }}>
-                <label style={labelStyle}>Minimum Required Coverage ($)</label>
-                <input style={inputStyle} type="number" value={form.minimum_coverage != null ? form.minimum_coverage / 100 : ''} onChange={e => setForm(f => ({ ...f, minimum_coverage: e.target.value ? Math.round(Number(e.target.value) * 100) : null }))} placeholder="What coverage do you require from them?" />
+                <label style={labelStyle}>Minimum coverage you require ($)</label>
+                <input style={inputStyle} type="number" value={form.minimum_coverage != null ? form.minimum_coverage / 100 : ''} onChange={e => setForm(f => ({ ...f, minimum_coverage: e.target.value ? Math.round(Number(e.target.value) * 100) : null }))} placeholder="e.g. 1000000" />
               </div>
             )}
 
@@ -882,7 +891,7 @@ function CertificatesContent() {
                   backgroundColor: vc.direction === 'issued' ? '#dbeafe' : '#fce7f3',
                   color: vc.direction === 'issued' ? '#1e40af' : '#9d174d',
                 }}>
-                  {vc.direction === 'issued' ? 'Shared (outgoing)' : 'Received (incoming)'}
+                  {vc.direction === 'issued' ? 'I shared my proof' : 'I received their proof'}
                 </span>
                 <span style={{
                   padding: '3px 12px', borderRadius: 12, fontSize: 12, fontWeight: 600,
@@ -892,119 +901,128 @@ function CertificatesContent() {
                 </span>
               </div>
 
-              {/* Counterparty */}
-              <div className="form-grid-2" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 20 }}>
-                <div>
-                  <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-text-secondary)', marginBottom: 4 }}>Counterparty</div>
-                  <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--color-text)' }}>{vc.counterparty_name}</div>
-                </div>
-                <div>
-                  <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-text-secondary)', marginBottom: 4 }}>Type</div>
-                  <div style={{ fontSize: 15, color: 'var(--color-text)' }}>{vcCtLabel}</div>
-                </div>
-              </div>
-
-              {vc.counterparty_email && (
-                <div style={{ marginBottom: 20 }}>
-                  <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-text-secondary)', marginBottom: 4 }}>Email</div>
-                  <div style={{ fontSize: 14, color: 'var(--color-text)' }}>{vc.counterparty_email}</div>
-                </div>
+              {/* View uploaded PDF */}
+              {vc.has_document && (
+                <button
+                  onClick={async () => {
+                    trackClick('cert_detail_view_pdf', { id: vc.id });
+                    try {
+                      const blob = await certificatesApi.downloadDocument(vc.id);
+                      const url = URL.createObjectURL(blob);
+                      window.open(url, '_blank');
+                    } catch {
+                      toast('Document not available', 'error');
+                    }
+                  }}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '12px 16px',
+                    marginBottom: 20, borderRadius: 'var(--radius-md)', border: '1px solid #bae6fd',
+                    backgroundColor: '#f0f9ff', cursor: 'pointer', fontSize: 14, fontWeight: 600,
+                    color: '#0c4a6e',
+                  }}
+                >
+                  <span style={{ fontSize: 18 }}>&#128196;</span>
+                  View Uploaded Certificate (PDF)
+                </button>
               )}
 
-              {/* Linked Policy */}
-              {vcLinkedPolicy && (
-                <div style={{
-                  marginBottom: 20, padding: 12, borderRadius: 'var(--radius-sm)',
-                  backgroundColor: '#f0fdf4', border: '1px solid #bbf7d0',
-                }}>
-                  <div style={{ fontSize: 12, fontWeight: 600, color: '#166534', marginBottom: 4 }}>Linked to Policy</div>
-                  <div style={{ fontSize: 14, color: 'var(--color-text)' }}>
-                    {vcLinkedPolicy.nickname || vcLinkedPolicy.carrier} &mdash; {vcLinkedPolicy.policy_type}
-                  </div>
-                </div>
-              )}
-
-              {/* Carrier + Policy # */}
-              {(vc.carrier || vc.policy_number) && (
-                <div className="form-grid-2" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 20 }}>
-                  {vc.carrier && <div>
-                    <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-text-secondary)', marginBottom: 4 }}>{vc.direction === 'received' ? 'Their Carrier' : 'Carrier'}</div>
-                    <div style={{ fontSize: 14, color: 'var(--color-text)' }}>{vc.carrier}</div>
-                  </div>}
-                  {vc.policy_number && <div>
-                    <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-text-secondary)', marginBottom: 4 }}>{vc.direction === 'received' ? 'Their Policy #' : 'Policy #'}</div>
-                    <div style={{ fontSize: 14, color: 'var(--color-text)' }}>{vc.policy_number}</div>
-                  </div>}
-                </div>
-              )}
-
-              {/* Coverage Types */}
-              {vc.coverage_types && (
-                <div style={{ marginBottom: 20 }}>
-                  <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-text-secondary)', marginBottom: 6 }}>Coverage Types</div>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                    {vc.coverage_types.split(',').map(ct => ct.trim()).filter(Boolean).map(ct => (
-                      <span key={ct} style={{
-                        padding: '4px 12px', borderRadius: 12, fontSize: 12, fontWeight: 600,
-                        border: '1px solid var(--color-primary)', backgroundColor: 'var(--color-primary)', color: '#fff',
-                      }}>{ct}</span>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Amount + Dates */}
-              <div className="mobile-grid-1" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 16, marginBottom: 20 }}>
-                {vc.coverage_amount != null && <div>
-                  <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-text-secondary)', marginBottom: 4 }}>Coverage Amount</div>
-                  <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--color-text)' }}>${(vc.coverage_amount / 100).toLocaleString()}</div>
-                </div>}
-                {vc.effective_date && <div>
-                  <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-text-secondary)', marginBottom: 4 }}>Effective Date</div>
-                  <div style={{ fontSize: 14, color: 'var(--color-text)' }}>{vc.effective_date}</div>
-                </div>}
-                {vc.expiration_date && <div>
-                  <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-text-secondary)', marginBottom: 4 }}>Expiration Date</div>
-                  <div style={{ fontSize: 14, color: 'var(--color-text)' }}>{vc.expiration_date}</div>
-                </div>}
-              </div>
-
-              {/* Minimum coverage for received */}
-              {vc.direction === 'received' && vc.minimum_coverage != null && (
-                <div style={{ marginBottom: 20 }}>
-                  <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-text-secondary)', marginBottom: 4 }}>Minimum Required Coverage</div>
-                  <div style={{ fontSize: 14, color: 'var(--color-text)' }}>${(vc.minimum_coverage / 100).toLocaleString()}</div>
-                  {vc.coverage_amount != null && (
-                    <div style={{
-                      marginTop: 6, padding: '4px 10px', borderRadius: 'var(--radius-sm)', fontSize: 12, fontWeight: 600, display: 'inline-block',
-                      backgroundColor: vc.coverage_amount >= vc.minimum_coverage ? '#dcfce7' : '#fee2e2',
-                      color: vc.coverage_amount >= vc.minimum_coverage ? '#166534' : '#991b1b',
-                    }}>
-                      {vc.coverage_amount >= vc.minimum_coverage ? 'Meets requirement' : 'Below requirement'}
+              {/* All fields — always shown with placeholders */}
+              {(() => {
+                const dim = 'var(--color-text-muted)';
+                const na = <span style={{ color: dim, fontStyle: 'italic' }}>Not provided</span>;
+                return (
+                  <>
+                    <div className="form-grid-2" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 }}>
+                      <div>
+                        <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-text-secondary)', marginBottom: 4 }}>{vc.direction === 'issued' ? 'Requested by' : 'Provided by'}</div>
+                        <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--color-text)' }}>{vc.counterparty_name || na}</div>
+                      </div>
+                      <div>
+                        <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-text-secondary)', marginBottom: 4 }}>Their Role</div>
+                        <div style={{ fontSize: 15, color: 'var(--color-text)' }}>{vcCtLabel}</div>
+                      </div>
                     </div>
-                  )}
-                </div>
-              )}
 
-              {/* Compliance flags */}
-              <div style={{ display: 'flex', gap: 20, marginBottom: 20, flexWrap: 'wrap' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13 }}>
-                  <span style={{ color: vc.additional_insured ? '#166534' : 'var(--color-text-muted)', fontSize: 16 }}>{vc.additional_insured ? '\u2713' : '\u2717'}</span>
-                  <span style={{ color: vc.additional_insured ? '#166534' : 'var(--color-text-muted)', fontWeight: vc.additional_insured ? 600 : 400 }}>Additional Insured</span>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13 }}>
-                  <span style={{ color: vc.waiver_of_subrogation ? '#166534' : 'var(--color-text-muted)', fontSize: 16 }}>{vc.waiver_of_subrogation ? '\u2713' : '\u2717'}</span>
-                  <span style={{ color: vc.waiver_of_subrogation ? '#166534' : 'var(--color-text-muted)', fontWeight: vc.waiver_of_subrogation ? 600 : 400 }}>Waiver of Subrogation</span>
-                </div>
-              </div>
+                    <div style={{ marginBottom: 16 }}>
+                      <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-text-secondary)', marginBottom: 4 }}>Email</div>
+                      <div style={{ fontSize: 14, color: vc.counterparty_email ? 'var(--color-text)' : dim }}>{vc.counterparty_email || na}</div>
+                    </div>
 
-              {/* Notes */}
-              {vc.notes && (
-                <div style={{ marginBottom: 20 }}>
-                  <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-text-secondary)', marginBottom: 4 }}>Notes</div>
-                  <div style={{ fontSize: 14, color: 'var(--color-text)', lineHeight: 1.6, fontStyle: 'italic' }}>{vc.notes}</div>
-                </div>
-              )}
+                    {/* Linked Policy */}
+                    {vcLinkedPolicy && (
+                      <div style={{ marginBottom: 16, padding: 12, borderRadius: 'var(--radius-sm)', backgroundColor: '#f0fdf4', border: '1px solid #bbf7d0' }}>
+                        <div style={{ fontSize: 12, fontWeight: 600, color: '#166534', marginBottom: 4 }}>Linked to Policy</div>
+                        <div style={{ fontSize: 14, color: 'var(--color-text)' }}>{vcLinkedPolicy.nickname || vcLinkedPolicy.carrier} &mdash; {vcLinkedPolicy.policy_type}</div>
+                      </div>
+                    )}
+
+                    <div className="form-grid-2" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 }}>
+                      <div>
+                        <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-text-secondary)', marginBottom: 4 }}>{vc.direction === 'received' ? 'Their Insurance Company' : 'Carrier'}</div>
+                        <div style={{ fontSize: 14, color: vc.carrier ? 'var(--color-text)' : dim }}>{vc.carrier || na}</div>
+                      </div>
+                      <div>
+                        <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-text-secondary)', marginBottom: 4 }}>{vc.direction === 'received' ? 'Their Policy #' : 'Policy #'}</div>
+                        <div style={{ fontSize: 14, color: vc.policy_number ? 'var(--color-text)' : dim }}>{vc.policy_number || na}</div>
+                      </div>
+                    </div>
+
+                    <div style={{ marginBottom: 16 }}>
+                      <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-text-secondary)', marginBottom: 6 }}>Coverage Types</div>
+                      {vc.coverage_types ? (
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                          {vc.coverage_types.split(',').map(ct => ct.trim()).filter(Boolean).map(ct => (
+                            <span key={ct} style={{ padding: '4px 12px', borderRadius: 12, fontSize: 12, fontWeight: 600, border: '1px solid var(--color-primary)', backgroundColor: 'var(--color-primary)', color: '#fff' }}>{ct}</span>
+                          ))}
+                        </div>
+                      ) : <div style={{ color: dim, fontStyle: 'italic', fontSize: 14 }}>Not provided</div>}
+                    </div>
+
+                    <div className="mobile-grid-1" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 16, marginBottom: 16 }}>
+                      <div>
+                        <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-text-secondary)', marginBottom: 4 }}>Coverage Amount</div>
+                        <div style={{ fontSize: 15, fontWeight: 600, color: vc.coverage_amount != null ? 'var(--color-text)' : dim }}>{vc.coverage_amount != null ? `$${(vc.coverage_amount / 100).toLocaleString()}` : na}</div>
+                      </div>
+                      <div>
+                        <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-text-secondary)', marginBottom: 4 }}>Effective Date</div>
+                        <div style={{ fontSize: 14, color: vc.effective_date ? 'var(--color-text)' : dim }}>{vc.effective_date || na}</div>
+                      </div>
+                      <div>
+                        <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-text-secondary)', marginBottom: 4 }}>Expiration Date</div>
+                        <div style={{ fontSize: 14, color: vc.expiration_date ? 'var(--color-text)' : dim }}>{vc.expiration_date || na}</div>
+                      </div>
+                    </div>
+
+                    {vc.direction === 'received' && (
+                      <div style={{ marginBottom: 16 }}>
+                        <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-text-secondary)', marginBottom: 4 }}>Minimum Required Coverage</div>
+                        <div style={{ fontSize: 14, color: vc.minimum_coverage != null ? 'var(--color-text)' : dim }}>{vc.minimum_coverage != null ? `$${(vc.minimum_coverage / 100).toLocaleString()}` : na}</div>
+                        {vc.minimum_coverage != null && vc.coverage_amount != null && (
+                          <div style={{ marginTop: 6, padding: '4px 10px', borderRadius: 'var(--radius-sm)', fontSize: 12, fontWeight: 600, display: 'inline-block', backgroundColor: vc.coverage_amount >= vc.minimum_coverage ? '#dcfce7' : '#fee2e2', color: vc.coverage_amount >= vc.minimum_coverage ? '#166534' : '#991b1b' }}>
+                            {vc.coverage_amount >= vc.minimum_coverage ? 'Meets requirement' : 'Below requirement'}
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    <div style={{ display: 'flex', gap: 20, marginBottom: 16, flexWrap: 'wrap' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13 }}>
+                        <span style={{ color: vc.additional_insured ? '#166534' : dim, fontSize: 16 }}>{vc.additional_insured ? '\u2713' : '\u2717'}</span>
+                        <span style={{ color: vc.additional_insured ? '#166534' : dim, fontWeight: vc.additional_insured ? 600 : 400 }}>Additional Insured</span>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13 }}>
+                        <span style={{ color: vc.waiver_of_subrogation ? '#166534' : dim, fontSize: 16 }}>{vc.waiver_of_subrogation ? '\u2713' : '\u2717'}</span>
+                        <span style={{ color: vc.waiver_of_subrogation ? '#166534' : dim, fontWeight: vc.waiver_of_subrogation ? 600 : 400 }}>Waiver of Subrogation</span>
+                      </div>
+                    </div>
+
+                    <div style={{ marginBottom: 20 }}>
+                      <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-text-secondary)', marginBottom: 4 }}>Notes</div>
+                      <div style={{ fontSize: 14, color: vc.notes ? 'var(--color-text)' : dim, lineHeight: 1.6, fontStyle: vc.notes ? 'italic' : 'normal' }}>{vc.notes || na}</div>
+                    </div>
+                  </>
+                );
+              })()}
 
               {/* Check against requirements — always show for received certs linked to a policy */}
               {vc.policy_id && (
@@ -1126,6 +1144,30 @@ function CertificatesContent() {
 
               {/* Actions */}
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, borderTop: '1px solid var(--color-border)', paddingTop: 16, flexWrap: 'wrap' }}>
+                {/* View tenant-uploaded certificate if available */}
+                {(() => {
+                  const submittedTenant = req.tenants?.find(t => t.submitted_at && t.has_document);
+                  if (submittedTenant) {
+                    return (
+                      <button
+                        onClick={async () => {
+                          trackClick('lease_detail_view_cert', { id: req.id, check_id: submittedTenant.check_id });
+                          try {
+                            const blob = await leaseComplianceApi.downloadCoiDocument(submittedTenant.check_id);
+                            const url = URL.createObjectURL(blob);
+                            window.open(url, '_blank');
+                          } catch {
+                            toast('Document not available', 'error');
+                          }
+                        }}
+                        style={{ padding: '8px 20px', backgroundColor: '#2563eb', color: '#fff', border: 'none', borderRadius: 'var(--radius-sm)', fontWeight: 600, cursor: 'pointer', fontSize: 14 }}
+                      >
+                        View Certificate
+                      </button>
+                    );
+                  }
+                  return null;
+                })()}
                 {req.policy_id && (
                   <button
                     onClick={() => {

@@ -323,7 +323,7 @@ function ChatPageInner() {
           flexShrink: 0,
         }}>
           <button
-            onClick={() => router.push('/policies')}
+            onClick={() => router.back()}
             style={{
               background: 'none',
               border: 'none',
@@ -333,7 +333,7 @@ function ChatPageInner() {
               color: 'var(--color-text-muted)',
               flexShrink: 0,
             }}
-            aria-label="Back to policies"
+            aria-label="Go back"
           >
             ←
           </button>
@@ -353,10 +353,10 @@ function ChatPageInner() {
             &#9776;
           </button>
           <span style={{ fontSize: 16, fontWeight: 600, color: 'var(--color-text)' }}>
-            Policy Insights
+            Ask Covrabl
           </span>
           <span style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>
-            Insights generated directly from your uploaded policy documents
+            Answers based on your uploaded policy documents
           </span>
         </div>
 

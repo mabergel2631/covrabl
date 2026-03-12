@@ -397,6 +397,7 @@ class CertificateCreate(BaseModel):
     expiration_date: Optional[date] = None
     status: Optional[Literal["active", "expiring", "expired", "pending"]] = "active"
     notes: Optional[str] = None
+    file_token: Optional[str] = None
 
 
 class CertificateUpdate(BaseModel):
@@ -437,6 +438,7 @@ class CertificateOut(BaseModel):
     expiration_date: Optional[date] = None
     status: str
     notes: Optional[str] = None
+    has_document: bool = False
     created_at: datetime
 
     class Config:

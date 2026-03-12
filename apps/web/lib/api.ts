@@ -1728,6 +1728,7 @@ export type Certificate = {
   expiration_date: string | null;
   status: string;
   notes: string | null;
+  has_document: boolean;
   created_at: string;
   policy_carrier: string | null;
   policy_type: string | null;
@@ -1750,6 +1751,7 @@ export type CertificateCreate = {
   expiration_date?: string | null;
   status?: string;
   notes?: string | null;
+  file_token?: string | null;
 };
 
 export const certificatesApi = {
@@ -1780,7 +1782,7 @@ export const certificatesApi = {
   remove(id: number): Promise<{ ok: boolean }> {
     return request<{ ok: boolean }>(`/certificates/${id}`, { method: "DELETE" });
   },
-  async extractFromPdf(file: File): Promise<{ ok: boolean; extraction: COIExtraction }> {
+  async extractFromPdf(file: File): Promise<{ ok: boolean; extraction: COIExtraction; file_token?: string }> {
     const formData = new FormData();
     formData.append("file", file);
     const url = `${API_BASE}/certificates/extract-pdf`;
@@ -1791,6 +1793,15 @@ export const certificatesApi = {
     const data = await res.json();
     if (!res.ok) throw new Error(data.detail || "Extraction failed");
     return data;
+  },
+  async downloadDocument(certId: number): Promise<Blob> {
+    const url = `${API_BASE}/certificates/${certId}/document`;
+    const token = getToken();
+    const headers: Record<string, string> = {};
+    if (token) headers["Authorization"] = `Bearer ${token}`;
+    const res = await fetch(url, { headers });
+    if (!res.ok) throw new Error("Document not found");
+    return res.blob();
   },
 };
 

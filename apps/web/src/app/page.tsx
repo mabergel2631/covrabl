@@ -789,7 +789,7 @@ function Dashboard() {
           {/* ── Section 5: Quick Actions ── */}
           <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 20 }}>
             <button onClick={() => router.push('/chat')} className="btn btn-outline" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <span style={{ fontSize: 14 }}>&#10024;</span> Ask AI
+              <span style={{ fontSize: 14 }}>&#128172;</span> Ask Covrabl
             </button>
             <button onClick={() => router.push('/policies/compare')} className="btn btn-outline">
               Compare Policies
