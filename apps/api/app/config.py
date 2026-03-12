@@ -23,7 +23,7 @@ class Settings(BaseSettings):
     smtp_user: str = ""
     smtp_password: str = ""
     from_email: str = "noreply@covrabl.com"
-    app_url: str = "http://localhost:3000"
+    app_url: str = "https://covrabl.vercel.app"
 
     stripe_secret_key: str = ""
     stripe_webhook_secret: str = ""

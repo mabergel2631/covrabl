@@ -74,10 +74,16 @@ async def send_renewal_reminders(db: Session) -> dict:
       {policy_rows}
     </tbody>
   </table>
-  <a href="{settings.app_url}/policies"
-     style="display: inline-block; background: #6c5ce7; color: #fff; padding: 12px 28px; border-radius: 6px; text-decoration: none; font-weight: 600; margin: 16px 0;">
-    Review in Covrabl
-  </a>
+  <table role="presentation" cellspacing="0" cellpadding="0" border="0" style="margin: 24px 0;">
+    <tr>
+      <td style="background-color: #2563eb; border-radius: 6px;">
+        <a href="{settings.app_url}/policies"
+           style="display: inline-block; color: #ffffff; padding: 14px 32px; text-decoration: none; font-weight: 700; font-size: 16px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
+          Review in Covrabl
+        </a>
+      </td>
+    </tr>
+  </table>
   <p style="color: #888; font-size: 13px; line-height: 1.5; margin-top: 24px;">
     You're receiving this because you have renewal reminders set up in Covrabl.
   </p>

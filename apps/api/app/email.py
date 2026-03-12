@@ -63,10 +63,16 @@ async def send_reset_email(to_email: str, reset_url: str) -> None:
   <p style="color: #555; line-height: 1.6;">
     We received a request to reset your Covrabl password. Click the button below to choose a new password.
   </p>
-  <a href="{reset_url}"
-     style="display: inline-block; background: #6c5ce7; color: #fff; padding: 12px 28px; border-radius: 6px; text-decoration: none; font-weight: 600; margin: 24px 0;">
-    Reset Password
-  </a>
+  <table role="presentation" cellspacing="0" cellpadding="0" border="0" style="margin: 24px 0;">
+    <tr>
+      <td style="background-color: #2563eb; border-radius: 6px;">
+        <a href="{reset_url}"
+           style="display: inline-block; color: #ffffff; padding: 14px 32px; text-decoration: none; font-weight: 700; font-size: 16px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
+          Reset Password
+        </a>
+      </td>
+    </tr>
+  </table>
   <p style="color: #888; font-size: 13px; line-height: 1.5;">
     This link expires in 1 hour. If you didn't request a password reset, you can safely ignore this email.
   </p>
@@ -96,10 +102,16 @@ async def send_share_email(
   <p style="color: #555; line-height: 1.6;">
     Sign in or create a free account to view the shared coverage details.
   </p>
-  <a href="{app_url}/login"
-     style="display: inline-block; background: #1e3a5f; color: #fff; padding: 12px 28px; border-radius: 6px; text-decoration: none; font-weight: 600; margin: 24px 0;">
-    View Shared Policies
-  </a>
+  <table role="presentation" cellspacing="0" cellpadding="0" border="0" style="margin: 24px 0;">
+    <tr>
+      <td style="background-color: #2563eb; border-radius: 6px;">
+        <a href="{app_url}/login"
+           style="display: inline-block; color: #ffffff; padding: 14px 32px; text-decoration: none; font-weight: 700; font-size: 16px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
+          View Shared Policies
+        </a>
+      </td>
+    </tr>
+  </table>
   <p style="color: #888; font-size: 13px; line-height: 1.5;">
     Use this email address ({to_email}) when creating your account so the shared policies appear automatically.
   </p>
@@ -144,10 +156,16 @@ async def send_lease_requirements_email(
   <p style="color: #555; line-height: 1.6;">
     Review the requirements and upload your Certificate of Insurance to verify compliance.
   </p>{notes_html}
-  <a href="{public_url}"
-     style="display: inline-block; background: #1e3a5f; color: #fff; padding: 12px 28px; border-radius: 6px; text-decoration: none; font-weight: 600; margin: 24px 0;">
-    View Requirements
-  </a>
+  <table role="presentation" cellspacing="0" cellpadding="0" border="0" style="margin: 24px 0;">
+    <tr>
+      <td style="background-color: #2563eb; border-radius: 6px;">
+        <a href="{public_url}"
+           style="display: inline-block; color: #ffffff; padding: 14px 32px; text-decoration: none; font-weight: 700; font-size: 16px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
+          View Requirements
+        </a>
+      </td>
+    </tr>
+  </table>
   <p style="color: #888; font-size: 13px; line-height: 1.5;">
     No account is needed to view requirements or submit your certificate.
   </p>
@@ -197,10 +215,16 @@ async def send_coi_submission_email(
   <div style="background: #f8f9fa; border-radius: 8px; padding: 16px; margin: 16px 0;">
     <p style="margin: 0; font-size: 14px; color: #333; font-weight: 600;">Compliance Summary: {summary}</p>
   </div>{notes_html}
-  <a href="{review_url}"
-     style="display: inline-block; background: #1e3a5f; color: #fff; padding: 12px 28px; border-radius: 6px; text-decoration: none; font-weight: 600; margin: 24px 0;">
-    Review Results
-  </a>
+  <table role="presentation" cellspacing="0" cellpadding="0" border="0" style="margin: 24px 0;">
+    <tr>
+      <td style="background-color: #2563eb; border-radius: 6px;">
+        <a href="{review_url}"
+           style="display: inline-block; color: #ffffff; padding: 14px 32px; text-decoration: none; font-weight: 700; font-size: 16px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
+          Review Results
+        </a>
+      </td>
+    </tr>
+  </table>
 </body>
 </html>"""
 
@@ -257,10 +281,16 @@ async def send_deficiency_notice_email(
   </p>
   <h3 style="color: #991b1b; font-size: 15px; margin: 20px 0 8px;">Requirements Not Met</h3>
   {items_html}{notes_html}
-  <a href="{resubmit_url}"
-     style="display: inline-block; background: #1e3a5f; color: #fff; padding: 12px 28px; border-radius: 6px; text-decoration: none; font-weight: 600; margin: 24px 0;">
-    Resubmit Certificate
-  </a>
+  <table role="presentation" cellspacing="0" cellpadding="0" border="0" style="margin: 24px 0;">
+    <tr>
+      <td style="background-color: #2563eb; border-radius: 6px;">
+        <a href="{resubmit_url}"
+           style="display: inline-block; color: #ffffff; padding: 14px 32px; text-decoration: none; font-weight: 700; font-size: 16px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
+          Resubmit Certificate
+        </a>
+      </td>
+    </tr>
+  </table>
 </body>
 </html>"""
 
