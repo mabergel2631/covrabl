@@ -1946,7 +1946,7 @@ function PolicyDetailContent() {
                   </div>
                   <div style={{ display: 'flex', gap: 6 }}>
                     <button onClick={() => setViewingPolicyCert(cert)} style={{ padding: '4px 10px', fontSize: 12, border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)', backgroundColor: '#fff', cursor: 'pointer' }}>View</button>
-                    <button onClick={() => router.push(`/certificates?from=${policyId}`)} style={{ padding: '4px 10px', fontSize: 12, border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)', backgroundColor: '#fff', cursor: 'pointer' }}>Edit</button>
+                    <button onClick={() => router.push(`/certificates?edit=${cert.id}&from=${policyId}`)} style={{ padding: '4px 10px', fontSize: 12, border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)', backgroundColor: '#fff', cursor: 'pointer' }}>Edit</button>
                   </div>
                 </div>
               );
@@ -4037,7 +4037,7 @@ function PolicyDetailContent() {
                   style={{ padding: '8px 20px', border: '1px solid #fecaca', borderRadius: 'var(--radius-sm)', backgroundColor: '#fff', color: 'var(--color-danger)', cursor: 'pointer', fontSize: 14 }}
                 >Delete</button>
                 <button onClick={() => setViewingPolicyCert(null)} style={{ padding: '8px 20px', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)', backgroundColor: '#fff', cursor: 'pointer', fontSize: 14 }}>Close</button>
-                <button onClick={() => { setViewingPolicyCert(null); router.push(`/certificates?from=${policyId}`); }} style={{ padding: '8px 20px', backgroundColor: 'var(--color-primary)', color: '#fff', border: 'none', borderRadius: 'var(--radius-sm)', fontWeight: 600, cursor: 'pointer', fontSize: 14 }}>Edit</button>
+                <button onClick={() => { setViewingPolicyCert(null); router.push(`/certificates?edit=${vc.id}&from=${policyId}`); }} style={{ padding: '8px 20px', backgroundColor: 'var(--color-primary)', color: '#fff', border: 'none', borderRadius: 'var(--radius-sm)', fontWeight: 600, cursor: 'pointer', fontSize: 14 }}>Edit</button>
               </div>
             </div>
           </div>

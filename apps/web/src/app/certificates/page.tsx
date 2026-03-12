@@ -130,6 +130,7 @@ function CertificatesContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const addForPolicyId = searchParams.get('addFor') ? Number(searchParams.get('addFor')) : null;
+  const editCertId = searchParams.get('edit') ? Number(searchParams.get('edit')) : null;
   const fromPolicyId = searchParams.get('from') ? Number(searchParams.get('from')) : addForPolicyId;
   const { toast } = useToast();
 
@@ -159,6 +160,7 @@ function CertificatesContent() {
   // Add Verification choice modal
   const [showAddChoice, setShowAddChoice] = useState(false);
   const [addForUsed, setAddForUsed] = useState(false);
+  const [editCertUsed, setEditCertUsed] = useState(false);
   const [showPolicyPicker, setShowPolicyPicker] = useState(false);
 
   // Lease detail modal
@@ -180,7 +182,13 @@ function CertificatesContent() {
       setCertificates(certs);
       setPolicies(pols);
       setLeaseReqs(reqs);
-      if (addForPolicyId && !addForUsed && pols.some(p => p.id === addForPolicyId)) {
+      if (editCertId && !editCertUsed) {
+        const certToEdit = certs.find(c => c.id === editCertId);
+        if (certToEdit) {
+          startEdit(certToEdit);
+          setEditCertUsed(true);
+        }
+      } else if (addForPolicyId && !addForUsed && pols.some(p => p.id === addForPolicyId)) {
         setForm(f => ({ ...f, policy_id: addForPolicyId }));
         setShowForm(true);
         setAddForUsed(true);
