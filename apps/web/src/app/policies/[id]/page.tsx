@@ -2843,21 +2843,7 @@ function PolicyDetailContent() {
                             {hasResults ? 'Upload New Document' : 'Upload Document'}
                           </button>
                         )}
-                        {/* View My Document — tenant only, when current check has a document */}
-                        {!isLandlord && leaseActiveCheckHasDoc && leaseActiveCheckId && (
-                          <button onClick={async () => {
-                            trackClick('lease_check_view_doc');
-                            try {
-                              const blob = await leaseComplianceApi.downloadCoiDocument(leaseActiveCheckId);
-                              const url = URL.createObjectURL(blob);
-                              window.open(url, '_blank');
-                            } catch {
-                              toast('Document not available', 'error');
-                            }
-                          }} style={{ padding: '6px 14px', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)', backgroundColor: '#fff', cursor: 'pointer', fontWeight: 600, fontSize: 12 }}>
-                            View My Document
-                          </button>
-                        )}
+                        {/* View My Document — moved to unified "View Certificate" button below */}
                         {/* Send to Landlord — tenant only, when results exist */}
                         {!isLandlord && hasResults && activeReq && (
                           <button onClick={() => {
@@ -2914,15 +2900,18 @@ function PolicyDetailContent() {
                         {!isLandlord && hasResults && (
                           <button onClick={() => { trackClick('lease_check_send_broker'); leaseActiveReqId && handleLeaseBrokerEmail(leaseActiveReqId); }} style={{ padding: '6px 14px', backgroundColor: '#2563eb', color: '#fff', border: 'none', borderRadius: 'var(--radius-sm)', fontWeight: 600, cursor: 'pointer', fontSize: 12 }}>Send to Broker</button>
                         )}
-                        {/* View Certificate — landlord only, when tenant submitted COI */}
+                        {/* View Certificate — when any check has a document */}
                         {activeReq && (() => {
+                          // Show document from tenant submission
                           const submittedTenant = activeReq.tenants?.find(t => t.submitted_at && t.has_document);
-                          if (isLandlord && submittedTenant) {
+                          // Or from the active check itself
+                          const docCheckId = submittedTenant ? submittedTenant.check_id : (leaseActiveCheckHasDoc && leaseActiveCheckId ? leaseActiveCheckId : null);
+                          if (docCheckId) {
                             return (
                               <button onClick={async () => {
-                                trackClick('lease_check_view_tenant_doc');
+                                trackClick('lease_check_view_doc', { check_id: docCheckId });
                                 try {
-                                  const blob = await leaseComplianceApi.downloadCoiDocument(submittedTenant.check_id);
+                                  const blob = await leaseComplianceApi.downloadCoiDocument(docCheckId);
                                   const url = URL.createObjectURL(blob);
                                   window.open(url, '_blank');
                                 } catch {
