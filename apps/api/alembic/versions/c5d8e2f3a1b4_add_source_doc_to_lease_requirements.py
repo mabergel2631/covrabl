@@ -19,8 +19,14 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    op.add_column("lease_requirements", sa.Column("source_doc_name", sa.String(255), nullable=True))
-    op.add_column("lease_requirements", sa.Column("source_doc_data", sa.LargeBinary(), nullable=True))
+    from sqlalchemy import inspect
+    bind = op.get_bind()
+    inspector = inspect(bind)
+    existing = [c["name"] for c in inspector.get_columns("lease_requirements")]
+    if "source_doc_name" not in existing:
+        op.add_column("lease_requirements", sa.Column("source_doc_name", sa.String(255), nullable=True))
+    if "source_doc_data" not in existing:
+        op.add_column("lease_requirements", sa.Column("source_doc_data", sa.LargeBinary(), nullable=True))
 
 
 def downgrade() -> None:
