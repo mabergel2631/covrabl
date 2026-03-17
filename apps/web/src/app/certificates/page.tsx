@@ -194,6 +194,15 @@ function CertificatesContent() {
   // Delete requirement confirm
   const [deleteReqConfirm, setDeleteReqConfirm] = useState<number | null>(null);
 
+  // Lease detail: loaded results & send modals
+  const [leaseDetailResults, setLeaseDetailResults] = useState<ComplianceResultItem[]>([]);
+  const [leaseDetailLoading, setLeaseDetailLoading] = useState(false);
+  const [showSendToCounterparty, setShowSendToCounterparty] = useState(false);
+  const [sendEmail, setSendEmail] = useState('');
+  const [sendName, setSendName] = useState('');
+  const [sendNotes, setSendNotes] = useState('');
+  const [sendMode, setSendMode] = useState<'request' | 'deficiency'>('request');
+
   useEffect(() => {
     if (!token) { router.replace('/login'); return; }
     trackPageView('compliance_verification');
@@ -374,12 +383,27 @@ function CertificatesContent() {
     }
   }
 
+  async function openLeaseDetail(req: LeaseRequirement) {
+    setViewingLease(req);
+    setLeaseDetailResults([]);
+    setLeaseDetailLoading(true);
+    try {
+      const checks = await leaseComplianceApi.listChecks(req.id);
+      if (checks.length > 0) {
+        const latest = checks[0];
+        const results: ComplianceResultItem[] = latest.results || (latest.results_json ? JSON.parse(latest.results_json) : []);
+        setLeaseDetailResults(results);
+      }
+    } catch { /* ignore — just won't show results */ }
+    setLeaseDetailLoading(false);
+  }
+
   function handleRowClick(row: ComplianceRow) {
     trackClick('compliance_row_view', { type: row.sourceType, id: row.sourceId });
     if (row.sourceType === 'certificate') {
       setViewingCert(row.raw as Certificate);
     } else {
-      setViewingLease(row.raw as LeaseRequirement);
+      openLeaseDetail(row.raw as LeaseRequirement);
     }
   }
 
@@ -1087,15 +1111,34 @@ function CertificatesContent() {
 
                 {/* Actions */}
                 <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-                  {docResultCounts.fail > 0 && docCounterpartyEmail && docSavedReq && (
+                  {docSavedReq && (
                     <button
-                      onClick={async () => {
-                        try {
-                          await leaseComplianceApi.sendDeficiencyNotice(docSavedReq.id, docCounterpartyEmail, docCounterpartyName || undefined);
-                          toast('Deficiency notice sent!', 'success');
-                        } catch (err: any) {
-                          toast(err.message || 'Failed to send', 'error');
-                        }
+                      onClick={() => {
+                        trackClick('doc_flow_request_coi');
+                        setSendEmail(docCounterpartyEmail || '');
+                        setSendName(docCounterpartyName || '');
+                        setSendNotes('');
+                        setSendMode('request');
+                        // Temporarily set viewingLease for the send modal to use
+                        setViewingLease(docSavedReq);
+                        setShowSendToCounterparty(true);
+                      }}
+                      style={{ padding: '8px 16px', backgroundColor: 'var(--color-primary)', color: '#fff', border: 'none', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontSize: 13, fontWeight: 600 }}
+                    >
+                      Request COI
+                    </button>
+                  )}
+                  {docResultCounts.fail > 0 && docSavedReq && (
+                    <button
+                      onClick={() => {
+                        trackClick('doc_flow_send_deficiency');
+                        setSendEmail(docCounterpartyEmail || '');
+                        setSendName(docCounterpartyName || '');
+                        setSendNotes('');
+                        setSendMode('deficiency');
+                        setViewingLease(docSavedReq);
+                        setLeaseDetailResults(docResults);
+                        setShowSendToCounterparty(true);
                       }}
                       style={{ padding: '8px 16px', backgroundColor: '#dc2626', color: '#fff', border: 'none', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontSize: 13, fontWeight: 600 }}
                     >
@@ -1110,7 +1153,7 @@ function CertificatesContent() {
                   </button>
                   <button
                     onClick={() => { setShowDocFlow(false); resetDocFlow(); }}
-                    style={{ padding: '8px 16px', backgroundColor: 'var(--color-primary)', color: '#fff', border: 'none', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontSize: 13, fontWeight: 600 }}
+                    style={{ padding: '8px 16px', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)', backgroundColor: '#fff', cursor: 'pointer', fontSize: 13, fontWeight: 600 }}
                   >
                     Done
                   </button>
@@ -1584,20 +1627,20 @@ function CertificatesContent() {
             verdict = 'Needs Verification'; verdictColor = '#92400e'; verdictBg = '#fef3c7';
           }
         }
+        const reqItems: LeaseRequirementItem[] = (() => { try { return JSON.parse(req.requirements_json); } catch { return []; } })();
+        const isDocCheck = req.role === 'requester';
+        const submittedTenant = req.tenants?.find(t => t.submitted_at && t.has_document);
 
         return (
           <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
-            <div style={{ backgroundColor: '#fff', borderRadius: 'var(--radius-lg)', padding: 20, maxWidth: 560, width: '100%', maxHeight: '90vh', overflowY: 'auto' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20 }}>
-                <h2 style={{ fontSize: 18, fontWeight: 700, margin: 0 }}>{req.role === 'requester' ? 'Document Check Details' : 'Lease Check Details'}</h2>
+            <div style={{ backgroundColor: '#fff', borderRadius: 'var(--radius-lg)', padding: 20, maxWidth: 620, width: '100%', maxHeight: '90vh', overflowY: 'auto' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
+                <h2 style={{ fontSize: 18, fontWeight: 700, margin: 0 }}>{isDocCheck ? 'Document Check Details' : 'Lease Check Details'}</h2>
                 <button onClick={() => { trackClick('lease_detail_close'); setViewingLease(null); }} style={{ background: 'none', border: 'none', fontSize: 20, cursor: 'pointer', color: 'var(--color-text-muted)', padding: 0, lineHeight: 1 }}>&times;</button>
               </div>
 
               {/* Verdict banner */}
-              <div style={{
-                padding: '12px 16px', borderRadius: 'var(--radius-md)', marginBottom: 20,
-                backgroundColor: verdictBg, textAlign: 'center',
-              }}>
+              <div style={{ padding: '12px 16px', borderRadius: 'var(--radius-md)', marginBottom: 16, backgroundColor: verdictBg, textAlign: 'center' }}>
                 <div style={{ fontSize: 16, fontWeight: 700, color: verdictColor }}>{verdict}</div>
                 {lc && (
                   <div style={{ fontSize: 12, color: verdictColor, marginTop: 4 }}>
@@ -1606,104 +1649,150 @@ function CertificatesContent() {
                 )}
               </div>
 
-              {/* Details */}
+              {/* Info section */}
               <div style={{ marginBottom: 16 }}>
                 <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 8, color: 'var(--color-text)' }}>{req.label}</div>
-                <div className="form-grid-2" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                  <div>
-                    <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-text-secondary)', marginBottom: 2 }}>Role</div>
-                    <div style={{ fontSize: 14 }}>{req.role === 'tenant' ? 'Tenant' : req.role === 'landlord' ? 'Landlord' : 'Document Comparison'}</div>
-                  </div>
+                <div className="form-grid-2" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
                   {req.counterparty_name && (
                     <div>
-                      <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-text-secondary)', marginBottom: 2 }}>Counterparty</div>
-                      <div style={{ fontSize: 14 }}>{req.counterparty_name}</div>
+                      <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--color-text-secondary)' }}>Counterparty</div>
+                      <div style={{ fontSize: 13 }}>{req.counterparty_name}</div>
                     </div>
                   )}
                   {req.property_address && (
                     <div>
-                      <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-text-secondary)', marginBottom: 2 }}>Property</div>
-                      <div style={{ fontSize: 14 }}>{req.property_address}</div>
+                      <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--color-text-secondary)' }}>Property / Reference</div>
+                      <div style={{ fontSize: 13 }}>{req.property_address}</div>
+                    </div>
+                  )}
+                  {req.counterparty_email && (
+                    <div>
+                      <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--color-text-secondary)' }}>Email</div>
+                      <div style={{ fontSize: 13 }}>{req.counterparty_email}</div>
                     </div>
                   )}
                 </div>
               </div>
 
-              {/* Actions */}
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, borderTop: '1px solid var(--color-border)', paddingTop: 16, flexWrap: 'wrap' }}>
-                {/* View source document for document-based requirements */}
-                {req.has_source_doc && (
-                  <button
-                    onClick={async () => {
-                      trackClick('lease_detail_view_source_doc', { id: req.id });
-                      try {
-                        const blob = await leaseComplianceApi.downloadSourceDocument(req.id);
-                        const url = URL.createObjectURL(blob);
-                        window.open(url, '_blank');
-                      } catch {
-                        toast('Source document not available', 'error');
-                      }
-                    }}
-                    style={{ padding: '8px 20px', backgroundColor: '#2563eb', color: '#fff', border: 'none', borderRadius: 'var(--radius-sm)', fontWeight: 600, cursor: 'pointer', fontSize: 14 }}
-                  >
-                    View Document
-                  </button>
-                )}
-                {/* View tenant-uploaded certificate if available */}
-                {(() => {
-                  const submittedTenant = req.tenants?.find(t => t.submitted_at && t.has_document);
-                  if (submittedTenant) {
-                    return (
-                      <button
-                        onClick={async () => {
-                          trackClick('lease_detail_view_cert', { id: req.id, check_id: submittedTenant.check_id });
-                          try {
-                            const blob = await leaseComplianceApi.downloadCoiDocument(submittedTenant.check_id);
-                            const url = URL.createObjectURL(blob);
-                            window.open(url, '_blank');
-                          } catch {
-                            toast('Document not available', 'error');
-                          }
-                        }}
-                        style={{ padding: '8px 20px', backgroundColor: '#2563eb', color: '#fff', border: 'none', borderRadius: 'var(--radius-sm)', fontWeight: 600, cursor: 'pointer', fontSize: 14 }}
-                      >
-                        View Certificate
-                      </button>
-                    );
-                  }
-                  return null;
-                })()}
-                {req.policy_id && (
+              {/* View Documents */}
+              {(req.has_source_doc || submittedTenant) && (
+                <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
+                  {req.has_source_doc && (
+                    <button
+                      onClick={async () => {
+                        try {
+                          const blob = await leaseComplianceApi.downloadSourceDocument(req.id);
+                          window.open(URL.createObjectURL(blob), '_blank');
+                        } catch { toast('Document not available', 'error'); }
+                      }}
+                      style={{ padding: '8px 14px', backgroundColor: '#f0f9ff', border: '1px solid #bae6fd', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontSize: 13, fontWeight: 600, color: '#0c4a6e' }}
+                    >
+                      View Requirements Doc{req.source_doc_name ? ` (${req.source_doc_name})` : ''}
+                    </button>
+                  )}
+                  {submittedTenant && (
+                    <button
+                      onClick={async () => {
+                        try {
+                          const blob = await leaseComplianceApi.downloadCoiDocument(submittedTenant.check_id);
+                          window.open(URL.createObjectURL(blob), '_blank');
+                        } catch { toast('Document not available', 'error'); }
+                      }}
+                      style={{ padding: '8px 14px', backgroundColor: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontSize: 13, fontWeight: 600, color: '#166534' }}
+                    >
+                      View Uploaded COI
+                    </button>
+                  )}
+                </div>
+              )}
+
+              {/* Requirements list */}
+              {reqItems.length > 0 && (
+                <div style={{ marginBottom: 16 }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--color-text)', marginBottom: 6 }}>
+                    Requirements ({reqItems.length})
+                  </div>
+                  <div style={{ maxHeight: 140, overflowY: 'auto', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', fontSize: 12 }}>
+                    {reqItems.map((r, i) => (
+                      <div key={i} style={{ padding: '6px 10px', borderBottom: i < reqItems.length - 1 ? '1px solid var(--color-border)' : 'none', color: 'var(--color-text)' }}>
+                        {r.label}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Full compliance results */}
+              {leaseDetailLoading && (
+                <div style={{ textAlign: 'center', padding: 16, color: 'var(--color-text-muted)', fontSize: 13 }}>Loading results...</div>
+              )}
+              {leaseDetailResults.length > 0 && (
+                <div style={{ marginBottom: 16 }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--color-text)', marginBottom: 6 }}>
+                    Compliance Results
+                  </div>
+                  <div style={{ maxHeight: 200, overflowY: 'auto', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)' }}>
+                    {leaseDetailResults.map((r, i) => (
+                      <div key={i} style={{ padding: '8px 12px', borderBottom: i < leaseDetailResults.length - 1 ? '1px solid var(--color-border)' : 'none', display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+                        <span style={{ fontSize: 14, flexShrink: 0, marginTop: 1 }}>
+                          {r.status === 'pass' ? '\u2705' : r.status === 'fail' ? '\u274C' : '\u2753'}
+                        </span>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-text)' }}>{r.requirement_label}</div>
+                          <div style={{ fontSize: 11, color: 'var(--color-text-secondary)', marginTop: 2 }}>{r.note}</div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Action buttons */}
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', borderTop: '1px solid var(--color-border)', paddingTop: 14 }}>
+                {/* Send to counterparty — request their COI */}
+                <button
+                  onClick={() => {
+                    trackClick('lease_detail_send_request', { id: req.id });
+                    setSendEmail(req.counterparty_email || '');
+                    setSendName(req.counterparty_name || '');
+                    setSendNotes('');
+                    setSendMode('request');
+                    setShowSendToCounterparty(true);
+                  }}
+                  style={{ padding: '8px 14px', backgroundColor: 'var(--color-primary)', color: '#fff', border: 'none', borderRadius: 'var(--radius-sm)', fontWeight: 600, cursor: 'pointer', fontSize: 13 }}
+                >
+                  Request COI
+                </button>
+                {/* Send deficiency notice */}
+                {lc && lc.fail_count > 0 && (
                   <button
                     onClick={() => {
-                      trackClick('lease_detail_view_policy', { id: req.id, policy_id: req.policy_id });
-                      setViewingLease(null);
-                      router.push(`/policies/${req.policy_id}?from=certificates`);
+                      trackClick('lease_detail_send_deficiency', { id: req.id });
+                      setSendEmail(req.counterparty_email || '');
+                      setSendName(req.counterparty_name || '');
+                      setSendNotes('');
+                      setSendMode('deficiency');
+                      setShowSendToCounterparty(true);
                     }}
-                    style={{ padding: '8px 20px', backgroundColor: 'var(--color-primary)', color: '#fff', border: 'none', borderRadius: 'var(--radius-sm)', fontWeight: 600, cursor: 'pointer', fontSize: 14 }}
+                    style={{ padding: '8px 14px', backgroundColor: '#dc2626', color: '#fff', border: 'none', borderRadius: 'var(--radius-sm)', fontWeight: 600, cursor: 'pointer', fontSize: 13 }}
                   >
-                    View on Policy
+                    Send Deficiency Notice
+                  </button>
+                )}
+                {req.policy_id && (
+                  <button onClick={() => { setViewingLease(null); router.push(`/policies/${req.policy_id}?from=certificates`); }}
+                    style={{ padding: '8px 14px', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)', backgroundColor: '#fff', cursor: 'pointer', fontSize: 13 }}>
+                    View Policy
                   </button>
                 )}
                 <button
-                  onClick={() => {
-                    trackClick('lease_detail_share', { id: req.id });
-                    const url = `${window.location.origin}/lease-compliance/${req.access_code}`;
-                    navigator.clipboard.writeText(url);
-                    toast('Link copied to clipboard');
-                  }}
-                  style={{ padding: '8px 20px', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)', backgroundColor: '#fff', cursor: 'pointer', fontSize: 14 }}
-                >
+                  onClick={() => { navigator.clipboard.writeText(`${window.location.origin}/lease-compliance/${req.access_code}`); toast('Public link copied'); }}
+                  style={{ padding: '8px 14px', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)', backgroundColor: '#fff', cursor: 'pointer', fontSize: 13 }}>
                   Copy Link
                 </button>
                 <button
-                  onClick={() => {
-                    trackClick('lease_detail_delete', { id: req.id });
-                    setViewingLease(null);
-                    setDeleteReqConfirm(req.id);
-                  }}
-                  style={{ padding: '8px 20px', border: '1px solid #fecaca', borderRadius: 'var(--radius-sm)', backgroundColor: '#fff', color: 'var(--color-danger)', cursor: 'pointer', fontSize: 14 }}
-                >
+                  onClick={() => { setViewingLease(null); setDeleteReqConfirm(req.id); }}
+                  style={{ padding: '8px 14px', border: '1px solid #fecaca', borderRadius: 'var(--radius-sm)', backgroundColor: '#fff', color: 'var(--color-danger)', cursor: 'pointer', fontSize: 13 }}>
                   Delete
                 </button>
               </div>
@@ -1711,6 +1800,81 @@ function CertificatesContent() {
           </div>
         );
       })()}
+
+      {/* ── Send to Counterparty Modal ── */}
+      {showSendToCounterparty && viewingLease && (
+        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 1100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+          <div style={{ backgroundColor: '#fff', borderRadius: 'var(--radius-lg)', padding: 20, maxWidth: 460, width: '100%' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+              <h2 style={{ fontSize: 18, fontWeight: 700, margin: 0 }}>
+                {sendMode === 'request' ? 'Request Certificate of Insurance' : 'Send Deficiency Notice'}
+              </h2>
+              <button onClick={() => setShowSendToCounterparty(false)} style={{ background: 'none', border: 'none', fontSize: 20, cursor: 'pointer', color: 'var(--color-text-muted)', padding: 0, lineHeight: 1 }}>&times;</button>
+            </div>
+
+            <p style={{ fontSize: 13, color: 'var(--color-text-secondary)', margin: '0 0 16px' }}>
+              {sendMode === 'request'
+                ? 'Send a link where the counterparty can upload their certificate of insurance for compliance verification.'
+                : 'Notify the counterparty of specific compliance failures and request updated documentation.'}
+            </p>
+
+            <div style={{ marginBottom: 12 }}>
+              <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--color-text-secondary)', marginBottom: 4 }}>Recipient Email *</label>
+              <input type="email" value={sendEmail} onChange={e => setSendEmail(e.target.value)} placeholder="email@example.com" style={{ width: '100%', padding: '8px 10px', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)', fontSize: 13, boxSizing: 'border-box' }} />
+            </div>
+            <div style={{ marginBottom: 12 }}>
+              <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--color-text-secondary)', marginBottom: 4 }}>Recipient Name</label>
+              <input type="text" value={sendName} onChange={e => setSendName(e.target.value)} placeholder="e.g. John Smith" style={{ width: '100%', padding: '8px 10px', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)', fontSize: 13, boxSizing: 'border-box' }} />
+            </div>
+            <div style={{ marginBottom: 16 }}>
+              <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--color-text-secondary)', marginBottom: 4 }}>Notes (optional)</label>
+              <textarea value={sendNotes} onChange={e => setSendNotes(e.target.value)} placeholder={sendMode === 'request' ? 'e.g. Please upload your COI by end of week.' : 'e.g. Please address the items listed below.'} style={{ width: '100%', padding: '8px 10px', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)', fontSize: 13, minHeight: 60, boxSizing: 'border-box', fontFamily: 'var(--font-sans)', resize: 'vertical' }} />
+            </div>
+
+            {sendMode === 'deficiency' && leaseDetailResults.filter(r => r.status === 'fail').length > 0 && (
+              <div style={{ marginBottom: 16, padding: 10, backgroundColor: '#fee2e2', borderRadius: 'var(--radius-sm)', fontSize: 12 }}>
+                <div style={{ fontWeight: 600, color: '#991b1b', marginBottom: 4 }}>Failed Items ({leaseDetailResults.filter(r => r.status === 'fail').length})</div>
+                {leaseDetailResults.filter(r => r.status === 'fail').map((r, i) => (
+                  <div key={i} style={{ color: '#991b1b', marginTop: 2 }}>&bull; {r.requirement_label}</div>
+                ))}
+              </div>
+            )}
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
+              <button onClick={() => setShowSendToCounterparty(false)} style={{ padding: '8px 20px', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)', backgroundColor: '#fff', cursor: 'pointer', fontSize: 13 }}>Cancel</button>
+              <button
+                onClick={async () => {
+                  if (!sendEmail.trim()) { toast('Email is required', 'error'); return; }
+                  try {
+                    if (sendMode === 'request') {
+                      trackClick('send_coi_request', { req_id: viewingLease.id });
+                      const res = await leaseComplianceApi.sendToTenant(viewingLease.id, sendEmail.trim(), sendName.trim() || undefined, sendNotes.trim() || undefined);
+                      toast('COI request sent!');
+                      if (res.public_url) {
+                        navigator.clipboard.writeText(res.public_url);
+                        toast('Public link also copied to clipboard');
+                      }
+                    } else {
+                      trackClick('send_deficiency_notice', { req_id: viewingLease.id });
+                      await leaseComplianceApi.sendDeficiencyNotice(viewingLease.id, sendEmail.trim(), sendName.trim() || undefined, sendNotes.trim() || undefined);
+                      toast('Deficiency notice sent!');
+                    }
+                    setShowSendToCounterparty(false);
+                  } catch (err: any) {
+                    toast(err.message || 'Failed to send', 'error');
+                  }
+                }}
+                style={{
+                  padding: '8px 20px', border: 'none', borderRadius: 'var(--radius-sm)', fontWeight: 600, cursor: 'pointer', fontSize: 13,
+                  backgroundColor: sendMode === 'request' ? 'var(--color-primary)' : '#dc2626', color: '#fff',
+                }}
+              >
+                {sendMode === 'request' ? 'Send COI Request' : 'Send Notice'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Delete confirmation */}
       {deleteConfirm != null && (
