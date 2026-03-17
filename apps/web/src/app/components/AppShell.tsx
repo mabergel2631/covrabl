@@ -3,13 +3,13 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { useAuth } from '../../../lib/auth';
-import { fetchActiveAnnouncements, checkFeatureAccess } from '../../../lib/api';
+import { fetchActiveAnnouncements, checkFeatureAccess, leaseComplianceApi } from '../../../lib/api';
 import { trackPageView, trackClick } from '../../../lib/track';
 import { APP_NAME, APP_SIDEBAR_TAGLINE } from '../config';
 import Logo from './Logo';
 import BrokerPrompt from './BrokerPrompt';
 
-type NavItem = { href: string; label: string; icon: string; urgent?: boolean; feature?: string };
+type NavItem = { href: string; label: string; icon: string; urgent?: boolean; feature?: string; badge?: number };
 type NavSection = { label: string; items: NavItem[] };
 
 const NAV_SECTIONS: NavSection[] = [
@@ -49,12 +49,26 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [announcements, setAnnouncements] = useState<{ id: number; title: string; message: string; type: string }[]>([]);
   const [dismissedIds, setDismissedIds] = useState<Set<number>>(new Set());
+  const [complianceBadge, setComplianceBadge] = useState(0);
 
   useEffect(() => {
     fetchActiveAnnouncements()
       .then(setAnnouncements)
       .catch(() => {});
+    // Fetch unseen compliance activity
+    const lastSeen = typeof localStorage !== 'undefined' ? localStorage.getItem('pv_compliance_last_seen') || '' : '';
+    leaseComplianceApi.activitySince(lastSeen)
+      .then(r => setComplianceBadge(r.count))
+      .catch(() => {});
   }, []);
+
+  // Clear badge when navigating to compliance page
+  useEffect(() => {
+    if (pathname === '/certificates' && complianceBadge > 0) {
+      setComplianceBadge(0);
+      if (typeof localStorage !== 'undefined') localStorage.setItem('pv_compliance_last_seen', new Date().toISOString());
+    }
+  }, [pathname, complianceBadge]);
 
   // Global page view tracking
   useEffect(() => {
@@ -138,7 +152,10 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         <nav style={{ flex: 1, padding: '12px 8px', overflowY: 'auto' }}>
           {(() => {
             // Build sections with role-based items appended to MAIN
-            const sections = NAV_SECTIONS.map(s => ({ ...s, items: [...s.items] }));
+            const sections = NAV_SECTIONS.map(s => ({ ...s, items: s.items.map(i => ({ ...i })) }));
+            // Inject compliance badge
+            const complianceItem = sections[0].items.find(i => i.href === '/certificates');
+            if (complianceItem && complianceBadge > 0) complianceItem.badge = complianceBadge;
             if (role === 'agent') sections[0].items.push({ href: '/agent', label: 'My Clients', icon: '👥' });
             if (role === 'admin') sections[0].items.push({ href: '/admin', label: 'Admin', icon: '⚙️' });
 
@@ -177,6 +194,16 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
                     >
                       <span style={{ fontSize: 16 }}>{item.icon}</span>
                       {item.label}
+                      {item.badge && item.badge > 0 ? (
+                        <span style={{
+                          marginLeft: 'auto', minWidth: 18, height: 18, borderRadius: 9,
+                          backgroundColor: '#ef4444', color: '#fff', fontSize: 10, fontWeight: 700,
+                          display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                          padding: '0 5px', lineHeight: 1,
+                        }}>
+                          {item.badge}
+                        </span>
+                      ) : null}
                       {isLocked && <span style={{ marginLeft: 'auto', fontSize: 11, opacity: 0.6 }}>&#128274;</span>}
                     </button>
                   );

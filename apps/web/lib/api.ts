@@ -2289,6 +2289,9 @@ export const leaseComplianceApi = {
     if (!res.ok) throw new Error("Document not found");
     return res.blob();
   },
+  activitySince(since: string): Promise<{ count: number }> {
+    return request<{ count: number }>(`/lease-compliance/activity-since?since=${encodeURIComponent(since)}`);
+  },
 };
 
 // ── Chat API ────────────────────────────────────────

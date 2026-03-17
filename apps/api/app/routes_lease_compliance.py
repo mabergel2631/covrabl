@@ -549,7 +549,7 @@ def _process_coi_check(check_id: int, requirements_json: str, content: bytes,
                 base_url = settings.app_url
                 if "localhost" in base_url or "127.0.0.1" in base_url:
                     base_url = "https://covrabl.vercel.app"
-                review_url = f"{base_url}/policies/{policy_id}#lease" if policy_id else f"{base_url}/lease-compliance"
+                review_url = f"{base_url}/certificates?notify={check.lease_requirement_id}"
                 submitter_name = tenant_name or tenant_email or "A tenant"
                 import asyncio
                 # Run the async email function from sync context
@@ -740,6 +740,34 @@ def list_compliance_checks(
         }
         for c in checks
     ]
+
+
+# ── Activity Notifications ──────────────────────────
+
+@router.get("/activity-since")
+def get_activity_since(
+    since: str = "",
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Return count of tenant COI submissions since a given ISO timestamp."""
+    check_feature(user, "lease_compliance")
+    query = (
+        select(ComplianceCheck.id)
+        .where(
+            ComplianceCheck.user_id == user.id,
+            ComplianceCheck.submitted_at.isnot(None),
+            ComplianceCheck.status == "complete",
+        )
+    )
+    if since:
+        try:
+            since_dt = datetime.fromisoformat(since.replace("Z", "+00:00"))
+            query = query.where(ComplianceCheck.submitted_at > since_dt)
+        except ValueError:
+            pass  # ignore bad date, return all
+    count = len(db.execute(query).scalars().all())
+    return {"count": count}
 
 
 # ── COI Document Download ──────────────────────────

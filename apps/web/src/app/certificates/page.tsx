@@ -132,7 +132,9 @@ function CertificatesContent() {
   const addForPolicyId = searchParams.get('addFor') ? Number(searchParams.get('addFor')) : null;
   const editCertId = searchParams.get('edit') ? Number(searchParams.get('edit')) : null;
   const fromPolicyId = searchParams.get('from') ? Number(searchParams.get('from')) : addForPolicyId;
+  const notifyReqId = searchParams.get('notify') ? Number(searchParams.get('notify')) : null;
   const { toast } = useToast();
+  const notifyUsed = useRef(false);
 
   const [certificates, setCertificates] = useState<Certificate[]>([]);
   const [policies, setPolicies] = useState<Policy[]>([]);
@@ -204,8 +206,14 @@ function CertificatesContent() {
   const [sendMode, setSendMode] = useState<'request' | 'deficiency'>('request');
 
   useEffect(() => {
-    if (!token) { router.replace('/login'); return; }
+    if (!token) {
+      const returnTo = typeof window !== 'undefined' ? window.location.pathname + window.location.search : '/certificates';
+      router.replace('/login?returnTo=' + encodeURIComponent(returnTo));
+      return;
+    }
     trackPageView('compliance_verification');
+    // Mark compliance as seen for nav badge
+    if (typeof localStorage !== 'undefined') localStorage.setItem('pv_compliance_last_seen', new Date().toISOString());
     load();
   }, [token]);
 
@@ -219,7 +227,16 @@ function CertificatesContent() {
       setCertificates(certs);
       setPolicies(pols);
       setLeaseReqs(reqs);
-      if (editCertId && !editCertUsed) {
+      if (notifyReqId && !notifyUsed.current) {
+        notifyUsed.current = true;
+        const notifyReq = reqs.find(r => r.id === notifyReqId);
+        if (notifyReq) {
+          toast(`New COI submission received for "${notifyReq.label}"`, 'success');
+          openLeaseDetail(notifyReq);
+        }
+        // Strip notify param from URL
+        router.replace('/certificates', { scroll: false });
+      } else if (editCertId && !editCertUsed) {
         const certToEdit = certs.find(c => c.id === editCertId);
         if (certToEdit) {
           startEdit(certToEdit);
