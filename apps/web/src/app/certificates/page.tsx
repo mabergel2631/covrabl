@@ -199,6 +199,8 @@ function CertificatesContent() {
   // Lease detail: loaded results & send modals
   const [leaseDetailResults, setLeaseDetailResults] = useState<ComplianceResultItem[]>([]);
   const [leaseDetailLoading, setLeaseDetailLoading] = useState(false);
+  const [leaseDetailCheckId, setLeaseDetailCheckId] = useState<number | null>(null);
+  const [leaseDetailHasDoc, setLeaseDetailHasDoc] = useState(false);
   const [showSendToCounterparty, setShowSendToCounterparty] = useState(false);
   const [sendEmail, setSendEmail] = useState('');
   const [sendName, setSendName] = useState('');
@@ -403,13 +405,24 @@ function CertificatesContent() {
   async function openLeaseDetail(req: LeaseRequirement) {
     setViewingLease(req);
     setLeaseDetailResults([]);
+    setLeaseDetailCheckId(null);
+    setLeaseDetailHasDoc(false);
     setLeaseDetailLoading(true);
     try {
+      // Refresh the requirement to get up-to-date tenants/latest_check
+      const freshReq = await leaseComplianceApi.get(req.id);
+      if (freshReq) {
+        setViewingLease(freshReq);
+        // Also update in the main list so card reflects latest state
+        setLeaseReqs(prev => prev.map(r => r.id === freshReq.id ? freshReq : r));
+      }
       const checks = await leaseComplianceApi.listChecks(req.id);
       if (checks.length > 0) {
         const latest = checks[0];
         const results: ComplianceResultItem[] = latest.results || (latest.results_json ? JSON.parse(latest.results_json) : []);
         setLeaseDetailResults(results);
+        setLeaseDetailCheckId(latest.id);
+        setLeaseDetailHasDoc(!!latest.has_document);
       }
     } catch { /* ignore — just won't show results */ }
     setLeaseDetailLoading(false);
@@ -654,6 +667,35 @@ function CertificatesContent() {
                       Verify
                     </button>
                   )}
+                  {row.sourceType === 'lease_check' && (() => {
+                    const lr = row.raw as LeaseRequirement;
+                    const hasDocs = lr.has_source_doc || lr.tenants?.some(t => t.has_document);
+                    if (!hasDocs) return null;
+                    return (
+                      <button
+                        onClick={async (e) => {
+                          e.stopPropagation();
+                          trackClick('row_view_docs', { id: lr.id });
+                          // If there's a submitted COI, open it directly; otherwise open source doc
+                          const tenant = lr.tenants?.find(t => t.has_document);
+                          if (tenant) {
+                            try {
+                              const blob = await leaseComplianceApi.downloadCoiDocument(tenant.check_id);
+                              window.open(URL.createObjectURL(blob), '_blank');
+                            } catch { toast('Document not available', 'error'); }
+                          } else if (lr.has_source_doc) {
+                            try {
+                              const blob = await leaseComplianceApi.downloadSourceDocument(lr.id);
+                              window.open(URL.createObjectURL(blob), '_blank');
+                            } catch { toast('Document not available', 'error'); }
+                          }
+                        }}
+                        style={{ padding: '4px 10px', fontSize: 12, border: '1px solid #bbf7d0', borderRadius: 'var(--radius-sm)', backgroundColor: '#f0fdf4', color: '#166534', cursor: 'pointer', whiteSpace: 'nowrap', fontWeight: 600 }}
+                      >
+                        Docs
+                      </button>
+                    );
+                  })()}
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
@@ -1647,6 +1689,8 @@ function CertificatesContent() {
         const reqItems: LeaseRequirementItem[] = (() => { try { return JSON.parse(req.requirements_json); } catch { return []; } })();
         const isDocCheck = req.role === 'requester';
         const submittedTenant = req.tenants?.find(t => t.submitted_at && t.has_document);
+        // Fallback: use the check loaded by openLeaseDetail if tenants array didn't match
+        const coiCheckId = submittedTenant?.check_id ?? (leaseDetailHasDoc ? leaseDetailCheckId : null);
 
         return (
           <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
@@ -1692,11 +1736,12 @@ function CertificatesContent() {
               </div>
 
               {/* View Documents */}
-              {(req.has_source_doc || submittedTenant) && (
+              {(req.has_source_doc || coiCheckId) && (
                 <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
                   {req.has_source_doc && (
                     <button
                       onClick={async () => {
+                        trackClick('lease_detail_view_source_doc', { id: req.id });
                         try {
                           const blob = await leaseComplianceApi.downloadSourceDocument(req.id);
                           window.open(URL.createObjectURL(blob), '_blank');
@@ -1707,11 +1752,12 @@ function CertificatesContent() {
                       View Requirements Doc{req.source_doc_name ? ` (${req.source_doc_name})` : ''}
                     </button>
                   )}
-                  {submittedTenant && (
+                  {coiCheckId && (
                     <button
                       onClick={async () => {
+                        trackClick('lease_detail_view_coi', { checkId: coiCheckId });
                         try {
-                          const blob = await leaseComplianceApi.downloadCoiDocument(submittedTenant.check_id);
+                          const blob = await leaseComplianceApi.downloadCoiDocument(coiCheckId);
                           window.open(URL.createObjectURL(blob), '_blank');
                         } catch { toast('Document not available', 'error'); }
                       }}

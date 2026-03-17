@@ -1342,12 +1342,10 @@ def _requirement_to_dict(req: LeaseRequirement, db: Session) -> dict:
 
     tenants_map: dict[str, dict] = {}
     for c in all_checks:
-        key = c.tenant_email or c.tenant_name
-        if not key:
-            continue
+        key = c.tenant_email or c.tenant_name or f"check-{c.id}"
         if key not in tenants_map:
             tenants_map[key] = {
-                "tenant_name": c.tenant_name,
+                "tenant_name": c.tenant_name or "Unknown",
                 "tenant_email": c.tenant_email,
                 "pass_count": c.pass_count,
                 "fail_count": c.fail_count,
