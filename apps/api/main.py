@@ -107,8 +107,19 @@ def on_startup():
         Base.metadata.create_all(bind=engine)
         logging.info("Fallback create_all complete")
 
+    # Ensure new columns exist (idempotent — safe to run every startup)
+    from sqlalchemy import text, inspect
+    insp = inspect(engine)
+    existing_cols = [c["name"] for c in insp.get_columns("lease_requirements")]
+    with engine.begin() as conn:
+        if "source_doc_name" not in existing_cols:
+            conn.execute(text("ALTER TABLE lease_requirements ADD COLUMN source_doc_name VARCHAR(255)"))
+            logging.info("Added source_doc_name column")
+        if "source_doc_data" not in existing_cols:
+            conn.execute(text("ALTER TABLE lease_requirements ADD COLUMN source_doc_data BYTEA"))
+            logging.info("Added source_doc_data column")
+
     # Idempotent data normalization
-    from sqlalchemy import text
     with engine.begin() as conn:
         conn.execute(text("UPDATE users SET email = lower(email) WHERE email != lower(email)"))
         conn.execute(text("UPDATE policy_shares SET shared_with_email = lower(shared_with_email) WHERE shared_with_email != lower(shared_with_email)"))
