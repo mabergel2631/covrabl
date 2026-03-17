@@ -92,14 +92,20 @@ def health_check():
 @app.on_event("startup")
 def on_startup():
     logging.info("Starting up — running Alembic migrations")
-    from alembic.config import Config
-    from alembic import command
+    try:
+        from alembic.config import Config
+        from alembic import command
 
-    base_dir = os.path.dirname(os.path.abspath(__file__))
-    alembic_cfg = Config(os.path.join(base_dir, "alembic.ini"))
-    alembic_cfg.set_main_option("script_location", os.path.join(base_dir, "alembic"))
-    command.upgrade(alembic_cfg, "head")
-    logging.info("Alembic migrations complete")
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+        alembic_cfg = Config(os.path.join(base_dir, "alembic.ini"))
+        alembic_cfg.set_main_option("script_location", os.path.join(base_dir, "alembic"))
+        command.upgrade(alembic_cfg, "head")
+        logging.info("Alembic migrations complete")
+    except Exception as e:
+        logging.error("Alembic migration failed: %s — falling back to create_all", e)
+        from app.db import Base
+        Base.metadata.create_all(bind=engine)
+        logging.info("Fallback create_all complete")
 
     # Idempotent data normalization
     from sqlalchemy import text
