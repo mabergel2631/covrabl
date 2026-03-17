@@ -619,7 +619,7 @@ class ClaimExtractionResult:
 
 # ── Lease Clause Extraction ─────────────────────────
 
-LEASE_SYSTEM_PROMPT = """You are an expert lease insurance clause parser. Your job is to extract every insurance requirement from a commercial or residential lease insurance clause.
+LEASE_SYSTEM_PROMPT = """You are an expert insurance requirements parser. Your job is to extract every insurance requirement from a document. The document may be a commercial or residential lease, loan agreement, contract, service agreement, or any other document containing insurance requirements.
 
 Return ONLY valid JSON with this exact schema (use null for missing fields):
 {

@@ -488,7 +488,7 @@ class UserProfileOut(BaseModel):
 
 class LeaseRequirementCreate(BaseModel):
     label: str
-    role: Literal["tenant", "landlord"]
+    role: Literal["tenant", "landlord", "requester"]
     policy_id: Optional[int] = None
     counterparty_name: Optional[str] = None
     counterparty_email: Optional[str] = None
@@ -499,7 +499,7 @@ class LeaseRequirementCreate(BaseModel):
 
 class LeaseRequirementUpdate(BaseModel):
     label: Optional[str] = None
-    role: Optional[Literal["tenant", "landlord"]] = None
+    role: Optional[Literal["tenant", "landlord", "requester"]] = None
     counterparty_name: Optional[str] = None
     counterparty_email: Optional[str] = None
     property_address: Optional[str] = None
@@ -521,6 +521,8 @@ class LeaseRequirementOut(BaseModel):
     requirements_json: str
     access_code: str
     status: str
+    source_doc_name: Optional[str] = None
+    has_source_doc: bool = False
     created_at: datetime
     updated_at: datetime
     latest_check: Optional[dict] = None

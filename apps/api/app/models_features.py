@@ -243,6 +243,8 @@ class LeaseRequirement(Base):
     requirements_json: Mapped[str] = mapped_column(Text)  # JSON array of requirement objects
     access_code: Mapped[str] = mapped_column(String(20), unique=True, index=True)
     status: Mapped[str] = mapped_column(String(20), default="active")  # active, archived
+    source_doc_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    source_doc_data: Mapped[bytes | None] = mapped_column(LargeBinary, nullable=True)
     created_at: Mapped[DateTime] = mapped_column(DateTime, server_default=func.now())
     updated_at: Mapped[DateTime] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now())
 

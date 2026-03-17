@@ -2053,7 +2053,7 @@ export type LeaseRequirement = {
   user_id: number;
   policy_id: number | null;
   label: string;
-  role: "tenant" | "landlord";
+  role: "tenant" | "landlord" | "requester";
   counterparty_name: string | null;
   counterparty_email: string | null;
   property_address: string | null;
@@ -2061,6 +2061,8 @@ export type LeaseRequirement = {
   requirements_json: string;
   access_code: string;
   status: string;
+  source_doc_name?: string | null;
+  has_source_doc?: boolean;
   created_at: string;
   updated_at: string;
   latest_check: {
@@ -2077,7 +2079,7 @@ export type LeaseRequirement = {
 
 export type LeaseRequirementCreate = {
   label: string;
-  role: "tenant" | "landlord";
+  role: "tenant" | "landlord" | "requester";
   policy_id?: number | null;
   counterparty_name?: string | null;
   counterparty_email?: string | null;
@@ -2255,6 +2257,30 @@ export const leaseComplianceApi = {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ landlord_email: landlordEmail, landlord_name: landlordName, notes, from_name: fromName }),
     });
+  },
+  async createFromDocument(file: File, label: string, counterpartyName?: string, counterpartyEmail?: string): Promise<LeaseRequirement> {
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("label", label);
+    if (counterpartyName) formData.append("counterparty_name", counterpartyName);
+    if (counterpartyEmail) formData.append("counterparty_email", counterpartyEmail);
+    const url = `${API_BASE}/lease-compliance/requirements/from-document`;
+    const token = getToken();
+    const headers: Record<string, string> = {};
+    if (token) headers["Authorization"] = `Bearer ${token}`;
+    const res = await fetch(url, { method: "POST", headers, body: formData });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || "Failed to create requirements from document");
+    return data;
+  },
+  async downloadSourceDocument(reqId: number): Promise<Blob> {
+    const url = `${API_BASE}/lease-compliance/requirements/${reqId}/source-document`;
+    const token = getToken();
+    const headers: Record<string, string> = {};
+    if (token) headers["Authorization"] = `Bearer ${token}`;
+    const res = await fetch(url, { headers });
+    if (!res.ok) throw new Error("Document not found");
+    return res.blob();
   },
 };
 

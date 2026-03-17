@@ -100,7 +100,7 @@ function buildComplianceRows(
       sourceType: 'lease_check',
       sourceId: req.id,
       entity,
-      evidenceLabel: `Lease Check \u2014 ${req.label}`,
+      evidenceLabel: `${req.role === 'requester' ? 'Document Check' : 'Lease Check'} \u2014 ${req.label}`,
       status,
       statusLabel: sc.label,
       expiration: null,
@@ -165,6 +165,17 @@ function CertificatesContent() {
 
   // Lease detail modal
   const [viewingLease, setViewingLease] = useState<LeaseRequirement | null>(null);
+
+  // Document upload flow
+  const [showDocUpload, setShowDocUpload] = useState(false);
+  const [docUploading, setDocUploading] = useState(false);
+  const docFileRef = useRef<HTMLInputElement>(null);
+  const [docLabel, setDocLabel] = useState('');
+  const [docCounterpartyName, setDocCounterpartyName] = useState('');
+  const [docCounterpartyEmail, setDocCounterpartyEmail] = useState('');
+
+  // Delete requirement confirm
+  const [deleteReqConfirm, setDeleteReqConfirm] = useState<number | null>(null);
 
   useEffect(() => {
     if (!token) { router.replace('/login'); return; }
@@ -592,8 +603,7 @@ function CertificatesContent() {
                       if (row.sourceType === 'certificate') {
                         setDeleteConfirm(row.sourceId);
                       } else {
-                        if (!confirm('Delete this lease check?')) return;
-                        leaseComplianceApi.remove(row.sourceId).then(() => { toast('Lease check deleted'); load(); }).catch(() => toast('Failed to delete', 'error'));
+                        setDeleteReqConfirm(row.sourceId);
                       }
                     }}
                     style={{ padding: '4px 10px', fontSize: 12, border: '1px solid #fecaca', borderRadius: 'var(--radius-sm)', backgroundColor: '#fff', color: 'var(--color-danger)', cursor: 'pointer', whiteSpace: 'nowrap' }}
@@ -621,7 +631,7 @@ function CertificatesContent() {
             <p style={{ fontSize: 14, color: 'var(--color-text-secondary)', margin: '0 0 20px' }}>
               What would you like to do?
             </p>
-            <div className="form-grid-2" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
               <button
                 onClick={() => {
                   trackClick('add_verification_upload');
@@ -630,16 +640,16 @@ function CertificatesContent() {
                   setShowForm(true);
                 }}
                 style={{
-                  padding: 24, border: '2px solid var(--color-border)', borderRadius: 'var(--radius-lg)',
+                  padding: 20, border: '2px solid var(--color-border)', borderRadius: 'var(--radius-lg)',
                   backgroundColor: '#fff', cursor: 'pointer', textAlign: 'center', transition: 'border-color 0.15s',
                 }}
                 onMouseEnter={e => (e.currentTarget.style.borderColor = 'var(--color-primary)')}
                 onMouseLeave={e => (e.currentTarget.style.borderColor = 'var(--color-border)')}
               >
-                <div style={{ fontSize: 32, marginBottom: 12 }}>&#128196;</div>
-                <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 6, color: 'var(--color-text)' }}>Upload Evidence</div>
-                <div style={{ fontSize: 12, color: 'var(--color-text-secondary)', lineHeight: 1.5 }}>
-                  Upload a COI or proof of insurance document
+                <div style={{ fontSize: 28, marginBottom: 10 }}>&#128196;</div>
+                <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 4, color: 'var(--color-text)' }}>Upload Evidence</div>
+                <div style={{ fontSize: 11, color: 'var(--color-text-secondary)', lineHeight: 1.5 }}>
+                  Upload a COI or proof of insurance
                 </div>
               </button>
               <button
@@ -656,16 +666,38 @@ function CertificatesContent() {
                   }
                 }}
                 style={{
-                  padding: 24, border: '2px solid var(--color-border)', borderRadius: 'var(--radius-lg)',
+                  padding: 20, border: '2px solid var(--color-border)', borderRadius: 'var(--radius-lg)',
                   backgroundColor: '#fff', cursor: 'pointer', textAlign: 'center', transition: 'border-color 0.15s',
                 }}
                 onMouseEnter={e => (e.currentTarget.style.borderColor = 'var(--color-primary)')}
                 onMouseLeave={e => (e.currentTarget.style.borderColor = 'var(--color-border)')}
               >
-                <div style={{ fontSize: 32, marginBottom: 12 }}>&#128203;</div>
-                <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 6, color: 'var(--color-text)' }}>Define Requirements</div>
-                <div style={{ fontSize: 12, color: 'var(--color-text-secondary)', lineHeight: 1.5 }}>
-                  Set lease or contract insurance requirements to check against
+                <div style={{ fontSize: 28, marginBottom: 10 }}>&#128203;</div>
+                <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 4, color: 'var(--color-text)' }}>From a Policy</div>
+                <div style={{ fontSize: 11, color: 'var(--color-text-secondary)', lineHeight: 1.5 }}>
+                  Define requirements from an existing policy
+                </div>
+              </button>
+              <button
+                onClick={() => {
+                  trackClick('add_verification_upload_doc');
+                  setShowAddChoice(false);
+                  setDocLabel('');
+                  setDocCounterpartyName('');
+                  setDocCounterpartyEmail('');
+                  setShowDocUpload(true);
+                }}
+                style={{
+                  padding: 20, border: '2px solid var(--color-border)', borderRadius: 'var(--radius-lg)',
+                  backgroundColor: '#fff', cursor: 'pointer', textAlign: 'center', transition: 'border-color 0.15s',
+                }}
+                onMouseEnter={e => (e.currentTarget.style.borderColor = 'var(--color-primary)')}
+                onMouseLeave={e => (e.currentTarget.style.borderColor = 'var(--color-border)')}
+              >
+                <div style={{ fontSize: 28, marginBottom: 10 }}>&#128194;</div>
+                <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 4, color: 'var(--color-text)' }}>Compare Documents</div>
+                <div style={{ fontSize: 11, color: 'var(--color-text-secondary)', lineHeight: 1.5 }}>
+                  Upload a requirements document to compare
                 </div>
               </button>
             </div>
@@ -714,6 +746,120 @@ function CertificatesContent() {
           </div>
         );
       })()}
+
+      {/* ── Upload Requirements Document Modal ── */}
+      {showDocUpload && (
+        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+          <div style={{ backgroundColor: '#fff', borderRadius: 'var(--radius-lg)', padding: 20, maxWidth: 520, width: '100%' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+              <h2 style={{ fontSize: 18, fontWeight: 700, margin: 0 }}>Compare Documents</h2>
+              <button
+                onClick={() => { setShowDocUpload(false); }}
+                style={{ background: 'none', border: 'none', fontSize: 20, cursor: 'pointer', color: 'var(--color-text-muted)', padding: 0, lineHeight: 1 }}
+              >&times;</button>
+            </div>
+            <p style={{ fontSize: 13, color: 'var(--color-text-secondary)', margin: '0 0 16px' }}>
+              Upload a requirements document (lease, loan agreement, contract, etc.) and we'll extract the insurance requirements to compare against your policies.
+            </p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              <div>
+                <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: 'var(--color-text)', marginBottom: 4 }}>Document (PDF) *</label>
+                <input ref={docFileRef} type="file" accept=".pdf" style={{ fontSize: 13, width: '100%' }} />
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: 'var(--color-text)', marginBottom: 4 }}>Label *</label>
+                <input
+                  type="text"
+                  value={docLabel}
+                  onChange={e => setDocLabel(e.target.value)}
+                  placeholder="e.g. 123 Main St Loan, Vendor Contract"
+                  style={{ width: '100%', padding: '8px 10px', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', fontSize: 13 }}
+                />
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: 'var(--color-text)', marginBottom: 4 }}>Counterparty Name</label>
+                  <input
+                    type="text"
+                    value={docCounterpartyName}
+                    onChange={e => setDocCounterpartyName(e.target.value)}
+                    placeholder="e.g. ABC Bank, John Doe"
+                    style={{ width: '100%', padding: '8px 10px', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', fontSize: 13 }}
+                  />
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: 'var(--color-text)', marginBottom: 4 }}>Counterparty Email</label>
+                  <input
+                    type="email"
+                    value={docCounterpartyEmail}
+                    onChange={e => setDocCounterpartyEmail(e.target.value)}
+                    placeholder="email@example.com"
+                    style={{ width: '100%', padding: '8px 10px', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', fontSize: 13 }}
+                  />
+                </div>
+              </div>
+              <button
+                onClick={async () => {
+                  const file = docFileRef.current?.files?.[0];
+                  if (!file) { toast('Please select a PDF file', 'error'); return; }
+                  if (!docLabel.trim()) { toast('Please enter a label', 'error'); return; }
+                  setDocUploading(true);
+                  try {
+                    trackFeatureUse('compare_documents_upload');
+                    const req = await leaseComplianceApi.createFromDocument(
+                      file,
+                      docLabel.trim(),
+                      docCounterpartyName.trim() || undefined,
+                      docCounterpartyEmail.trim() || undefined,
+                    );
+                    toast('Requirements extracted and saved!', 'success');
+                    setShowDocUpload(false);
+                    await load();
+                    // Open the lease detail view for the newly created requirement
+                    const reqs = await leaseComplianceApi.list();
+                    const newReq = reqs.find(r => r.id === req.id);
+                    if (newReq) setViewingLease(newReq);
+                  } catch (err: any) {
+                    toast(err.message || 'Failed to extract requirements', 'error');
+                  } finally {
+                    setDocUploading(false);
+                  }
+                }}
+                disabled={docUploading}
+                style={{
+                  padding: '10px 20px', backgroundColor: 'var(--color-primary)', color: '#fff',
+                  border: 'none', borderRadius: 'var(--radius-md)', cursor: docUploading ? 'wait' : 'pointer',
+                  fontSize: 14, fontWeight: 600, opacity: docUploading ? 0.7 : 1,
+                }}
+              >
+                {docUploading ? 'Extracting requirements...' : 'Extract & Save'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Delete Requirement Confirmation ── */}
+      <ConfirmDialog
+        open={deleteReqConfirm != null}
+        title="Delete Requirement"
+        message="Are you sure you want to delete this requirement set and all its compliance checks? This cannot be undone."
+        confirmLabel="Delete"
+        danger
+        onConfirm={async () => {
+          if (deleteReqConfirm == null) return;
+          try {
+            await leaseComplianceApi.remove(deleteReqConfirm);
+            toast('Requirement deleted', 'success');
+            if (viewingLease?.id === deleteReqConfirm) setViewingLease(null);
+            setDeleteReqConfirm(null);
+            await load();
+          } catch (err: any) {
+            toast(err.message || 'Failed to delete', 'error');
+          }
+        }}
+        onCancel={() => setDeleteReqConfirm(null)}
+      />
 
       {/* ── Add/Edit Certificate Form Modal ── */}
       {showForm && (
@@ -1162,7 +1308,7 @@ function CertificatesContent() {
           <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
             <div style={{ backgroundColor: '#fff', borderRadius: 'var(--radius-lg)', padding: 20, maxWidth: 560, width: '100%', maxHeight: '90vh', overflowY: 'auto' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20 }}>
-                <h2 style={{ fontSize: 18, fontWeight: 700, margin: 0 }}>Lease Check Details</h2>
+                <h2 style={{ fontSize: 18, fontWeight: 700, margin: 0 }}>{req.role === 'requester' ? 'Document Check Details' : 'Lease Check Details'}</h2>
                 <button onClick={() => { trackClick('lease_detail_close'); setViewingLease(null); }} style={{ background: 'none', border: 'none', fontSize: 20, cursor: 'pointer', color: 'var(--color-text-muted)', padding: 0, lineHeight: 1 }}>&times;</button>
               </div>
 
@@ -1185,7 +1331,7 @@ function CertificatesContent() {
                 <div className="form-grid-2" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                   <div>
                     <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-text-secondary)', marginBottom: 2 }}>Role</div>
-                    <div style={{ fontSize: 14 }}>{req.role === 'tenant' ? 'Tenant' : 'Landlord'}</div>
+                    <div style={{ fontSize: 14 }}>{req.role === 'tenant' ? 'Tenant' : req.role === 'landlord' ? 'Landlord' : 'Document Comparison'}</div>
                   </div>
                   {req.counterparty_name && (
                     <div>
@@ -1204,6 +1350,24 @@ function CertificatesContent() {
 
               {/* Actions */}
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, borderTop: '1px solid var(--color-border)', paddingTop: 16, flexWrap: 'wrap' }}>
+                {/* View source document for document-based requirements */}
+                {req.has_source_doc && (
+                  <button
+                    onClick={async () => {
+                      trackClick('lease_detail_view_source_doc', { id: req.id });
+                      try {
+                        const blob = await leaseComplianceApi.downloadSourceDocument(req.id);
+                        const url = URL.createObjectURL(blob);
+                        window.open(url, '_blank');
+                      } catch {
+                        toast('Source document not available', 'error');
+                      }
+                    }}
+                    style={{ padding: '8px 20px', backgroundColor: '#2563eb', color: '#fff', border: 'none', borderRadius: 'var(--radius-sm)', fontWeight: 600, cursor: 'pointer', fontSize: 14 }}
+                  >
+                    View Document
+                  </button>
+                )}
                 {/* View tenant-uploaded certificate if available */}
                 {(() => {
                   const submittedTenant = req.tenants?.find(t => t.submitted_at && t.has_document);
@@ -1252,17 +1416,9 @@ function CertificatesContent() {
                   Copy Link
                 </button>
                 <button
-                  onClick={async () => {
+                  onClick={() => {
                     trackClick('lease_detail_delete', { id: req.id });
-                    if (!confirm('Delete this lease check?')) return;
-                    try {
-                      await leaseComplianceApi.remove(req.id);
-                      toast('Lease check deleted');
-                      setViewingLease(null);
-                      load();
-                    } catch {
-                      toast('Failed to delete', 'error');
-                    }
+                    setDeleteReqConfirm(req.id);
                   }}
                   style={{ padding: '8px 20px', border: '1px solid #fecaca', borderRadius: 'var(--radius-sm)', backgroundColor: '#fff', color: 'var(--color-danger)', cursor: 'pointer', fontSize: 14 }}
                 >

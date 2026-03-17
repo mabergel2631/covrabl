@@ -122,6 +122,105 @@ async def extract_lease_pdf(
     }
 
 
+# ── Create requirements from uploaded document (all-in-one) ──
+
+@router.post("/requirements/from-document")
+async def create_requirement_from_document(
+    file: UploadFile = File(...),
+    label: str = Form(...),
+    counterparty_name: str = Form(default=""),
+    counterparty_email: str = Form(default=""),
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Upload a requirements document (loan, lease, contract, etc.), extract requirements, and create a requirement set."""
+    check_feature(user, "lease_compliance")
+    if not file.filename or not file.filename.lower().endswith(".pdf"):
+        raise HTTPException(status_code=400, detail="Only PDF files are supported")
+
+    content = await file.read()
+    if len(content) > 20 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="File too large (max 20MB)")
+
+    # Convert PDF to images
+    try:
+        import fitz
+        doc = fitz.open(stream=content, filetype="pdf")
+        images = []
+        for page_num in range(min(len(doc), 20)):
+            page = doc[page_num]
+            pix = page.get_pixmap(dpi=200)
+            images.append(pix.tobytes("png"))
+        doc.close()
+    except Exception as e:
+        logger.exception("PDF conversion failed")
+        raise HTTPException(status_code=400, detail=f"Could not process PDF: {str(e)}")
+
+    extractor = get_extractor()
+    try:
+        result = await asyncio.to_thread(extractor.extract_lease_images, images)
+    except Exception as e:
+        logger.exception("Document extraction failed")
+        raise HTTPException(status_code=500, detail=f"Extraction failed: {str(e)}")
+
+    requirements = result.requirements or []
+    if not requirements:
+        raise HTTPException(
+            status_code=422,
+            detail="No insurance requirements found in the document. Try uploading a document that contains insurance requirements.",
+        )
+
+    req = LeaseRequirement(
+        user_id=user.id,
+        policy_id=None,
+        label=label or result.property_address or file.filename or "Uploaded Document",
+        role="requester",
+        counterparty_name=counterparty_name or result.landlord_name or None,
+        counterparty_email=counterparty_email or None,
+        property_address=result.property_address,
+        lease_clause_text=result.raw_summary,
+        requirements_json=json.dumps(requirements),
+        access_code=_generate_access_code(),
+        status="active",
+        source_doc_name=file.filename,
+        source_doc_data=content,
+    )
+    db.add(req)
+    db.commit()
+    db.refresh(req)
+    return _requirement_to_dict(req, db)
+
+
+@router.get("/requirements/{req_id}/source-document")
+def get_source_document(
+    req_id: int,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Download the original requirements document."""
+    check_feature(user, "lease_compliance")
+    req = db.execute(
+        select(LeaseRequirement).where(
+            LeaseRequirement.id == req_id,
+            LeaseRequirement.user_id == user.id,
+        )
+    ).scalar_one_or_none()
+    if not req:
+        raise HTTPException(status_code=404, detail="Requirement not found")
+
+    doc_data = getattr(req, "source_doc_data", None)
+    if not doc_data:
+        raise HTTPException(status_code=404, detail="No source document stored")
+
+    from fastapi.responses import Response
+    filename = getattr(req, "source_doc_name", None) or "document.pdf"
+    return Response(
+        content=doc_data,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'inline; filename="{filename}"'},
+    )
+
+
 # ── CRUD ────────────────────────────────────────────
 
 def _generate_access_code() -> str:
@@ -179,19 +278,21 @@ def list_requirements(
     query = select(LeaseRequirement).where(
         LeaseRequirement.user_id == user.id,
         LeaseRequirement.status == "active",
-        LeaseRequirement.policy_id.isnot(None),  # exclude orphaned (policy deleted)
     )
-    if role and role in ("tenant", "landlord"):
+    if role and role in ("tenant", "landlord", "requester"):
         query = query.where(LeaseRequirement.role == role)
     if policy_id is not None:
         query = query.where(LeaseRequirement.policy_id == policy_id)
     query = query.order_by(LeaseRequirement.created_at.desc())
     reqs = db.execute(query).scalars().all()
 
-    # Filter out any reqs whose policy no longer exists (extra safety)
+    # Filter out reqs whose linked policy no longer exists (orphaned),
+    # but keep document-based requirements (policy_id is None)
     valid_reqs = []
     for r in reqs:
-        if r.policy_id and db.get(Policy, r.policy_id):
+        if r.policy_id is None:
+            valid_reqs.append(r)
+        elif db.get(Policy, r.policy_id):
             valid_reqs.append(r)
     return [_requirement_to_dict(r, db) for r in valid_reqs]
 
@@ -1166,6 +1267,8 @@ def _requirement_to_dict(req: LeaseRequirement, db: Session) -> dict:
         "requirements_json": req.requirements_json,
         "access_code": req.access_code,
         "status": req.status,
+        "source_doc_name": getattr(req, "source_doc_name", None),
+        "has_source_doc": bool(getattr(req, "source_doc_data", None)),
         "created_at": req.created_at.isoformat() if req.created_at else None,
         "updated_at": req.updated_at.isoformat() if req.updated_at else None,
         "latest_check": None,

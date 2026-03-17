@@ -124,6 +124,7 @@ function PolicyDetailContent() {
   // Lease Check
   const [leaseReqs, setLeaseReqs] = useState<LeaseRequirement[]>([]);
   const [allLeaseReqs, setAllLeaseReqs] = useState<LeaseRequirement[]>([]);
+  const [deleteLeaseReqConfirm, setDeleteLeaseReqConfirm] = useState<number | null>(null);
   const [leaseView, setLeaseView] = useState<'list' | 'create' | 'results'>('list');
   const [leaseCreateStep, setLeaseCreateStep] = useState(1);
   const [leaseClauseText, setLeaseClauseText] = useState('');
@@ -2391,25 +2392,45 @@ function PolicyDetailContent() {
                             const reqItems: LeaseRequirementItem[] = (() => { try { return JSON.parse(existing.requirements_json); } catch { return []; } })();
                             const isOtherPolicy = !currentPolicyReqIds.has(existing.id);
                             return (
-                              <button
+                              <div
                                 key={existing.id}
-                                onClick={() => handleLeaseUseExisting(existing)}
                                 style={{
-                                  display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10,
-                                  padding: '10px 14px', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)',
-                                  backgroundColor: '#fff', cursor: 'pointer', textAlign: 'left', width: '100%',
+                                  display: 'flex', alignItems: 'center', gap: 6,
                                 }}
                               >
-                                <div style={{ flex: 1, minWidth: 0 }}>
-                                  <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-text)' }}>{existing.label}</div>
-                                  <div style={{ fontSize: 11, color: 'var(--color-text-muted)', marginTop: 2 }}>
-                                    {reqItems.length} requirement{reqItems.length !== 1 ? 's' : ''}
-                                    {existing.property_address ? ` \u2022 ${existing.property_address}` : ''}
-                                    {isOtherPolicy ? ' \u2022 from another policy' : ''}
+                                <button
+                                  onClick={() => handleLeaseUseExisting(existing)}
+                                  style={{
+                                    display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10,
+                                    padding: '10px 14px', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)',
+                                    backgroundColor: '#fff', cursor: 'pointer', textAlign: 'left', flex: 1, minWidth: 0,
+                                  }}
+                                >
+                                  <div style={{ flex: 1, minWidth: 0 }}>
+                                    <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-text)' }}>{existing.label}</div>
+                                    <div style={{ fontSize: 11, color: 'var(--color-text-muted)', marginTop: 2 }}>
+                                      {reqItems.length} requirement{reqItems.length !== 1 ? 's' : ''}
+                                      {existing.property_address ? ` \u2022 ${existing.property_address}` : ''}
+                                      {isOtherPolicy ? ' \u2022 from another policy' : ''}
+                                    </div>
                                   </div>
-                                </div>
-                                <span style={{ fontSize: 12, color: 'var(--color-primary)', fontWeight: 600, whiteSpace: 'nowrap' }}>Use &rsaquo;</span>
-                              </button>
+                                  <span style={{ fontSize: 12, color: 'var(--color-primary)', fontWeight: 600, whiteSpace: 'nowrap' }}>Use &rsaquo;</span>
+                                </button>
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setDeleteLeaseReqConfirm(existing.id);
+                                  }}
+                                  title="Delete this requirement"
+                                  style={{
+                                    padding: '8px', border: '1px solid #fecaca', borderRadius: 'var(--radius-sm)',
+                                    backgroundColor: '#fff', cursor: 'pointer', color: 'var(--color-danger)', fontSize: 14, lineHeight: 1,
+                                    flexShrink: 0,
+                                  }}
+                                >
+                                  &#x2715;
+                                </button>
+                              </div>
                             );
                           })}
                         </div>
@@ -4047,6 +4068,43 @@ function PolicyDetailContent() {
           </div>
         );
       })()}
+
+      {/* Delete Lease Requirement Confirmation */}
+      {deleteLeaseReqConfirm != null && (
+        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+          <div style={{ backgroundColor: '#fff', borderRadius: 'var(--radius-lg)', padding: 20, maxWidth: 400, width: '100%' }}>
+            <h3 style={{ fontSize: 16, fontWeight: 700, margin: '0 0 12px' }}>Delete Requirement</h3>
+            <p style={{ fontSize: 14, color: 'var(--color-text-secondary)', margin: '0 0 20px' }}>
+              Are you sure you want to delete this requirement set and all its compliance checks? This cannot be undone.
+            </p>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
+              <button
+                onClick={() => setDeleteLeaseReqConfirm(null)}
+                style={{ padding: '8px 20px', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)', backgroundColor: '#fff', cursor: 'pointer', fontSize: 14 }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={async () => {
+                  try {
+                    await leaseComplianceApi.remove(deleteLeaseReqConfirm);
+                    toast('Requirement deleted', 'success');
+                    setDeleteLeaseReqConfirm(null);
+                    // Refresh lists
+                    leaseComplianceApi.list(undefined, policyId).then(setLeaseReqs).catch(() => {});
+                    leaseComplianceApi.list().then(setAllLeaseReqs).catch(() => {});
+                  } catch (err: any) {
+                    toast(err.message || 'Failed to delete', 'error');
+                  }
+                }}
+                style={{ padding: '8px 20px', backgroundColor: 'var(--color-danger)', color: '#fff', border: 'none', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontWeight: 600, fontSize: 14 }}
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );
