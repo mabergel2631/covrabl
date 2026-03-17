@@ -381,17 +381,28 @@ def _parse_response(raw: str) -> ExtractionResult:
     raw = raw.strip()
     # Strip markdown fences if present
     if raw.startswith("```"):
-        raw = raw.split("\n", 1)[1] if "\n" in raw else raw[3:]
+        first_line_end = raw.find("\n")
+        raw = raw[first_line_end + 1:] if first_line_end != -1 else raw[3:]
         if raw.endswith("```"):
             raw = raw[:-3]
         raw = raw.strip()
 
-    data = json.loads(raw)
+    try:
+        data = json.loads(raw)
+    except json.JSONDecodeError:
+        start = raw.find("{")
+        end = raw.rfind("}")
+        if start != -1 and end != -1 and end > start:
+            data = json.loads(raw[start:end + 1])
+        else:
+            raise
 
+    _VALID_ROLES = {"agent", "broker", "claims", "customer_service", "underwriter", "named_insured", "account_manager", "adjuster", "auditor", "other"}
     contacts = []
     for c in data.get("contacts") or []:
+        raw_role = (c.get("role") or "other").lower().strip().replace(" ", "_")
         contacts.append(ExtractedContact(
-            role=c.get("role", "other"),
+            role=raw_role if raw_role in _VALID_ROLES else "other",
             name=c.get("name"),
             company=c.get("company"),
             phone=c.get("phone"),
@@ -657,12 +668,34 @@ class LeaseExtractionResult:
 def _parse_lease_response(raw: str) -> LeaseExtractionResult:
     raw = raw.strip()
     if raw.startswith("```"):
-        raw = raw.split("\n", 1)[1] if "\n" in raw else raw[3:]
+        # Remove ```json or ``` prefix
+        first_line_end = raw.find("\n")
+        raw = raw[first_line_end + 1:] if first_line_end != -1 else raw[3:]
         if raw.endswith("```"):
             raw = raw[:-3]
         raw = raw.strip()
 
-    data = json.loads(raw)
+    # Try to find JSON object in response even if there's extra text
+    try:
+        data = json.loads(raw)
+    except json.JSONDecodeError:
+        # Try to extract JSON from within the response
+        start = raw.find("{")
+        end = raw.rfind("}")
+        if start != -1 and end != -1 and end > start:
+            try:
+                data = json.loads(raw[start:end + 1])
+            except json.JSONDecodeError:
+                # Return empty result rather than crashing
+                return LeaseExtractionResult(
+                    raw_summary="Could not parse extraction response. The document may not contain standard lease insurance requirements.",
+                    raw_response=raw,
+                )
+        else:
+            return LeaseExtractionResult(
+                raw_summary="Could not parse extraction response. The document may not contain standard lease insurance requirements.",
+                raw_response=raw,
+            )
 
     requirements = data.get("requirements") or []
     # Validate each requirement has required fields

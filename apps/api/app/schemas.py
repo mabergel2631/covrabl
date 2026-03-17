@@ -124,7 +124,7 @@ class BusinessGroupDelete(BaseModel):
 # ── Contacts ──────────────────────────────────────────
 
 class ContactBase(BaseModel):
-    role: Literal["agent", "broker", "claims", "customer_service", "underwriter", "named_insured", "other"]
+    role: Literal["agent", "broker", "claims", "customer_service", "underwriter", "named_insured", "account_manager", "adjuster", "auditor", "other"]
     name: Optional[str] = None
     company: Optional[str] = None
     phone: Optional[str] = None
@@ -137,7 +137,7 @@ class ContactCreate(ContactBase):
 
 
 class ContactUpdate(BaseModel):
-    role: Optional[Literal["agent", "broker", "claims", "customer_service", "underwriter", "named_insured", "other"]] = None
+    role: Optional[Literal["agent", "broker", "claims", "customer_service", "underwriter", "named_insured", "account_manager", "adjuster", "auditor", "other"]] = None
     name: Optional[str] = None
     company: Optional[str] = None
     phone: Optional[str] = None
