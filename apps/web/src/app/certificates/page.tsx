@@ -677,16 +677,21 @@ function CertificatesContent() {
                           e.stopPropagation();
                           trackClick('row_view_docs', { id: lr.id });
                           // If there's a submitted COI, open it directly; otherwise open source doc
+                          const openBlob = (blob: Blob) => {
+                            const url = URL.createObjectURL(blob);
+                            const a = document.createElement('a');
+                            a.href = url; a.target = '_blank'; a.rel = 'noopener';
+                            a.click();
+                            setTimeout(() => URL.revokeObjectURL(url), 60000);
+                          };
                           const tenant = lr.tenants?.find(t => t.has_document);
                           if (tenant) {
                             try {
-                              const blob = await leaseComplianceApi.downloadCoiDocument(tenant.check_id);
-                              window.open(URL.createObjectURL(blob), '_blank');
+                              openBlob(await leaseComplianceApi.downloadCoiDocument(tenant.check_id));
                             } catch { toast('Document not available', 'error'); }
                           } else if (lr.has_source_doc) {
                             try {
-                              const blob = await leaseComplianceApi.downloadSourceDocument(lr.id);
-                              window.open(URL.createObjectURL(blob), '_blank');
+                              openBlob(await leaseComplianceApi.downloadSourceDocument(lr.id));
                             } catch { toast('Document not available', 'error'); }
                           }
                         }}
@@ -1744,7 +1749,11 @@ function CertificatesContent() {
                         trackClick('lease_detail_view_source_doc', { id: req.id });
                         try {
                           const blob = await leaseComplianceApi.downloadSourceDocument(req.id);
-                          window.open(URL.createObjectURL(blob), '_blank');
+                          const url = URL.createObjectURL(blob);
+                          const a = document.createElement('a');
+                          a.href = url; a.target = '_blank'; a.rel = 'noopener';
+                          a.click();
+                          setTimeout(() => URL.revokeObjectURL(url), 60000);
                         } catch { toast('Document not available', 'error'); }
                       }}
                       style={{ padding: '8px 14px', backgroundColor: '#f0f9ff', border: '1px solid #bae6fd', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontSize: 13, fontWeight: 600, color: '#0c4a6e' }}
@@ -1758,7 +1767,11 @@ function CertificatesContent() {
                         trackClick('lease_detail_view_coi', { checkId: coiCheckId });
                         try {
                           const blob = await leaseComplianceApi.downloadCoiDocument(coiCheckId);
-                          window.open(URL.createObjectURL(blob), '_blank');
+                          const url = URL.createObjectURL(blob);
+                          const a = document.createElement('a');
+                          a.href = url; a.target = '_blank'; a.rel = 'noopener';
+                          a.click();
+                          setTimeout(() => URL.revokeObjectURL(url), 60000);
                         } catch { toast('Document not available', 'error'); }
                       }}
                       style={{ padding: '8px 14px', backgroundColor: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontSize: 13, fontWeight: 600, color: '#166534' }}
