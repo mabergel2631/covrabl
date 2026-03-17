@@ -1055,7 +1055,7 @@ async def send_deficiency_notice(
     latest_check = db.execute(
         select(ComplianceCheck).where(
             ComplianceCheck.lease_requirement_id == req_id,
-        ).order_by(ComplianceCheck.id.desc())
+        ).order_by(ComplianceCheck.id.desc()).limit(1)
     ).scalar_one_or_none()
 
     failed_items = []
