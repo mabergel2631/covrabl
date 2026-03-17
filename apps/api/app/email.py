@@ -135,8 +135,9 @@ async def send_lease_requirements_email(
     property_address: str | None,
     public_url: str,
     notes: str | None = None,
+    is_document_check: bool = False,
 ) -> None:
-    """Sent to tenant when landlord shares a requirements link."""
+    """Sent to tenant/borrower when landlord/requester shares a requirements link."""
     location = f" for {property_address}" if property_address else ""
     notes_html = ""
     if notes and notes.strip():
@@ -147,22 +148,27 @@ async def send_lease_requirements_email(
     <p style="margin: 0 0 4px; font-size: 12px; font-weight: 600; color: #6b7280;">Note from {html_mod.escape(from_name)}:</p>
     <p style="margin: 0; color: #374151; font-size: 14px; line-height: 1.6;">{safe_notes}</p>
   </div>"""
+
+    heading = "Insurance Compliance Requirements" if is_document_check else "Lease Insurance Requirements"
+    req_type = "insurance compliance requirements" if is_document_check else "lease insurance requirements"
+    subject = f"{from_name} shared {req_type} with you"
+
     html = f"""\
 <html>
 <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 480px; margin: 0 auto; padding: 40px 20px;">
-  <h2 style="color: #1a1a2e; margin-bottom: 16px;">Lease Insurance Requirements</h2>
+  <h2 style="color: #1a1a2e; margin-bottom: 16px;">{heading}</h2>
   <p style="color: #555; line-height: 1.6;">
-    <strong>{from_name}</strong> shared lease insurance requirements{location} with you on Covrabl.
+    <strong>{from_name}</strong> shared {req_type}{location} with you on Covrabl.
   </p>
   <p style="color: #555; line-height: 1.6;">
-    Review the requirements and upload your Certificate of Insurance to verify compliance.
+    Review the requirements and upload your Certificate of Insurance (COI) to verify compliance automatically. You&#39;ll see instant results.
   </p>{notes_html}
   <table role="presentation" cellspacing="0" cellpadding="0" border="0" style="margin: 24px 0;">
     <tr>
       <td style="background-color: #2563eb; border-radius: 6px;">
         <a href="{public_url}"
            style="display: inline-block; color: #ffffff; padding: 14px 32px; text-decoration: none; font-weight: 700; font-size: 16px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
-          View Requirements
+          View Requirements &amp; Upload COI
         </a>
       </td>
     </tr>
@@ -170,13 +176,18 @@ async def send_lease_requirements_email(
   <p style="color: #888; font-size: 13px; line-height: 1.5;">
     No account is needed to view requirements or submit your certificate.
   </p>
+  <hr style="border: none; border-top: 1px solid #eee; margin: 24px 0;">
+  <p style="color: #999; font-size: 12px; line-height: 1.5; text-align: center;">
+    Want to manage your own insurance policies?
+    <a href="https://covrabl.com/?ref=email" style="color: #2563eb; text-decoration: underline;">Try Covrabl free</a>
+  </p>
 </body>
 </html>"""
 
     try:
         await asyncio.to_thread(
             _send_email, to_email,
-            f"{from_name} shared lease insurance requirements with you",
+            subject,
             html,
         )
     except Exception:
@@ -287,11 +298,19 @@ async def send_deficiency_notice_email(
       <td style="background-color: #2563eb; border-radius: 6px;">
         <a href="{resubmit_url}"
            style="display: inline-block; color: #ffffff; padding: 14px 32px; text-decoration: none; font-weight: 700; font-size: 16px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
-          Resubmit Certificate
+          View Details &amp; Resubmit Certificate
         </a>
       </td>
     </tr>
   </table>
+  <p style="color: #888; font-size: 13px; line-height: 1.5;">
+    Click the button above to see the full compliance results, review the requirements, and upload an updated certificate.
+  </p>
+  <hr style="border: none; border-top: 1px solid #eee; margin: 24px 0;">
+  <p style="color: #999; font-size: 12px; line-height: 1.5; text-align: center;">
+    Want to manage your own insurance policies?
+    <a href="https://covrabl.com/?ref=email" style="color: #2563eb; text-decoration: underline;">Try Covrabl free</a>
+  </p>
 </body>
 </html>"""
 

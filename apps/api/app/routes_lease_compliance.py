@@ -923,6 +923,7 @@ async def send_to_tenant(
         property_address=req.property_address,
         public_url=public_url,
         notes=payload.notes,
+        is_document_check=(req.role == "requester"),
     )
 
     from .email import log_email_send
@@ -1084,6 +1085,24 @@ def get_public_requirement(
     if not req:
         raise HTTPException(status_code=404, detail="Requirements not found or link expired")
 
+    # Include latest completed check results if available
+    latest_check = db.execute(
+        select(ComplianceCheck).where(
+            ComplianceCheck.lease_requirement_id == req.id,
+            ComplianceCheck.status == "complete",
+        ).order_by(ComplianceCheck.id.desc())
+    ).scalars().first()
+
+    latest_results = None
+    if latest_check and latest_check.results_json:
+        latest_results = {
+            "results": json.loads(latest_check.results_json),
+            "pass_count": latest_check.pass_count,
+            "fail_count": latest_check.fail_count,
+            "unclear_count": latest_check.unclear_count,
+            "checked_at": latest_check.created_at.isoformat() if latest_check.created_at else None,
+        }
+
     return {
         "label": req.label,
         "role": req.role,
@@ -1091,6 +1110,7 @@ def get_public_requirement(
         "property_address": req.property_address,
         "requirements": json.loads(req.requirements_json),
         "created_at": req.created_at.isoformat() if req.created_at else None,
+        "latest_check": latest_results,
     }
 
 

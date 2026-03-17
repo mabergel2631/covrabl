@@ -2127,6 +2127,13 @@ export type LeasePublicData = {
   property_address: string | null;
   requirements: LeaseRequirementItem[];
   created_at: string;
+  latest_check?: {
+    results: ComplianceResultItem[];
+    pass_count: number;
+    fail_count: number;
+    unclear_count: number;
+    checked_at: string | null;
+  } | null;
 };
 
 export const leaseComplianceApi = {
