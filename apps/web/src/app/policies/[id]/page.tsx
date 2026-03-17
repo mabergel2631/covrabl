@@ -2935,7 +2935,10 @@ function PolicyDetailContent() {
                                 try {
                                   const blob = await leaseComplianceApi.downloadCoiDocument(docCheckId);
                                   const url = URL.createObjectURL(blob);
-                                  window.open(url, '_blank');
+                                  const a = document.createElement('a');
+                                  a.href = url; a.target = '_blank'; a.rel = 'noopener';
+                                  a.click();
+                                  setTimeout(() => URL.revokeObjectURL(url), 60000);
                                 } catch {
                                   toast('Document not available', 'error');
                                 }
@@ -3001,7 +3004,10 @@ function PolicyDetailContent() {
                                         try {
                                           const blob = await leaseComplianceApi.downloadCoiDocument(t.check_id);
                                           const url = URL.createObjectURL(blob);
-                                          window.open(url, '_blank');
+                                          const a = document.createElement('a');
+                                          a.href = url; a.target = '_blank'; a.rel = 'noopener';
+                                          a.click();
+                                          setTimeout(() => URL.revokeObjectURL(url), 60000);
                                         } catch {
                                           toast('Document not available', 'error');
                                         }
@@ -3937,7 +3943,10 @@ function PolicyDetailContent() {
                     try {
                       const blob = await certificatesApi.downloadDocument(vc.id);
                       const url = URL.createObjectURL(blob);
-                      window.open(url, '_blank');
+                      const a = document.createElement('a');
+                      a.href = url; a.target = '_blank'; a.rel = 'noopener';
+                      a.click();
+                      setTimeout(() => URL.revokeObjectURL(url), 60000);
                     } catch {
                       toast('Document not available', 'error');
                     }
