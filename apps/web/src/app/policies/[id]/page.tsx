@@ -2597,7 +2597,8 @@ function PolicyDetailContent() {
                         </div>
                       )}
                     </div>
-                    <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
+                    <div style={{ fontSize: 11, color: 'var(--color-text-muted)', marginTop: 8 }}>&#128274; Your documents are encrypted and never shared.</div>
+                    <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
                       <button onClick={() => setLeaseCreateStep(2)} style={{ padding: '8px 16px', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)', backgroundColor: '#fff', cursor: 'pointer', fontSize: 13 }}>Back</button>
                       <button
                         onClick={() => { trackClick('lease_check_upload_doc'); handleLeaseDocumentCheck(); }}

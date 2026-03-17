@@ -172,9 +172,16 @@ export default function LoginPage() {
             </button>
           </form>
 
-          <p style={{ marginTop: 12, textAlign: 'center', fontSize: 11, color: 'var(--color-text-muted)', lineHeight: 1.5 }}>
-            &#128274; Your insurance documents remain private. {APP_NAME} analyzes them only to provide coverage insights.
-          </p>
+          <div style={{ marginTop: 16, display: 'flex', flexDirection: 'column', gap: 6, alignItems: 'center' }}>
+            <p style={{ margin: 0, textAlign: 'center', fontSize: 11, color: 'var(--color-text-muted)', lineHeight: 1.5 }}>
+              &#128274; Your data is encrypted and never shared or sold.
+            </p>
+            {mode === 'register' && (
+              <p style={{ margin: 0, textAlign: 'center', fontSize: 11, color: 'var(--color-text-muted)', lineHeight: 1.5 }}>
+                &#128737;&#65039; Bank-level AES-256 encryption &middot; Payments by Stripe
+              </p>
+            )}
+          </div>
 
           <p style={{ marginTop: 20, textAlign: 'center', fontSize: 13, color: 'var(--color-text-secondary)' }}>
             {mode === 'login' ? "Don't have an account? " : 'Already have an account? '}

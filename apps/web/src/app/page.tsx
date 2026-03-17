@@ -1626,7 +1626,7 @@ export default function Home() {
             {APP_NAME} exists to turn dense policy documents into an intelligent coverage picture — a clear health overview that shows where you stand, where the gaps are, and what to discuss with your agent.
           </p>
           <p style={{ fontSize: 15, color: 'var(--color-text)', fontWeight: 600, margin: '0 0 20px', letterSpacing: '0.01em' }}>
-            Built for clarity. Built for emergencies. Built for peace of mind.
+            Built by real estate investors and operators who needed this ourselves.
           </p>
           <p style={{ fontSize: 14, color: 'var(--color-text-muted)', margin: 0 }}>
             — The {APP_NAME} Team
@@ -1723,6 +1723,9 @@ export default function Home() {
           <div style={{ marginTop: 16, fontSize: 13, opacity: 0.6, letterSpacing: 'var(--letter-spacing-wide)' }}>
             Free for up to 3 policies. No credit card required.
           </div>
+          <div style={{ marginTop: 12, fontSize: 12, opacity: 0.45, letterSpacing: 'var(--letter-spacing-wide)' }}>
+            Your data is encrypted and never shared or sold.
+          </div>
         </div>
       </section>
 
@@ -1731,10 +1734,22 @@ export default function Home() {
       ═══════════════════════════════════════════════════════════════ */}
       <footer style={{ padding: '32px 24px', borderTop: '1px solid var(--color-border)', color: 'var(--color-text-muted)', fontSize: 13 }}>
         <div style={{ maxWidth: 700, margin: '0 auto' }}>
-          <div style={{ display: 'flex', justifyContent: 'center', gap: 20, marginBottom: 12, fontSize: 11, color: 'var(--color-text-muted)' }}>
-            <span>&#128274; Encrypted Storage</span>
-            <span>&#128737;&#65039; Secure Infrastructure</span>
-            <span>&#128272; Private Access</span>
+          <div style={{ display: 'flex', justifyContent: 'center', gap: 16, marginBottom: 20, flexWrap: 'wrap' }}>
+            {[
+              { icon: '\u{1F512}', label: 'AES-256 Encrypted' },
+              { icon: '\u{1F6E1}\uFE0F', label: 'SOC 2 Standards' },
+              { icon: '\u{1F4B3}', label: 'Powered by Stripe' },
+            ].map(b => (
+              <span key={b.label} onClick={() => { trackClick('landing_footer_trust_badge', { label: b.label }); router.push('/security'); }} style={{
+                display: 'inline-flex', alignItems: 'center', gap: 6,
+                padding: '6px 14px', borderRadius: 20,
+                border: '1px solid var(--color-border)', backgroundColor: 'var(--color-bg)',
+                fontSize: 11, fontWeight: 600, color: 'var(--color-text-secondary)',
+                cursor: 'pointer', transition: 'border-color 0.15s',
+              }}>
+                <span style={{ fontSize: 14 }}>{b.icon}</span> {b.label}
+              </span>
+            ))}
           </div>
           <div style={{ display: 'flex', justifyContent: 'center', gap: 24, marginBottom: 16, flexWrap: 'wrap' }}>
             <span onClick={() => { trackClick('landing_footer_privacy'); router.push('/privacy'); }} style={{ cursor: 'pointer' }}>Privacy</span>

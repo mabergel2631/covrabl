@@ -6,6 +6,7 @@ import { useAuth } from '../../../lib/auth';
 import { billingApi, type PlanInfo } from '../../../lib/api';
 import BackButton from '../components/BackButton';
 import { APP_NAME } from '../config';
+import { trackClick } from '../../../lib/track';
 
 export default function PricingPage() {
   return <Suspense><PricingContent /></Suspense>;
@@ -319,6 +320,24 @@ function PricingContent() {
         })}
       </div>
 
+      {/* Trust strip */}
+      <div style={{ display: 'flex', justifyContent: 'center', gap: 24, flexWrap: 'wrap', padding: '0 24px 48px', marginTop: -24 }}>
+        {[
+          { icon: '\u{1F512}', label: 'AES-256 Encrypted', track: 'pricing_trust_encrypted' },
+          { icon: '\u{1F4B3}', label: 'Payments by Stripe', track: 'pricing_trust_stripe' },
+          { icon: '\u{1F6E1}\uFE0F', label: 'Your data is never sold', track: 'pricing_trust_privacy' },
+          { icon: '\u2716', label: 'Cancel anytime', track: 'pricing_trust_cancel' },
+        ].map(b => (
+          <span key={b.label} onClick={() => trackClick(b.track)} style={{
+            display: 'inline-flex', alignItems: 'center', gap: 6,
+            fontSize: 12, fontWeight: 500, color: 'var(--color-text-muted)',
+            cursor: 'default',
+          }}>
+            <span style={{ fontSize: 14 }}>{b.icon}</span> {b.label}
+          </span>
+        ))}
+      </div>
+
       {/* FAQ */}
       <div style={{
         maxWidth: 700,
@@ -348,6 +367,10 @@ function PricingContent() {
           {
             q: 'Can I cancel anytime?',
             a: 'Absolutely. Cancel from your billing settings with one click. You\'ll keep access through the end of your paid period, then move to Free.',
+          },
+          {
+            q: 'Is my data secure?',
+            a: 'Yes. All documents are encrypted with AES-256 at rest and TLS in transit. Payments are handled entirely by Stripe — we never see or store your card details. Your data is never sold or shared with third parties.',
           },
         ].map((faq, i) => (
           <div key={i} style={{
