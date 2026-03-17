@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useMemo, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '../../../lib/auth';
-import { certificatesApi, policiesApi, leaseComplianceApi, Certificate, CertificateCreate, Policy, LeaseRequirement, checkFeatureAccess } from '../../../lib/api';
+import { certificatesApi, policiesApi, leaseComplianceApi, Certificate, CertificateCreate, Policy, LeaseRequirement, LeaseRequirementItem, LeaseExtraction, ComplianceResultItem, checkFeatureAccess } from '../../../lib/api';
 import { useToast } from '../components/Toast';
 import ConfirmDialog from '../components/ConfirmDialog';
 import UpgradePrompt from '../components/UpgradePrompt';
@@ -153,7 +153,6 @@ function CertificatesContent() {
     counterparty_type: 'client',
   });
   const [extracting, setExtracting] = useState(false);
-  const [linkingCertId, setLinkingCertId] = useState<number | null>(null);
   const [viewingCert, setViewingCert] = useState<Certificate | null>(null);
   const coiFileRef = useRef<HTMLInputElement>(null);
 
@@ -166,13 +165,31 @@ function CertificatesContent() {
   // Lease detail modal
   const [viewingLease, setViewingLease] = useState<LeaseRequirement | null>(null);
 
-  // Document upload flow
-  const [showDocUpload, setShowDocUpload] = useState(false);
-  const [docUploading, setDocUploading] = useState(false);
+  // Compare Documents multi-step flow
+  const [showDocFlow, setShowDocFlow] = useState(false);
+  const [docStep, setDocStep] = useState(1); // 1=input, 2=review, 3=compare, 4=results
+  const [docBusy, setDocBusy] = useState(false);
   const docFileRef = useRef<HTMLInputElement>(null);
+  const docCoiRef = useRef<HTMLInputElement>(null);
+  const [docInputMode, setDocInputMode] = useState<'paste' | 'pdf'>('paste');
+  const [docPasteText, setDocPasteText] = useState('');
   const [docLabel, setDocLabel] = useState('');
   const [docCounterpartyName, setDocCounterpartyName] = useState('');
   const [docCounterpartyEmail, setDocCounterpartyEmail] = useState('');
+  const [docExtraction, setDocExtraction] = useState<LeaseExtraction | null>(null);
+  const [docReqs, setDocReqs] = useState<LeaseRequirementItem[]>([]);
+  const [docSavedReq, setDocSavedReq] = useState<LeaseRequirement | null>(null);
+  const [docResults, setDocResults] = useState<ComplianceResultItem[]>([]);
+  const [docResultCounts, setDocResultCounts] = useState({ pass: 0, fail: 0, unclear: 0 });
+  const docPollCancelled = useRef(false);
+
+  function resetDocFlow() {
+    setDocStep(1); setDocBusy(false); setDocInputMode('paste'); setDocPasteText('');
+    setDocLabel(''); setDocCounterpartyName(''); setDocCounterpartyEmail('');
+    setDocExtraction(null); setDocReqs([]); setDocSavedReq(null);
+    setDocResults([]); setDocResultCounts({ pass: 0, fail: 0, unclear: 0 });
+    docPollCancelled.current = true;
+  }
 
   // Delete requirement confirm
   const [deleteReqConfirm, setDeleteReqConfirm] = useState<number | null>(null);
@@ -631,7 +648,7 @@ function CertificatesContent() {
             <p style={{ fontSize: 14, color: 'var(--color-text-secondary)', margin: '0 0 20px' }}>
               What would you like to do?
             </p>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
+            <div className="mobile-grid-1" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
               <button
                 onClick={() => {
                   trackClick('add_verification_upload');
@@ -682,10 +699,8 @@ function CertificatesContent() {
                 onClick={() => {
                   trackClick('add_verification_upload_doc');
                   setShowAddChoice(false);
-                  setDocLabel('');
-                  setDocCounterpartyName('');
-                  setDocCounterpartyEmail('');
-                  setShowDocUpload(true);
+                  resetDocFlow();
+                  setShowDocFlow(true);
                 }}
                 style={{
                   padding: 20, border: '2px solid var(--color-border)', borderRadius: 'var(--radius-lg)',
@@ -747,94 +762,361 @@ function CertificatesContent() {
         );
       })()}
 
-      {/* ── Upload Requirements Document Modal ── */}
-      {showDocUpload && (
+      {/* ── Compare Documents Multi-Step Flow ── */}
+      {showDocFlow && (
         <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
-          <div style={{ backgroundColor: '#fff', borderRadius: 'var(--radius-lg)', padding: 20, maxWidth: 520, width: '100%' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-              <h2 style={{ fontSize: 18, fontWeight: 700, margin: 0 }}>Compare Documents</h2>
-              <button
-                onClick={() => { setShowDocUpload(false); }}
-                style={{ background: 'none', border: 'none', fontSize: 20, cursor: 'pointer', color: 'var(--color-text-muted)', padding: 0, lineHeight: 1 }}
-              >&times;</button>
+          <div style={{ backgroundColor: '#fff', borderRadius: 'var(--radius-lg)', padding: 20, maxWidth: 600, width: '100%', maxHeight: '90vh', overflowY: 'auto' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+              <h2 style={{ fontSize: 18, fontWeight: 700, margin: 0 }}>
+                Compare Documents
+                <span style={{ fontSize: 12, fontWeight: 400, color: 'var(--color-text-muted)', marginLeft: 10 }}>
+                  Step {docStep} of 4
+                </span>
+              </h2>
+              <button onClick={() => { setShowDocFlow(false); resetDocFlow(); }} style={{ background: 'none', border: 'none', fontSize: 20, cursor: 'pointer', color: 'var(--color-text-muted)', padding: 0, lineHeight: 1 }}>&times;</button>
             </div>
-            <p style={{ fontSize: 13, color: 'var(--color-text-secondary)', margin: '0 0 16px' }}>
-              Upload a requirements document (lease, loan agreement, contract, etc.) and we'll extract the insurance requirements to compare against your policies.
-            </p>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-              <div>
-                <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: 'var(--color-text)', marginBottom: 4 }}>Document (PDF) *</label>
-                <input ref={docFileRef} type="file" accept=".pdf" style={{ fontSize: 13, width: '100%' }} />
-              </div>
-              <div>
-                <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: 'var(--color-text)', marginBottom: 4 }}>Label *</label>
-                <input
-                  type="text"
-                  value={docLabel}
-                  onChange={e => setDocLabel(e.target.value)}
-                  placeholder="e.g. 123 Main St Loan, Vendor Contract"
-                  style={{ width: '100%', padding: '8px 10px', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', fontSize: 13 }}
-                />
-              </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                <div>
-                  <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: 'var(--color-text)', marginBottom: 4 }}>Counterparty Name</label>
-                  <input
-                    type="text"
-                    value={docCounterpartyName}
-                    onChange={e => setDocCounterpartyName(e.target.value)}
-                    placeholder="e.g. ABC Bank, John Doe"
-                    style={{ width: '100%', padding: '8px 10px', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', fontSize: 13 }}
-                  />
+
+            {/* ── Step 1: Input requirements ── */}
+            {docStep === 1 && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                <p style={{ fontSize: 13, color: 'var(--color-text-secondary)', margin: 0 }}>
+                  Enter the insurance requirements from your loan, lease, contract, or other document.
+                </p>
+
+                {/* Toggle: paste vs PDF */}
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button
+                    onClick={() => setDocInputMode('paste')}
+                    style={{ padding: '6px 14px', borderRadius: 20, fontSize: 13, fontWeight: 600, cursor: 'pointer', border: 'none', backgroundColor: docInputMode === 'paste' ? 'var(--color-primary)' : '#f3f4f6', color: docInputMode === 'paste' ? '#fff' : 'var(--color-text)' }}
+                  >Paste Text</button>
+                  <button
+                    onClick={() => setDocInputMode('pdf')}
+                    style={{ padding: '6px 14px', borderRadius: 20, fontSize: 13, fontWeight: 600, cursor: 'pointer', border: 'none', backgroundColor: docInputMode === 'pdf' ? 'var(--color-primary)' : '#f3f4f6', color: docInputMode === 'pdf' ? '#fff' : 'var(--color-text)' }}
+                  >Upload PDF</button>
                 </div>
-                <div>
-                  <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: 'var(--color-text)', marginBottom: 4 }}>Counterparty Email</label>
-                  <input
-                    type="email"
-                    value={docCounterpartyEmail}
-                    onChange={e => setDocCounterpartyEmail(e.target.value)}
-                    placeholder="email@example.com"
-                    style={{ width: '100%', padding: '8px 10px', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', fontSize: 13 }}
+
+                {docInputMode === 'paste' ? (
+                  <textarea
+                    value={docPasteText}
+                    onChange={e => setDocPasteText(e.target.value)}
+                    placeholder="Paste the insurance requirements section from your loan, lease, contract, or vendor agreement..."
+                    style={{ width: '100%', padding: '10px 12px', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', fontSize: 13, minHeight: 140, lineHeight: 1.6, fontFamily: 'var(--font-sans)', resize: 'vertical', boxSizing: 'border-box' }}
                   />
+                ) : (
+                  <div style={{ padding: 16, backgroundColor: '#f0f9ff', border: '1px dashed #93c5fd', borderRadius: 'var(--radius-md)' }}>
+                    <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: 'var(--color-text)', marginBottom: 8 }}>Select PDF document</label>
+                    <input ref={docFileRef} type="file" accept=".pdf" style={{ fontSize: 13, width: '100%' }} />
+                  </div>
+                )}
+
+                <button
+                  onClick={async () => {
+                    setDocBusy(true);
+                    try {
+                      trackFeatureUse('compare_documents_extract');
+                      let extraction: LeaseExtraction;
+                      if (docInputMode === 'paste') {
+                        if (!docPasteText.trim()) { toast('Please paste the requirements text', 'error'); setDocBusy(false); return; }
+                        const res = await leaseComplianceApi.extract(docPasteText.trim());
+                        extraction = res.extraction;
+                      } else {
+                        const file = docFileRef.current?.files?.[0];
+                        if (!file) { toast('Please select a PDF file', 'error'); setDocBusy(false); return; }
+                        const res = await leaseComplianceApi.extractPdf(file);
+                        extraction = res.extraction;
+                      }
+                      if (!extraction.requirements || extraction.requirements.length === 0) {
+                        toast('No insurance requirements found in the document. Try a different section or document.', 'error');
+                        setDocBusy(false);
+                        return;
+                      }
+                      setDocExtraction(extraction);
+                      setDocReqs(extraction.requirements);
+                      // Auto-fill label from extraction
+                      if (!docLabel && extraction.property_address) setDocLabel(extraction.property_address);
+                      if (!docCounterpartyName && extraction.landlord_name) setDocCounterpartyName(extraction.landlord_name);
+                      setDocStep(2);
+                    } catch (err: any) {
+                      toast(err.message || 'Extraction failed', 'error');
+                    } finally {
+                      setDocBusy(false);
+                    }
+                  }}
+                  disabled={docBusy}
+                  style={{ padding: '10px 20px', backgroundColor: 'var(--color-primary)', color: '#fff', border: 'none', borderRadius: 'var(--radius-md)', cursor: docBusy ? 'wait' : 'pointer', fontSize: 14, fontWeight: 600, opacity: docBusy ? 0.7 : 1 }}
+                >
+                  {docBusy ? 'Extracting...' : 'Extract Requirements'}
+                </button>
+              </div>
+            )}
+
+            {/* ── Step 2: Review requirements & save ── */}
+            {docStep === 2 && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                {docExtraction?.raw_summary && (
+                  <div style={{ padding: 12, backgroundColor: '#f0f9ff', borderRadius: 'var(--radius-md)', fontSize: 13, color: '#0c4a6e', lineHeight: 1.5 }}>
+                    {docExtraction.raw_summary}
+                  </div>
+                )}
+
+                <div>
+                  <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: 'var(--color-text)', marginBottom: 4 }}>Label *</label>
+                  <input type="text" value={docLabel} onChange={e => setDocLabel(e.target.value)} placeholder="e.g. 123 Main St Loan, Vendor Contract" style={{ width: '100%', padding: '8px 10px', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', fontSize: 13, boxSizing: 'border-box' }} />
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: 'var(--color-text)', marginBottom: 4 }}>Counterparty Name</label>
+                    <input type="text" value={docCounterpartyName} onChange={e => setDocCounterpartyName(e.target.value)} placeholder="e.g. ABC Bank" style={{ width: '100%', padding: '8px 10px', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', fontSize: 13, boxSizing: 'border-box' }} />
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: 'var(--color-text)', marginBottom: 4 }}>Counterparty Email</label>
+                    <input type="email" value={docCounterpartyEmail} onChange={e => setDocCounterpartyEmail(e.target.value)} placeholder="email@example.com" style={{ width: '100%', padding: '8px 10px', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', fontSize: 13, boxSizing: 'border-box' }} />
+                  </div>
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: 'var(--color-text)', marginBottom: 8 }}>
+                    Extracted Requirements ({docReqs.length})
+                  </label>
+                  <div style={{ maxHeight: 200, overflowY: 'auto', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)' }}>
+                    {docReqs.map((r, i) => (
+                      <div key={i} style={{ padding: '8px 12px', borderBottom: i < docReqs.length - 1 ? '1px solid var(--color-border)' : 'none', fontSize: 13, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span>{r.label}</span>
+                        <button onClick={() => setDocReqs(prev => prev.filter((_, j) => j !== i))} style={{ background: 'none', border: 'none', color: 'var(--color-danger)', cursor: 'pointer', fontSize: 14, padding: '0 4px' }}>&times;</button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', gap: 10, justifyContent: 'space-between' }}>
+                  <button onClick={() => setDocStep(1)} style={{ padding: '10px 20px', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', backgroundColor: '#fff', cursor: 'pointer', fontSize: 14 }}>Back</button>
+                  <button
+                    onClick={async () => {
+                      if (!docLabel.trim()) { toast('Please enter a label', 'error'); return; }
+                      if (docReqs.length === 0) { toast('At least one requirement is needed', 'error'); return; }
+                      // If already saved (user came back from Step 3), update instead of creating duplicate
+                      if (docSavedReq) {
+                        setDocBusy(true);
+                        try {
+                          await leaseComplianceApi.update(docSavedReq.id, {
+                            label: docLabel.trim(),
+                            counterparty_name: docCounterpartyName.trim() || null,
+                            counterparty_email: docCounterpartyEmail.trim() || null,
+                            requirements_json: JSON.stringify(docReqs),
+                          });
+                          setDocStep(3);
+                          toast('Requirements updated!');
+                          load();
+                        } catch (err: any) {
+                          toast(err.message || 'Failed to update', 'error');
+                        } finally {
+                          setDocBusy(false);
+                        }
+                        return;
+                      }
+                      setDocBusy(true);
+                      try {
+                        // Save requirements
+                        const saved = await leaseComplianceApi.create({
+                          label: docLabel.trim(),
+                          role: 'requester',
+                          counterparty_name: docCounterpartyName.trim() || null,
+                          counterparty_email: docCounterpartyEmail.trim() || null,
+                          property_address: docExtraction?.property_address || null,
+                          lease_clause_text: docExtraction?.raw_summary || docPasteText.trim() || null,
+                          requirements_json: JSON.stringify(docReqs),
+                        });
+                        setDocSavedReq(saved);
+                        setDocStep(3);
+                        toast('Requirements saved!');
+                        load(); // refresh list in background
+                      } catch (err: any) {
+                        toast(err.message || 'Failed to save', 'error');
+                      } finally {
+                        setDocBusy(false);
+                      }
+                    }}
+                    disabled={docBusy}
+                    style={{ padding: '10px 20px', backgroundColor: 'var(--color-primary)', color: '#fff', border: 'none', borderRadius: 'var(--radius-md)', cursor: docBusy ? 'wait' : 'pointer', fontSize: 14, fontWeight: 600, opacity: docBusy ? 0.7 : 1 }}
+                  >
+                    {docBusy ? 'Saving...' : 'Save & Compare'}
+                  </button>
                 </div>
               </div>
-              <button
-                onClick={async () => {
-                  const file = docFileRef.current?.files?.[0];
-                  if (!file) { toast('Please select a PDF file', 'error'); return; }
-                  if (!docLabel.trim()) { toast('Please enter a label', 'error'); return; }
-                  setDocUploading(true);
-                  try {
-                    trackFeatureUse('compare_documents_upload');
-                    const req = await leaseComplianceApi.createFromDocument(
-                      file,
-                      docLabel.trim(),
-                      docCounterpartyName.trim() || undefined,
-                      docCounterpartyEmail.trim() || undefined,
-                    );
-                    toast('Requirements extracted and saved!', 'success');
-                    setShowDocUpload(false);
-                    await load();
-                    // Open the lease detail view for the newly created requirement
-                    const reqs = await leaseComplianceApi.list();
-                    const newReq = reqs.find(r => r.id === req.id);
-                    if (newReq) setViewingLease(newReq);
-                  } catch (err: any) {
-                    toast(err.message || 'Failed to extract requirements', 'error');
-                  } finally {
-                    setDocUploading(false);
+            )}
+
+            {/* ── Step 3: Compare against evidence ── */}
+            {docStep === 3 && docSavedReq && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                <p style={{ fontSize: 13, color: 'var(--color-text-secondary)', margin: 0 }}>
+                  Now compare your requirements against evidence. Upload a COI or select an existing policy.
+                </p>
+
+                {/* Upload COI */}
+                <div style={{ padding: 16, backgroundColor: '#f0f9ff', border: '1px dashed #93c5fd', borderRadius: 'var(--radius-md)' }}>
+                  <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: 'var(--color-text)', marginBottom: 8 }}>Upload COI or Insurance Document (PDF)</label>
+                  <input ref={docCoiRef} type="file" accept=".pdf" style={{ fontSize: 13, width: '100%' }} />
+                  <button
+                    onClick={async () => {
+                      const file = docCoiRef.current?.files?.[0];
+                      if (!file) { toast('Please select a PDF file', 'error'); return; }
+                      setDocBusy(true);
+                      try {
+                        trackFeatureUse('compare_documents_check_coi');
+                        const res = await leaseComplianceApi.checkDocument(docSavedReq.id, file);
+                        // Poll for results
+                        let attempts = 0;
+                        docPollCancelled.current = false;
+                        const poll = async (): Promise<void> => {
+                          if (docPollCancelled.current) { setDocBusy(false); return; }
+                          const status = await leaseComplianceApi.pollCheckStatus(res.id);
+                          if (status.status === 'complete' && status.results) {
+                            setDocResults(status.results);
+                            setDocResultCounts({ pass: status.pass_count || 0, fail: status.fail_count || 0, unclear: status.unclear_count || 0 });
+                            setDocStep(4);
+                            setDocBusy(false);
+                            load();
+                            return;
+                          } else if (status.status === 'error') {
+                            toast(status.error || 'Comparison failed', 'error');
+                            setDocBusy(false);
+                            return;
+                          }
+                          attempts++;
+                          if (attempts > 60) { toast('Comparison timed out', 'error'); setDocBusy(false); return; }
+                          await new Promise(r => setTimeout(r, 2000));
+                          return poll();
+                        };
+                        await poll();
+                      } catch (err: any) {
+                        toast(err.message || 'Comparison failed', 'error');
+                        setDocBusy(false);
+                      }
+                    }}
+                    disabled={docBusy}
+                    style={{ marginTop: 10, padding: '8px 16px', backgroundColor: '#2563eb', color: '#fff', border: 'none', borderRadius: 'var(--radius-md)', cursor: docBusy ? 'wait' : 'pointer', fontSize: 13, fontWeight: 600, opacity: docBusy ? 0.7 : 1 }}
+                  >
+                    {docBusy ? 'Comparing...' : 'Upload & Compare'}
+                  </button>
+                </div>
+
+                {/* Or compare against existing policies */}
+                {policies.filter(p => p.status === 'active').length > 0 && (
+                  <>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '4px 0' }}>
+                      <div style={{ flex: 1, height: 1, backgroundColor: 'var(--color-border)' }} />
+                      <span style={{ fontSize: 11, color: 'var(--color-text-muted)', fontWeight: 600 }}>OR COMPARE AGAINST POLICY</span>
+                      <div style={{ flex: 1, height: 1, backgroundColor: 'var(--color-border)' }} />
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 180, overflowY: 'auto' }}>
+                      {policies.filter(p => p.status === 'active').map(p => (
+                        <button
+                          key={p.id}
+                          disabled={docBusy}
+                          onClick={async () => {
+                            setDocBusy(true);
+                            try {
+                              trackFeatureUse('compare_documents_check_policy');
+                              const res = await leaseComplianceApi.runCheck(docSavedReq.id, 'policy', { policyId: p.id });
+                              const results: ComplianceResultItem[] = res.results || (res.results_json ? JSON.parse(res.results_json) : []);
+                              setDocResults(results);
+                              setDocResultCounts({ pass: res.pass_count, fail: res.fail_count, unclear: res.unclear_count });
+                              setDocStep(4);
+                              load();
+                            } catch (err: any) {
+                              toast(err.message || 'Comparison failed', 'error');
+                            } finally {
+                              setDocBusy(false);
+                            }
+                          }}
+                          style={{ padding: '10px 14px', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)', backgroundColor: '#fff', cursor: docBusy ? 'wait' : 'pointer', textAlign: 'left', opacity: docBusy ? 0.7 : 1 }}
+                        >
+                          <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-text)' }}>{p.nickname || p.carrier || 'Unnamed Policy'}</div>
+                          <div style={{ fontSize: 11, color: 'var(--color-text-muted)', marginTop: 2 }}>{p.policy_type.replace(/_/g, ' ')}{p.business_name ? ` \u2022 ${p.business_name}` : ''}</div>
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                )}
+
+                <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
+                  <button onClick={() => setDocStep(2)} disabled={docBusy} style={{ padding: '10px 20px', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', backgroundColor: '#fff', cursor: 'pointer', fontSize: 14 }}>Back</button>
+                </div>
+              </div>
+            )}
+
+            {/* ── Step 4: Results ── */}
+            {docStep === 4 && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                {/* Verdict banner */}
+                {(() => {
+                  let verdict = 'Compliant';
+                  let verdictColor = '#166534';
+                  let verdictBg = '#dcfce7';
+                  if (docResultCounts.fail > 0 && docResultCounts.pass > 0) {
+                    verdict = 'Partially Compliant'; verdictColor = '#92400e'; verdictBg = '#fef3c7';
+                  } else if (docResultCounts.fail > 0) {
+                    verdict = 'Non-Compliant'; verdictColor = '#991b1b'; verdictBg = '#fee2e2';
+                  } else if (docResultCounts.unclear > 0) {
+                    verdict = 'Needs Review'; verdictColor = '#92400e'; verdictBg = '#fef3c7';
                   }
-                }}
-                disabled={docUploading}
-                style={{
-                  padding: '10px 20px', backgroundColor: 'var(--color-primary)', color: '#fff',
-                  border: 'none', borderRadius: 'var(--radius-md)', cursor: docUploading ? 'wait' : 'pointer',
-                  fontSize: 14, fontWeight: 600, opacity: docUploading ? 0.7 : 1,
-                }}
-              >
-                {docUploading ? 'Extracting requirements...' : 'Extract & Save'}
-              </button>
-            </div>
+                  return (
+                    <div style={{ padding: '14px 16px', borderRadius: 'var(--radius-md)', backgroundColor: verdictBg, textAlign: 'center' }}>
+                      <div style={{ fontSize: 18, fontWeight: 700, color: verdictColor }}>{verdict}</div>
+                      <div style={{ fontSize: 13, color: verdictColor, marginTop: 4 }}>
+                        {docResultCounts.pass} passed &middot; {docResultCounts.fail} failed &middot; {docResultCounts.unclear} unclear
+                      </div>
+                    </div>
+                  );
+                })()}
+
+                {/* Results list */}
+                <div style={{ maxHeight: 280, overflowY: 'auto', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)' }}>
+                  {docResults.map((r, i) => (
+                    <div key={i} style={{ padding: '10px 14px', borderBottom: i < docResults.length - 1 ? '1px solid var(--color-border)' : 'none', display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+                      <span style={{ fontSize: 16, flexShrink: 0, marginTop: 1 }}>
+                        {r.status === 'pass' ? '\u2705' : r.status === 'fail' ? '\u274C' : '\u2753'}
+                      </span>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-text)' }}>{r.requirement_label}</div>
+                        <div style={{ fontSize: 12, color: 'var(--color-text-secondary)', marginTop: 2 }}>{r.note}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Actions */}
+                <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                  {docResultCounts.fail > 0 && docCounterpartyEmail && docSavedReq && (
+                    <button
+                      onClick={async () => {
+                        try {
+                          await leaseComplianceApi.sendDeficiencyNotice(docSavedReq.id, docCounterpartyEmail, docCounterpartyName || undefined);
+                          toast('Deficiency notice sent!', 'success');
+                        } catch (err: any) {
+                          toast(err.message || 'Failed to send', 'error');
+                        }
+                      }}
+                      style={{ padding: '8px 16px', backgroundColor: '#dc2626', color: '#fff', border: 'none', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontSize: 13, fontWeight: 600 }}
+                    >
+                      Send Deficiency Notice
+                    </button>
+                  )}
+                  <button
+                    onClick={() => { setDocResults([]); setDocResultCounts({ pass: 0, fail: 0, unclear: 0 }); setDocStep(3); }}
+                    style={{ padding: '8px 16px', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)', backgroundColor: '#fff', cursor: 'pointer', fontSize: 13 }}
+                  >
+                    Compare Again
+                  </button>
+                  <button
+                    onClick={() => { setShowDocFlow(false); resetDocFlow(); }}
+                    style={{ padding: '8px 16px', backgroundColor: 'var(--color-primary)', color: '#fff', border: 'none', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontSize: 13, fontWeight: 600 }}
+                  >
+                    Done
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -851,7 +1133,6 @@ function CertificatesContent() {
           try {
             await leaseComplianceApi.remove(deleteReqConfirm);
             toast('Requirement deleted', 'success');
-            if (viewingLease?.id === deleteReqConfirm) setViewingLease(null);
             setDeleteReqConfirm(null);
             await load();
           } catch (err: any) {
@@ -1418,6 +1699,7 @@ function CertificatesContent() {
                 <button
                   onClick={() => {
                     trackClick('lease_detail_delete', { id: req.id });
+                    setViewingLease(null);
                     setDeleteReqConfirm(req.id);
                   }}
                   style={{ padding: '8px 20px', border: '1px solid #fecaca', borderRadius: 'var(--radius-sm)', backgroundColor: '#fff', color: 'var(--color-danger)', cursor: 'pointer', fontSize: 14 }}
