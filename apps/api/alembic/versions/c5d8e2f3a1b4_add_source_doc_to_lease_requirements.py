@@ -19,12 +19,10 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    with op.batch_alter_table("lease_requirements") as batch_op:
-        batch_op.add_column(sa.Column("source_doc_name", sa.String(255), nullable=True))
-        batch_op.add_column(sa.Column("source_doc_data", sa.LargeBinary(), nullable=True))
+    op.add_column("lease_requirements", sa.Column("source_doc_name", sa.String(255), nullable=True))
+    op.add_column("lease_requirements", sa.Column("source_doc_data", sa.LargeBinary(), nullable=True))
 
 
 def downgrade() -> None:
-    with op.batch_alter_table("lease_requirements") as batch_op:
-        batch_op.drop_column("source_doc_data")
-        batch_op.drop_column("source_doc_name")
+    op.drop_column("lease_requirements", "source_doc_data")
+    op.drop_column("lease_requirements", "source_doc_name")
