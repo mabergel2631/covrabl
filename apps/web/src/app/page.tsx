@@ -478,16 +478,21 @@ function Dashboard() {
     });
   }, []);
 
-  const scoreValue = scores?.overall_score ?? 0;
-  const healthStatus = scoreValue >= 70
-    ? { label: 'Good Standing', color: '#166534', bg: '#dcfce7', icon: '\u2713' }
-    : scoreValue >= 40
-    ? { label: 'Needs Review', color: '#92400e', bg: '#fef3c7', icon: '!' }
-    : { label: 'Action Needed', color: '#991b1b', bg: '#fee2e2', icon: '\u26A0' };
   const unackCount = alerts?.unacknowledged_count ?? 0;
   const renewalPolicies = renewals?.policies?.slice(0, 3) ?? [];
   const activeCount = policies.filter(p => p.status !== 'archived').length;
   const activePolicies = policies.filter(p => p.status !== 'archived' && p.status !== 'expired');
+
+  // Status based on real issues (alerts + renewals), not advisory score
+  const criticalAlerts = (alerts?.items ?? []).filter(d => d.severity === 'critical').length;
+  const warningAlerts = (alerts?.items ?? []).filter(d => d.severity === 'warning').length;
+  const overdueRenewals = (renewals?.policies ?? []).filter(r => r.days_until_renewal < 0).length;
+  const soonRenewals = (renewals?.policies ?? []).filter(r => r.days_until_renewal >= 0 && r.days_until_renewal <= 30).length;
+  const healthStatus = (criticalAlerts > 0 || overdueRenewals > 0)
+    ? { label: 'Action Needed', color: '#991b1b', bg: '#fee2e2', icon: '\u26A0' }
+    : (warningAlerts > 0 || soonRenewals > 0)
+    ? { label: 'Needs Attention', color: '#92400e', bg: '#fef3c7', icon: '!' }
+    : { label: 'Good Standing', color: '#166534', bg: '#dcfce7', icon: '\u2713' };
 
   // Categorize and sort policies
   const sortByAttention = (a: Policy, b: Policy) => {
@@ -763,7 +768,7 @@ function Dashboard() {
               backgroundColor: 'var(--color-bg)', border: '1px solid var(--color-border)',
               borderRadius: 'var(--radius-md)',
             }}>
-              <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--color-text)', marginBottom: 10 }}>Coverage Insights</div>
+              <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--color-text)', marginBottom: 10 }}>Opportunities to Strengthen Coverage</div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 {topInsights.map((ins, i) => (
                   <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13, color: 'var(--color-text-secondary)' }}>
@@ -988,10 +993,10 @@ export default function Home() {
             letterSpacing: 'var(--letter-spacing-tight)',
             fontFamily: 'var(--font-heading)',
           }}>
-            Finally understand what your insurance actually covers.
+            Finally understand what your insurance actually covers — and verify it holds up.
           </h1>
           <p style={{ fontSize: 18, opacity: 0.95, margin: '0 0 8px', lineHeight: 1.7, maxWidth: 720, marginLeft: 'auto', marginRight: 'auto', fontWeight: 500 }}>
-            Covrabl analyzes your policies and shows you what&apos;s covered, what isn&apos;t, and where you may still have risk.
+            Covrabl analyzes your policies, shows you what&apos;s covered, what isn&apos;t, and verifies your coverage against real requirements.
           </p>
           <p style={{ fontSize: 15, opacity: 0.7, margin: '0 0 8px', lineHeight: 1.7, maxWidth: 650, marginLeft: 'auto', marginRight: 'auto', letterSpacing: 'var(--letter-spacing-wide)' }}>
             No legal jargon. No 200-page documents. Just clear explanations of what you&apos;re actually covered for.
@@ -1036,43 +1041,58 @@ export default function Home() {
       <ProductDemo />
 
       {/* ═══════════════════════════════════════════════════════════════
-          1c. STATIC COMPLIANCE PREVIEW
+          1c. COMPLIANCE VERIFICATION — key differentiator
       ═══════════════════════════════════════════════════════════════ */}
-      <section style={{ padding: '0 24px 80px', background: '#fff' }}>
-        <div style={{ maxWidth: 520, margin: '0 auto' }}>
-          <div style={{ textAlign: 'center', marginBottom: 20 }}>
-            <h3 style={{ fontSize: 18, fontWeight: 700, color: 'var(--color-text)', margin: '0 0 6px' }}>Verify compliance in seconds</h3>
-            <p style={{ fontSize: 13, color: 'var(--color-text-muted)', margin: 0 }}>
-              Upload requirements from a lease, contract, or vendor agreement — Covrabl checks your policies automatically.
+      <section style={{ padding: '60px 24px 80px', background: '#fff' }}>
+        <div style={{ maxWidth: 640, margin: '0 auto' }}>
+          <div style={{ textAlign: 'center', marginBottom: 28 }}>
+            <h2 style={{ fontSize: 26, fontWeight: 700, color: 'var(--color-text)', margin: '0 0 10px' }}>Know if you're actually compliant</h2>
+            <p style={{ fontSize: 15, color: 'var(--color-text-secondary)', margin: '0 0 16px', lineHeight: 1.6 }}>
+              Upload a lease, loan agreement, or contract. Covrabl compares your actual coverage against the requirements — and tells you exactly where you stand.
+            </p>
+            <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--color-primary)', margin: 0 }}>
+              Certificates don&apos;t guarantee coverage. Covrabl verifies the actual policy.
             </p>
           </div>
           <div style={{
-            border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)',
+            border: '1px solid var(--color-border)', borderRadius: 'var(--radius-lg)',
             overflow: 'hidden', backgroundColor: '#fff',
-            boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
+            boxShadow: '0 4px 16px rgba(0,0,0,0.06)',
           }}>
-            <div style={{ padding: '10px 16px', backgroundColor: 'var(--color-bg)', borderBottom: '1px solid var(--color-border)', fontSize: 12, fontWeight: 600, color: 'var(--color-text-secondary)' }}>
-              Sample Compliance Output
+            <div style={{ padding: '12px 20px', backgroundColor: 'var(--color-bg)', borderBottom: '1px solid var(--color-border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--color-text)' }}>Lease Compliance Check</span>
+              <span style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>vs. Hartford GL Policy</span>
             </div>
             {[
-              { req: 'General Liability \u2265 $1,000,000', status: 'Pass', color: '#22c55e', bg: '#f0fdf4' },
-              { req: 'Additional Insured endorsement', status: 'Pass', color: '#22c55e', bg: '#f0fdf4' },
-              { req: 'Workers\u2019 Compensation coverage', status: 'Fail', color: '#ef4444', bg: '#fef2f2' },
-              { req: 'Waiver of Subrogation', status: 'Unclear', color: '#f59e0b', bg: '#fffbeb' },
+              { req: 'General Liability \u2265 $1,000,000', status: 'Verified', icon: '\u2713', color: '#166534', bg: '#f0fdf4' },
+              { req: 'Additional Insured endorsement', status: 'Verified', icon: '\u2713', color: '#166534', bg: '#f0fdf4' },
+              { req: 'Workers\u2019 Compensation coverage', status: 'Not Found', icon: '\u2717', color: '#dc2626', bg: '#fef2f2' },
+              { req: 'Waiver of Subrogation', status: 'Unclear', icon: '?', color: '#d97706', bg: '#fffbeb' },
+              { req: 'Property Damage \u2265 $500,000', status: 'Verified', icon: '\u2713', color: '#166534', bg: '#f0fdf4' },
             ].map((item, i) => (
               <div key={i} style={{
                 display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                padding: '10px 16px', borderBottom: i < 3 ? '1px solid var(--color-border)' : 'none',
+                padding: '12px 20px', borderBottom: i < 4 ? '1px solid var(--color-border)' : 'none',
+                backgroundColor: item.bg,
               }}>
-                <span style={{ fontSize: 13, color: 'var(--color-text)' }}>{item.req}</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <span style={{
+                    width: 22, height: 22, borderRadius: '50%', display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                    fontSize: 12, fontWeight: 700, color: '#fff',
+                    backgroundColor: item.color,
+                  }}>{item.icon}</span>
+                  <span style={{ fontSize: 13, color: 'var(--color-text)', fontWeight: 500 }}>{item.req}</span>
+                </div>
                 <span style={{
-                  fontSize: 11, fontWeight: 700, color: item.color, padding: '2px 10px',
-                  borderRadius: 4, backgroundColor: item.bg,
+                  fontSize: 11, fontWeight: 700, color: item.color,
                 }}>{item.status}</span>
               </div>
             ))}
-            <div style={{ padding: '8px 16px', backgroundColor: 'var(--color-bg)', fontSize: 11, color: 'var(--color-text-muted)' }}>
-              <strong>Unclear</strong> means the uploaded documents did not provide definitive evidence.
+            <div style={{ padding: '10px 20px', backgroundColor: '#fef2f2', borderTop: '1px solid #fecaca', display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ fontSize: 12, color: '#dc2626', fontWeight: 700 }}>{'\u26A0'}</span>
+              <span style={{ fontSize: 12, color: '#991b1b' }}>
+                1 requirement failed, 1 unclear. Review needed before this coverage meets your lease terms.
+              </span>
             </div>
           </div>
         </div>
@@ -1142,7 +1162,7 @@ export default function Home() {
             How it works
           </h2>
           <p style={{ fontSize: 15, color: 'var(--color-text-secondary)', textAlign: 'center', margin: '0 0 56px', maxWidth: 580, marginLeft: 'auto', marginRight: 'auto' }}>
-            Upload any policy — personal or business. Covrabl reads it, explains what it covers in plain English, and shows you where you may still be exposed.
+            Upload any policy — personal or business. Covrabl reads it, explains what it covers in plain English, and checks it against your real requirements.
           </p>
 
           {/* Timeline container — wraps all 4 steps */}
@@ -1706,10 +1726,10 @@ export default function Home() {
         }} />
         <div style={{ maxWidth: 600, margin: '0 auto', position: 'relative' }}>
           <h2 style={{ fontSize: 32, fontWeight: 700, margin: '0 0 16px', letterSpacing: 'var(--letter-spacing-tight)' }}>
-            Stop guessing. Start knowing.
+            Stop guessing. Start verifying.
           </h2>
           <p style={{ fontSize: 18, opacity: 0.9, margin: '0 0 32px' }}>
-            See what your insurance actually covers — and where you may still be exposed.
+            See what your insurance actually covers — and verify it holds up when it matters.
           </p>
           <button onClick={() => { trackClick('landing_cta_final'); ctaAction(); }} style={{
             padding: '16px 40px', fontSize: 18, fontWeight: 600,
