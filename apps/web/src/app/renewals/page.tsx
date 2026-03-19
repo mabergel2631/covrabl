@@ -94,7 +94,7 @@ function PolicyCard({ policy }: { policy: RenewalPolicySummary }) {
           <span style={{ fontSize: 22 }}>{ptDisplay.icon}</span>
           <div>
             <button
-              onClick={() => router.push(`/policies/${policy.id}`)}
+              onClick={() => { trackClick('renewals_view_policy'); router.push(`/policies/${policy.id}`); }}
               style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontSize: 16, fontWeight: 600, color: 'var(--color-text)', textAlign: 'left' }}
             >
               {policy.carrier}

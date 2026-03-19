@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import ReactMarkdown from 'react-markdown';
 import { useAuth } from '../../../lib/auth';
 import { chatApi, ChatConversation, ChatMessageData } from '../../../lib/api';
-import { trackFeatureUse } from '../../../lib/track';
+import { trackClick, trackFeatureUse } from '../../../lib/track';
 
 type DisplayMessage = {
   id?: number;
@@ -250,7 +250,7 @@ function ChatPageInner() {
       >
         <div style={{ padding: '16px 12px', borderBottom: '1px solid var(--color-border)' }}>
           <button
-            onClick={startNewChat}
+            onClick={() => { trackClick('chat_new_conversation'); startNewChat(); }}
             style={{
               width: '100%',
               padding: '10px 16px',
@@ -274,7 +274,7 @@ function ChatPageInner() {
           {conversations.map(c => (
             <button
               key={c.id}
-              onClick={() => loadMessages(c.id)}
+              onClick={() => { trackClick('chat_switch_conversation'); loadMessages(c.id); }}
               style={{
                 display: 'flex',
                 alignItems: 'center',
@@ -295,7 +295,7 @@ function ChatPageInner() {
                 {c.title || 'Untitled'}
               </span>
               <span
-                onClick={(e) => deleteConversation(c.id, e)}
+                onClick={(e) => { trackClick('chat_delete_conversation'); deleteConversation(c.id, e); }}
                 style={{ opacity: 0.4, fontSize: 14, padding: '0 4px', flexShrink: 0 }}
                 title="Delete conversation"
               >
@@ -323,7 +323,7 @@ function ChatPageInner() {
           flexShrink: 0,
         }}>
           <button
-            onClick={() => router.back()}
+            onClick={() => { trackClick('chat_back_navigation'); router.back(); }}
             style={{
               background: 'none',
               border: 'none',
@@ -339,7 +339,7 @@ function ChatPageInner() {
           </button>
           <button
             className="chat-menu-btn"
-            onClick={() => setSidebarOpen(!sidebarOpen)}
+            onClick={() => { trackClick('chat_sidebar_toggle'); setSidebarOpen(!sidebarOpen); }}
             style={{
               display: 'none',
               background: 'none',
@@ -375,7 +375,7 @@ function ChatPageInner() {
                 {SUGGESTED_QUESTIONS.map(q => (
                   <button
                     key={q}
-                    onClick={() => sendMessage(q)}
+                    onClick={() => { trackClick('chat_suggested_question'); sendMessage(q); }}
                     style={{
                       padding: '8px 16px',
                       border: '1px solid var(--color-border)',
@@ -528,7 +528,7 @@ function ChatPageInner() {
             />
             {hasSpeechRecognition && (
               <button
-                onClick={toggleVoice}
+                onClick={() => { trackClick('chat_voice_toggle'); toggleVoice(); }}
                 disabled={isStreaming}
                 aria-label={isListening ? 'Stop dictation' : 'Start voice dictation'}
                 title={isListening ? 'Stop dictation' : 'Dictate your question'}
@@ -556,7 +556,7 @@ function ChatPageInner() {
               </button>
             )}
             <button
-              onClick={() => sendMessage()}
+              onClick={() => { trackClick('chat_send_message'); sendMessage(); }}
               disabled={isStreaming || !input.trim()}
               style={{
                 padding: '8px 16px',

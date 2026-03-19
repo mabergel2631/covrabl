@@ -43,60 +43,75 @@ export default function AdminDashboard() {
   }
 
   return (
-    <div style={{ padding: '32px 24px', maxWidth: 1100, margin: '0 auto' }}>
-      <BackButton href="/" label="Admin" parentLabel="Home" />
-      <h1 style={{ fontSize: 24, fontWeight: 700, margin: '0 0 8px', color: 'var(--color-text)' }}>
-        Admin Dashboard
-      </h1>
-      <p style={{ fontSize: 14, color: 'var(--color-text-secondary)', margin: '0 0 24px' }}>
-        Platform overview and management console.
-      </p>
+    <>
+      <style>{`
+        .admin-dashboard { padding: 32px 24px; max-width: 1100px; margin: 0 auto; }
+        .admin-tab-bar {
+          display: flex; flex-wrap: wrap; gap: 4px;
+          border-bottom: 2px solid var(--color-border);
+          margin-bottom: 28px;
+        }
+        .admin-tab-btn {
+          display: flex; align-items: center; gap: 6px;
+          padding: 10px 18px; border: none;
+          margin-bottom: -2px; background-color: transparent;
+          font-size: 14px; cursor: pointer; white-space: nowrap;
+          transition: color 0.15s, border-color 0.15s;
+          min-width: 0;
+        }
+        .admin-content { overflow-x: auto; }
+        @media (max-width: 768px) {
+          .admin-dashboard { padding: 20px 12px; }
+          .admin-tab-bar { gap: 2px; }
+          .admin-tab-btn { padding: 8px 10px; font-size: 13px; }
+          .admin-tab-btn .tab-icon { display: none; }
+        }
+        @media (max-width: 480px) {
+          .admin-dashboard { padding: 16px 8px; }
+          .admin-tab-btn { padding: 7px 8px; font-size: 12px; }
+        }
+      `}</style>
+      <div className="admin-dashboard">
+        <BackButton href="/" label="Admin" parentLabel="Home" />
+        <h1 style={{ fontSize: 24, fontWeight: 700, margin: '0 0 8px', color: 'var(--color-text)' }}>
+          Admin Dashboard
+        </h1>
+        <p style={{ fontSize: 14, color: 'var(--color-text-secondary)', margin: '0 0 24px' }}>
+          Platform overview and management console.
+        </p>
 
-      {/* Tab Bar */}
-      <div style={{
-        display: 'flex',
-        gap: 0,
-        borderBottom: '2px solid var(--color-border)',
-        marginBottom: 28,
-        overflowX: 'auto',
-      }}>
-        {TABS.map(tab => {
-          const isActive = activeTab === tab.key;
-          return (
-            <button
-              key={tab.key}
-              onClick={() => setActiveTab(tab.key)}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 6,
-                padding: '10px 18px',
-                border: 'none',
-                borderBottom: isActive ? '2px solid var(--color-primary)' : '2px solid transparent',
-                marginBottom: -2,
-                backgroundColor: 'transparent',
-                color: isActive ? 'var(--color-primary)' : 'var(--color-text-secondary)',
-                fontSize: 14,
-                fontWeight: isActive ? 600 : 400,
-                cursor: 'pointer',
-                whiteSpace: 'nowrap',
-                transition: 'color 0.15s, border-color 0.15s',
-              }}
-            >
-              <span style={{ fontSize: 15 }}>{tab.icon}</span>
-              {tab.label}
-            </button>
-          );
-        })}
+        {/* Tab Bar */}
+        <div className="admin-tab-bar">
+          {TABS.map(tab => {
+            const isActive = activeTab === tab.key;
+            return (
+              <button
+                key={tab.key}
+                onClick={() => setActiveTab(tab.key)}
+                className="admin-tab-btn"
+                style={{
+                  borderBottom: isActive ? '2px solid var(--color-primary)' : '2px solid transparent',
+                  color: isActive ? 'var(--color-primary)' : 'var(--color-text-secondary)',
+                  fontWeight: isActive ? 600 : 400,
+                }}
+              >
+                <span className="tab-icon" style={{ fontSize: 15 }}>{tab.icon}</span>
+                {tab.label}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Tab Content */}
+        <div className="admin-content">
+          {activeTab === 'overview' && <AdminOverviewTab />}
+          {activeTab === 'users' && <AdminUsersTab />}
+          {activeTab === 'activity' && <AdminActivityTab />}
+          {activeTab === 'emails' && <AdminEmailsTab />}
+          {activeTab === 'drafts' && <AdminDraftsTab />}
+          {activeTab === 'announcements' && <AdminAnnouncementsTab />}
+        </div>
       </div>
-
-      {/* Tab Content */}
-      {activeTab === 'overview' && <AdminOverviewTab />}
-      {activeTab === 'users' && <AdminUsersTab />}
-      {activeTab === 'activity' && <AdminActivityTab />}
-      {activeTab === 'emails' && <AdminEmailsTab />}
-      {activeTab === 'drafts' && <AdminDraftsTab />}
-      {activeTab === 'announcements' && <AdminAnnouncementsTab />}
-    </div>
+    </>
   );
 }

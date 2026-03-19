@@ -349,7 +349,7 @@ function ScorePageInner() {
     return (
       <div style={{ maxWidth: 800, margin: '0 auto', padding: '60px 24px', textAlign: 'center' }}>
         <div style={{ fontSize: 16, color: '#ef4444', marginBottom: 16 }}>{error || 'Unable to load coverage data'}</div>
-        <button onClick={() => router.push('/policies')} style={{ padding: '12px 24px', borderRadius: 8, border: '1px solid var(--color-border)', background: '#fff', cursor: 'pointer', fontSize: 14 }}>
+        <button onClick={() => { trackClick('score_back_to_policies'); router.push('/policies'); }} style={{ padding: '12px 24px', borderRadius: 8, border: '1px solid var(--color-border)', background: '#fff', cursor: 'pointer', fontSize: 14 }}>
           Back to Policies
         </button>
       </div>
@@ -365,7 +365,7 @@ function ScorePageInner() {
         {(['personal', 'business'] as const).map(s => (
           <button
             key={s}
-            onClick={() => router.replace(`/score?scope=${s}`)}
+            onClick={() => { trackClick(`score_scope_${s}`); router.replace(`/score?scope=${s}`); }}
             style={{
               padding: '6px 16px', fontSize: 13, fontWeight: 600,
               borderRadius: 6, border: '1px solid var(--color-border)',
@@ -456,7 +456,7 @@ function ScorePageInner() {
             Uploading these policies will improve accuracy and confidence.
           </div>
           <button
-            onClick={() => router.push('/policies')}
+            onClick={() => { trackClick('score_upload_policy'); router.push('/policies'); }}
             style={{
               marginTop: 10, padding: '6px 16px', fontSize: 13, fontWeight: 500,
               borderRadius: 6, border: '1px solid #fbbf24',
@@ -575,7 +575,7 @@ function ScorePageInner() {
       {/* Bottom back link */}
       <div style={{ marginTop: 24, textAlign: 'center' }}>
         <button
-          onClick={() => router.push('/policies')}
+          onClick={() => { trackClick('score_back_to_policies'); router.push('/policies'); }}
           style={{
             background: 'none', border: 'none', fontSize: 14,
             color: 'var(--color-text-secondary)', cursor: 'pointer',

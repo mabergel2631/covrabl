@@ -1779,7 +1779,7 @@ export default function Home() {
             <a href={`mailto:${APP_CONTACT_EMAIL}`} style={{ color: 'var(--color-text-muted)', textDecoration: 'none' }}>{APP_CONTACT_EMAIL}</a>
           </div>
           <div style={{ textAlign: 'center' }}>
-            {APP_NAME} — {APP_TAGLINE}
+            &copy; 2026 Covrabl, LLC &mdash; {APP_TAGLINE}
           </div>
         </div>
       </footer>

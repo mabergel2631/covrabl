@@ -100,7 +100,7 @@ function buildComplianceRows(
       sourceType: 'lease_check',
       sourceId: req.id,
       entity,
-      evidenceLabel: `${req.role === 'requester' ? 'Document Check' : 'Lease Check'} \u2014 ${req.label}`,
+      evidenceLabel: `Requirement Check \u2014 ${req.label}`,
       status,
       statusLabel: sc.label,
       expiration: null,
@@ -514,7 +514,7 @@ function CertificatesContent() {
           {([
             { key: 'all', label: 'All' },
             { key: 'certificates', label: 'Certificates' },
-            { key: 'lease_checks', label: 'Lease Checks' },
+            { key: 'lease_checks', label: 'Requirement Checks' },
           ] as const).map(f => (
             <button
               key={f.key}
@@ -626,7 +626,7 @@ function CertificatesContent() {
                     {row.entity}
                   </div>
                   <div style={{ fontSize: 11, color: 'var(--color-text-muted)', marginTop: 2 }}>
-                    {row.sourceType === 'certificate' ? 'Certificate' : 'Lease Check'}
+                    {row.sourceType === 'certificate' ? 'Certificate' : 'Requirement Check'}
                   </div>
                 </div>
                 <div
@@ -798,7 +798,7 @@ function CertificatesContent() {
                 onMouseLeave={e => (e.currentTarget.style.borderColor = 'var(--color-border)')}
               >
                 <div style={{ fontSize: 28, marginBottom: 10 }}>&#128194;</div>
-                <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 4, color: 'var(--color-text)' }}>Compare Documents</div>
+                <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 4, color: 'var(--color-text)' }}>Verify Requirements</div>
                 <div style={{ fontSize: 11, color: 'var(--color-text-secondary)', lineHeight: 1.5 }}>
                   Upload a requirements document to compare
                 </div>
@@ -856,7 +856,7 @@ function CertificatesContent() {
           <div style={{ backgroundColor: '#fff', borderRadius: 'var(--radius-lg)', padding: 20, maxWidth: 600, width: '100%', maxHeight: '90vh', overflowY: 'auto' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
               <h2 style={{ fontSize: 18, fontWeight: 700, margin: 0 }}>
-                Compare Documents
+                Verify Requirements
                 <span style={{ fontSize: 12, fontWeight: 400, color: 'var(--color-text-muted)', marginLeft: 10 }}>
                   Step {docStep} of 4
                 </span>
@@ -1704,7 +1704,7 @@ function CertificatesContent() {
           <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
             <div style={{ backgroundColor: '#fff', borderRadius: 'var(--radius-lg)', padding: 20, maxWidth: 620, width: '100%', maxHeight: '90vh', overflowY: 'auto' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
-                <h2 style={{ fontSize: 18, fontWeight: 700, margin: 0 }}>{isDocCheck ? 'Document Check Details' : 'Lease Check Details'}</h2>
+                <h2 style={{ fontSize: 18, fontWeight: 700, margin: 0 }}>Requirement Check Details</h2>
                 <button onClick={() => { trackClick('lease_detail_close'); setViewingLease(null); }} style={{ background: 'none', border: 'none', fontSize: 20, cursor: 'pointer', color: 'var(--color-text-muted)', padding: 0, lineHeight: 1 }}>&times;</button>
               </div>
 

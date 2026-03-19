@@ -2284,7 +2284,7 @@ function PolicyDetailContent() {
           <div id="lease-compliance" className="card" style={{ marginBottom: 32 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 12 }}>
               <div>
-                <h2 className="section-title" style={{ margin: 0 }}>Lease Check</h2>
+                <h2 className="section-title" style={{ margin: 0 }}>Requirement Check</h2>
                 <a href="/features/lease-check" target="_blank" rel="noopener noreferrer" onClick={() => trackClick('lease_check_how_it_works')} style={{ fontSize: 12, color: 'var(--color-accent)', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 4, marginTop: 2 }}>See how it works <span style={{ fontSize: 14 }}>&rsaquo;</span></a>
               </div>
               {leaseView === 'list' && canEdit && (
@@ -2361,7 +2361,7 @@ function PolicyDetailContent() {
                 {leaseDeleteConfirm != null && (
                   <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
                     <div style={{ backgroundColor: '#fff', borderRadius: 'var(--radius-lg)', padding: 28, maxWidth: 400, width: '100%', textAlign: 'center' }}>
-                      <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 8 }}>Delete Lease Check</h3>
+                      <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 8 }}>Delete Requirement Check</h3>
                       <p style={{ fontSize: 13, color: 'var(--color-text-secondary)', marginBottom: 20 }}>This cannot be undone.</p>
                       <div style={{ display: 'flex', gap: 10, justifyContent: 'center' }}>
                         <button onClick={() => setLeaseDeleteConfirm(null)} style={{ padding: '8px 20px', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)', backgroundColor: '#fff', cursor: 'pointer', fontSize: 14 }}>Cancel</button>

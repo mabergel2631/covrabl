@@ -345,7 +345,7 @@ export default function EmergencyPage() {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 0, flexWrap: 'wrap', gap: 12 }}>
         <BackButton href="/" label="Emergency" parentLabel="Home" />
         <button
-          onClick={() => window.print()}
+          onClick={() => { trackClick('emergency_print_card'); window.print(); }}
           className="btn btn-outline print-hide"
           style={{ padding: '8px 16px', fontSize: 13 }}
         >
@@ -378,7 +378,7 @@ export default function EmergencyPage() {
           </div>
           {isOnline && isUsingCache && (
             <button
-              onClick={loadAll}
+              onClick={() => { trackClick('emergency_refresh'); loadAll(); }}
               style={{
                 marginLeft: 'auto',
                 padding: '6px 12px',
@@ -472,7 +472,7 @@ export default function EmergencyPage() {
                 Create an emergency card that family members can access if something happens to you.
               </p>
               <button
-                onClick={handleStartIceSetup}
+                onClick={() => { trackClick('emergency_create_card'); handleStartIceSetup(); }}
                 className="btn btn-accent"
                 style={{ padding: '12px 24px', fontSize: 15, fontWeight: 600 }}
               >
@@ -565,7 +565,7 @@ export default function EmergencyPage() {
 
               <div style={{ display: 'flex', gap: 12 }}>
                 <button
-                  onClick={handleCreateIceCard}
+                  onClick={() => { trackClick('emergency_ice_create'); handleCreateIceCard(); }}
                   disabled={!iceForm.holder_name.trim() || iceSaving}
                   className="btn btn-accent"
                   style={{ padding: '10px 20px' }}
@@ -573,7 +573,7 @@ export default function EmergencyPage() {
                   {iceSaving ? 'Creating...' : 'Create Card'}
                 </button>
                 <button
-                  onClick={() => setShowIceSetup(false)}
+                  onClick={() => { trackClick('emergency_ice_cancel'); setShowIceSetup(false); }}
                   className="btn btn-outline"
                   style={{ padding: '10px 20px' }}
                 >
@@ -661,28 +661,28 @@ export default function EmergencyPage() {
 
               <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
                 <button
-                  onClick={() => window.open(getShareUrl(), '_blank')}
+                  onClick={() => { trackClick('emergency_preview_card'); window.open(getShareUrl(), '_blank'); }}
                   className="btn btn-outline"
                   style={{ padding: '8px 16px', fontSize: 13 }}
                 >
                   Preview Card
                 </button>
                 <button
-                  onClick={handleToggleIceCard}
+                  onClick={() => { trackClick('emergency_toggle_card'); handleToggleIceCard(); }}
                   className="btn btn-outline"
                   style={{ padding: '8px 16px', fontSize: 13 }}
                 >
                   {iceCard.is_active ? 'Deactivate' : 'Activate'}
                 </button>
                 <button
-                  onClick={handleRegenerateCode}
+                  onClick={() => { trackClick('emergency_new_link'); handleRegenerateCode(); }}
                   className="btn btn-outline"
                   style={{ padding: '8px 16px', fontSize: 13 }}
                 >
                   New Link
                 </button>
                 <button
-                  onClick={handleDeleteIceCard}
+                  onClick={() => { trackClick('emergency_delete_card'); handleDeleteIceCard(); }}
                   className="btn btn-outline"
                   style={{ padding: '8px 16px', fontSize: 13, color: 'var(--color-danger)', borderColor: 'var(--color-danger)' }}
                 >
@@ -743,7 +743,7 @@ export default function EmergencyPage() {
                       return (
                         <button
                           key={p.id}
-                          onClick={() => setExpandedId(isActive ? null : p.id)}
+                          onClick={() => { trackClick('emergency_toggle_policy'); setExpandedId(isActive ? null : p.id); }}
                           style={{
                             display: 'flex',
                             flexDirection: 'column',
@@ -909,17 +909,17 @@ export default function EmergencyPage() {
                               </a>
                             )}
                             {idCard && (
-                              <button onClick={() => handleDownload(idCard.id)} className="btn btn-primary" style={{ padding: '10px 16px' }}>
+                              <button onClick={() => { trackClick('emergency_download_id_card'); handleDownload(idCard.id); }} className="btn btn-primary" style={{ padding: '10px 16px' }}>
                                 ID Card
                               </button>
                             )}
                             {decPage && (
-                              <button onClick={() => handleDownload(decPage.id)} className="btn btn-primary" style={{ padding: '10px 16px' }}>
+                              <button onClick={() => { trackClick('emergency_download_declarations'); handleDownload(decPage.id); }} className="btn btn-primary" style={{ padding: '10px 16px' }}>
                                 Declarations
                               </button>
                             )}
                             <button
-                              onClick={() => router.push(`/policies/${p.id}`)}
+                              onClick={() => { trackClick('emergency_full_details'); router.push(`/policies/${p.id}`); }}
                               className="btn btn-outline"
                               style={{ padding: '10px 16px' }}
                             >

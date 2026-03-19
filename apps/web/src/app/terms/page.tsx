@@ -29,7 +29,7 @@ export default function TermsPage() {
       <div style={{ fontSize: 15, color: 'var(--color-text)', lineHeight: 1.8 }}>
         <p>
           These Terms of Service (&quot;Terms&quot;) govern your use of {APP_NAME} and any related services
-          (collectively, the &quot;Service&quot;) operated by {APP_NAME} (&quot;we,&quot; &quot;us,&quot; or &quot;our&quot;).
+          (collectively, the &quot;Service&quot;) operated by Covrabl, LLC (&quot;Covrabl,&quot; &quot;we,&quot; &quot;us,&quot; or &quot;our&quot;).
           By accessing or using the Service, you agree to be bound by these Terms. If you do not agree, do not use the Service.
         </p>
 

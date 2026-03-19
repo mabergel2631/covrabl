@@ -251,7 +251,7 @@ export default function ProfilePage() {
           <h2 style={{ margin: 0, fontSize: 16, fontWeight: 700 }}>Personal Information</h2>
           {!editingPersonal ? (
             <button
-              onClick={() => setEditingPersonal(true)}
+              onClick={() => { trackClick('profile_edit_personal'); setEditingPersonal(true); }}
               className="btn btn-outline"
               style={{ padding: '6px 14px', fontSize: 13 }}
             >
@@ -269,6 +269,7 @@ export default function ProfilePage() {
               </button>
               <button
                 onClick={() => {
+                  trackClick('profile_cancel_personal');
                   setEditingPersonal(false);
                   setForm({
                     full_name: profile?.full_name || '',
@@ -324,6 +325,7 @@ export default function ProfilePage() {
           <h2 style={{ margin: 0, fontSize: 16, fontWeight: 700 }}>Emergency Contacts</h2>
           <button
             onClick={() => {
+              trackClick('profile_add_emergency_contact');
               resetContactForm();
               setContactForm(prev => ({ ...prev, contact_type: 'emergency' }));
               setShowContactForm('emergency');
@@ -379,6 +381,7 @@ export default function ProfilePage() {
           <h2 style={{ margin: 0, fontSize: 16, fontWeight: 700 }}>Insurance Brokers</h2>
           <button
             onClick={() => {
+              trackClick('profile_add_broker');
               resetContactForm();
               setContactForm(prev => ({ ...prev, contact_type: 'broker' }));
               setShowContactForm('broker');
@@ -479,7 +482,7 @@ export default function ProfilePage() {
           <h2 style={{ margin: 0, fontSize: 16, fontWeight: 700 }}>Change Password</h2>
           {!showPasswordForm && (
             <button
-              onClick={() => { setShowPasswordForm(true); setPwForm({ current: '', newPw: '', confirm: '' }); setPwError(''); }}
+              onClick={() => { trackClick('profile_change_password'); setShowPasswordForm(true); setPwForm({ current: '', newPw: '', confirm: '' }); setPwError(''); }}
               className="btn btn-outline"
               style={{ padding: '6px 14px', fontSize: 13 }}
             >
@@ -511,7 +514,7 @@ export default function ProfilePage() {
                   {changingPw ? 'Updating...' : 'Update Password'}
                 </button>
                 <button
-                  onClick={() => { setShowPasswordForm(false); setPwError(''); }}
+                  onClick={() => { trackClick('profile_cancel_password'); setShowPasswordForm(false); setPwError(''); }}
                   className="btn btn-outline"
                   style={{ padding: '8px 16px', fontSize: 13 }}
                 >
@@ -543,7 +546,7 @@ export default function ProfilePage() {
             If you have data you want to keep, export it first.
           </p>
           <button
-            onClick={() => { setShowDeleteModal(true); setDeletePassword(''); setDeleteError(''); }}
+            onClick={() => { trackClick('profile_delete_account_open'); setShowDeleteModal(true); setDeletePassword(''); setDeleteError(''); }}
             style={{
               padding: '8px 20px', fontSize: 14, fontWeight: 600,
               backgroundColor: '#fff', color: '#dc2626',
@@ -593,7 +596,7 @@ export default function ProfilePage() {
             )}
             <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
               <button
-                onClick={() => setShowDeleteModal(false)}
+                onClick={() => { trackClick('profile_delete_account_cancel'); setShowDeleteModal(false); }}
                 className="btn btn-outline"
                 style={{ padding: '8px 20px', fontSize: 14 }}
                 disabled={deleting}
@@ -688,10 +691,10 @@ function ContactCard({ contact, onEdit, onDelete }: {
         )}
       </div>
       <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
-        <button onClick={onEdit} aria-label="Edit contact" style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 16, padding: 4 }} title="Edit">
+        <button onClick={() => { trackClick('profile_edit_contact'); onEdit(); }} aria-label="Edit contact" style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 16, padding: 4 }} title="Edit">
           &#9998;
         </button>
-        <button onClick={onDelete} aria-label="Delete contact" style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 16, padding: 4, color: 'var(--color-danger)' }} title="Delete">
+        <button onClick={() => { trackClick('profile_delete_contact'); onDelete(); }} aria-label="Delete contact" style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 16, padding: 4, color: 'var(--color-danger)' }} title="Delete">
           &times;
         </button>
       </div>

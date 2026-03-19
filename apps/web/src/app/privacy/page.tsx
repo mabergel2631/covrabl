@@ -57,7 +57,7 @@ export default function PrivacyPage() {
           Our commitment
         </h2>
         <p>
-          {APP_NAME} handles sensitive personal and financial information. We take that responsibility
+          Covrabl, LLC (&quot;Covrabl,&quot; &quot;we,&quot; &quot;us,&quot; or &quot;our&quot;) operates {APP_NAME}. {APP_NAME} handles sensitive personal and financial information. We take that responsibility
           seriously. This policy describes what we collect, why we collect it, and what we do (and
           don&apos;t do) with your information. We have written it in plain language because we believe
           you should be able to understand how your data is handled without a law degree.

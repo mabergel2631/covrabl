@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '../../../lib/auth';
 import { deltasApi, PolicyDelta, DeltaListResponse } from '../../../lib/api';
 import { formatDate } from '../../../lib/format';
+import { trackClick } from '../../../lib/track';
 import BackButton from '../components/BackButton';
 import EmptyState from '../components/EmptyState';
 import TabNav from '../components/TabNav';
@@ -137,7 +138,7 @@ export default function AlertsPage() {
         <div style={{ display: 'flex', gap: 8 }}>
           {unacknowledgedCount > 0 && (
             <button
-              onClick={handleAcknowledgeAll}
+              onClick={() => { trackClick('audit_acknowledge_all'); handleAcknowledgeAll(); }}
               className="btn btn-outline"
               style={{ padding: '8px 16px', fontSize: 13 }}
             >
@@ -146,7 +147,7 @@ export default function AlertsPage() {
           )}
           {data && data.total > unacknowledgedCount && (
             <button
-              onClick={handleDeleteAcknowledged}
+              onClick={() => { trackClick('audit_delete_acknowledged'); handleDeleteAcknowledged(); }}
               style={{ padding: '8px 16px', fontSize: 13, border: '1px solid #fecaca', borderRadius: 'var(--radius-sm)', backgroundColor: '#fff', color: '#dc2626', cursor: 'pointer', fontWeight: 600 }}
             >
               Delete Acknowledged
@@ -281,7 +282,7 @@ export default function AlertsPage() {
                   <div style={{ display: 'flex', gap: 8 }}>
                     {!explanation && (
                       <button
-                        onClick={() => handleExplain(delta)}
+                        onClick={() => { trackClick('audit_ask_ai_why'); handleExplain(delta); }}
                         disabled={explaining === delta.id}
                         className="btn btn-outline"
                         style={{ padding: '6px 12px', fontSize: 12 }}
@@ -291,7 +292,7 @@ export default function AlertsPage() {
                     )}
                     {!delta.is_acknowledged && (
                       <button
-                        onClick={() => handleAcknowledge(delta.id)}
+                        onClick={() => { trackClick('audit_acknowledge'); handleAcknowledge(delta.id); }}
                         className="btn btn-outline"
                         style={{ padding: '6px 12px', fontSize: 12 }}
                       >
@@ -299,14 +300,14 @@ export default function AlertsPage() {
                       </button>
                     )}
                     <button
-                      onClick={() => router.push(`/policies/${delta.policy_id}`)}
+                      onClick={() => { trackClick('audit_view_policy'); router.push(`/policies/${delta.policy_id}`); }}
                       className="btn btn-outline"
                       style={{ padding: '6px 12px', fontSize: 12 }}
                     >
                       View Policy
                     </button>
                     <button
-                      onClick={() => handleDelete(delta.id)}
+                      onClick={() => { trackClick('audit_delete_alert'); handleDelete(delta.id); }}
                       style={{ padding: '6px 12px', fontSize: 12, border: '1px solid #fecaca', borderRadius: 'var(--radius-sm)', backgroundColor: '#fff', color: '#dc2626', cursor: 'pointer', fontWeight: 500, marginLeft: 'auto' }}
                     >
                       Delete

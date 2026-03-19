@@ -72,10 +72,10 @@ function PricingContent() {
           </div>
         ) : (
           <div style={{ maxWidth: 900, margin: '0 auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 48, flexWrap: 'wrap', gap: 12 }}>
-            <button onClick={() => router.push('/')} style={{ background: 'none', border: 'none', color: '#fff', fontSize: 20, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font-heading)', letterSpacing: 'var(--letter-spacing-tight)' }}>
+            <button onClick={() => { trackClick('pricing_logo_home'); router.push('/'); }} style={{ background: 'none', border: 'none', color: '#fff', fontSize: 20, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font-heading)', letterSpacing: 'var(--letter-spacing-tight)' }}>
               {APP_NAME}
             </button>
-            <button onClick={() => router.push('/login')} style={{ background: 'rgba(255,255,255,0.15)', border: '1px solid rgba(255,255,255,0.3)', color: '#fff', padding: '8px 20px', borderRadius: 'var(--radius-md)', cursor: 'pointer', fontSize: 14 }}>
+            <button onClick={() => { trackClick('pricing_sign_in'); router.push('/login'); }} style={{ background: 'rgba(255,255,255,0.15)', border: '1px solid rgba(255,255,255,0.3)', color: '#fff', padding: '8px 20px', borderRadius: 'var(--radius-md)', cursor: 'pointer', fontSize: 14 }}>
               Sign In
             </button>
           </div>
@@ -113,7 +113,7 @@ function PricingContent() {
           {(['monthly', 'annual'] as const).map(iv => (
             <button
               key={iv}
-              onClick={() => setInterval(iv)}
+              onClick={() => { trackClick(`pricing_interval_${iv}`); setInterval(iv); }}
               style={{
                 padding: '8px 24px',
                 border: 'none',
@@ -297,7 +297,7 @@ function PricingContent() {
                 </button>
               ) : (
                 <button
-                  onClick={() => handleSelect(p.id)}
+                  onClick={() => { trackClick(`pricing_select_${p.id}`); handleSelect(p.id); }}
                   disabled={loading === p.id || (isCurrentPlan && !isTrialing)}
                   style={{
                     width: '100%',

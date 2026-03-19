@@ -418,7 +418,7 @@ export default function LeaseCheckFeaturePage() {
             backgroundColor: 'rgba(255,255,255,0.12)', fontSize: 12, fontWeight: 600,
             letterSpacing: '0.06em', marginBottom: 20, textTransform: 'uppercase',
           }}>
-            Lease Check
+            Requirement Check
           </div>
           <h1 style={{ fontSize: 38, fontWeight: 700, margin: '0 0 16px', lineHeight: 1.2 }}>
             Know if your insurance meets every lease requirement
@@ -551,7 +551,7 @@ export default function LeaseCheckFeaturePage() {
           borderRadius: 16, color: '#fff', marginBottom: 40,
         }}>
           <h2 style={{ fontSize: 24, fontWeight: 700, margin: '0 0 8px' }}>
-            Check your first lease in under a minute
+            Check your first requirement in under a minute
           </h2>
           <p style={{ fontSize: 15, opacity: 0.85, margin: '0 0 24px' }}>
             Upload a commercial policy and paste your lease clause.
@@ -562,7 +562,7 @@ export default function LeaseCheckFeaturePage() {
             border: 'none', borderRadius: 8, cursor: 'pointer',
             boxShadow: '0 4px 14px rgba(63, 167, 163, 0.3)',
           }}>
-            Run Lease Compliance Check
+            Run Requirement Check
           </button>
           <div style={{ marginTop: 12, fontSize: 13, opacity: 0.6 }}>
             No credit card required
