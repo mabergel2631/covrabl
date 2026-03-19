@@ -1107,7 +1107,7 @@ export default function Home() {
             Gaps your policy won&apos;t tell you about
           </h2>
           <p style={{ fontSize: 15, color: 'var(--color-text-muted)', textAlign: 'center', margin: '0 0 40px' }}>
-            These are real coverage gaps Covrabl users have discovered in their policies.
+            Most people think they&apos;re covered — until they actually check. These are real gaps Covrabl users found in their policies.
           </p>
           <div className="landing-trust" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 20 }}>
             {[
