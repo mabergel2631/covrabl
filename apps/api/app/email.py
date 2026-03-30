@@ -303,6 +303,35 @@ async def send_deficiency_notice_email(
         logger.exception("Failed to send deficiency notice to %s", to_email)
 
 
+async def send_agent_invite_email(to_email: str, agent_email: str, invite_url: str) -> None:
+    """Sent when an agent invites a client to join Covrabl."""
+    html = f"""\
+<html>
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 480px; margin: 0 auto; padding: 40px 20px;">
+  <h2 style="color: #1a1a2e; margin-bottom: 16px;">Your insurance advisor invited you to Covrabl</h2>
+  <p style="color: #555; line-height: 1.6;">
+    <strong>{agent_email}</strong> has invited you to Covrabl so they can help manage your insurance coverage.
+  </p>
+  <p style="color: #555; line-height: 1.6;">
+    Create your free account to view your policies, coverage analysis, and documents uploaded by your advisor.
+  </p>
+  {_email_button(invite_url, "Create Your Account")}
+  <p style="color: #888; font-size: 13px; line-height: 1.5;">
+    Use this email address ({to_email}) when creating your account so your advisor&#39;s access connects automatically.
+  </p>
+</body>
+</html>"""
+
+    try:
+        await asyncio.to_thread(
+            _send_email, to_email,
+            f"Your insurance advisor invited you to Covrabl",
+            html,
+        )
+    except Exception:
+        logger.exception("Failed to send agent invite email to %s", to_email)
+
+
 async def send_landlord_compliance_email(
     to_email: str,
     landlord_name: str,

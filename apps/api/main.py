@@ -13,6 +13,7 @@ from app.models_features import Premium, Claim, RenewalReminder, AuditLog, Polic
 from app.models_profile import UserProfile, ProfileContact  # noqa: F401
 from app.models_chat import Conversation, ChatMessage  # noqa: F401
 from app.models_admin import EmailLog, Announcement  # noqa: F401
+from app.models_agent import AgentClient, AgentNote  # noqa: F401
 
 from app.routes_auth import router as auth_router
 from app.routes_policies import router as policies_router
@@ -118,6 +119,13 @@ def on_startup():
         if "source_doc_data" not in existing_cols:
             conn.execute(text("ALTER TABLE lease_requirements ADD COLUMN source_doc_data BYTEA"))
             logging.info("Added source_doc_data column")
+
+    # Ensure uploaded_by_user_id column exists on documents
+    doc_cols = [c["name"] for c in insp.get_columns("documents")]
+    with engine.begin() as conn:
+        if "uploaded_by_user_id" not in doc_cols:
+            conn.execute(text("ALTER TABLE documents ADD COLUMN uploaded_by_user_id INTEGER"))
+            logging.info("Added uploaded_by_user_id column to documents")
 
     # Idempotent data normalization
     with engine.begin() as conn:

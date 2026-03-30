@@ -1517,6 +1517,16 @@ export type AdminAnnouncement = {
   created_at: string | null;
 };
 
+export type AdminAgentClient = {
+  id: number;
+  agent_id: number;
+  agent_email: string;
+  client_id: number | null;
+  client_email: string;
+  status: string;
+  created_at: string | null;
+};
+
 export const adminApi = {
   // Overview
   stats(): Promise<AdminStats> {
@@ -1647,6 +1657,18 @@ export const adminApi = {
       method: "DELETE",
     });
   },
+
+  // Agent-Client relationships
+  agentClients(page = 1, limit = 50): Promise<{ items: AdminAgentClient[]; total: number; page: number; limit: number }> {
+    return request(`/admin/agent-clients?page=${page}&limit=${limit}`);
+  },
+  reassignClient(relId: number, newAgentId: number) {
+    return request<{ ok: boolean }>(`/admin/agent-clients/${relId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ new_agent_id: newAgentId }),
+    });
+  },
 };
 
 // Public (no auth) — for announcement banners
@@ -1657,11 +1679,14 @@ export function fetchActiveAnnouncements(): Promise<{ id: number; title: string;
 // ── Agent / Advisor API ─────────────────────────────────────
 
 export type AgentClient = {
-  id: number;
+  id: number | null;
   email: string;
+  full_name?: string | null;
+  status: string;
   policy_count: number;
   protection_score: number | null;
   next_renewal: string | null;
+  flagged_count: number;
 };
 
 export type AgentOverview = {
@@ -1669,6 +1694,7 @@ export type AgentOverview = {
   total_policies: number;
   avg_protection_score: number | null;
   upcoming_renewals: number;
+  flagged_count: number;
 };
 
 export type AgentClientPolicy = {
@@ -1686,6 +1712,33 @@ export type AgentClientPolicy = {
   status?: string;
 };
 
+export type AgentFlaggedItem = {
+  category: string;
+  severity: string;
+  title: string;
+  detail: string;
+  entity_id: number;
+};
+
+export type AgentNote = {
+  id: number;
+  content: string;
+  created_at: string;
+};
+
+export type AgentClientDocument = {
+  id: number;
+  policy_id: number;
+  filename: string;
+  content_type: string;
+  doc_type: string;
+  extraction_status: string;
+  created_at: string;
+  carrier: string;
+  policy_type: string;
+  uploaded_by: string | null;
+};
+
 export type AgentClientSummary = {
   client: { id: number; email: string };
   protection_score: number | null;
@@ -1693,6 +1746,7 @@ export type AgentClientSummary = {
   gaps: CoverageGap[];
   summary: CoverageSummary;
   upcoming_renewals: { policy_id: number; carrier: string; policy_type: string; renewal_date: string }[];
+  flagged_items: AgentFlaggedItem[];
 };
 
 export const agentApi = {
@@ -1704,6 +1758,46 @@ export const agentApi = {
   },
   clientSummary(clientId: number): Promise<AgentClientSummary> {
     return request<AgentClientSummary>(`/agent/clients/${clientId}/summary`);
+  },
+  inviteClient(email: string): Promise<{ ok: boolean; status: string; client_id?: number; invite_token?: string }> {
+    return request("/agent/clients/invite", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email }),
+    });
+  },
+  clientDocuments(clientId: number): Promise<AgentClientDocument[]> {
+    return request<AgentClientDocument[]>(`/agent/clients/${clientId}/documents`);
+  },
+  clientFlagged(clientId: number): Promise<AgentFlaggedItem[]> {
+    return request<AgentFlaggedItem[]>(`/agent/clients/${clientId}/flagged`);
+  },
+  clientNotes(clientId: number): Promise<AgentNote[]> {
+    return request<AgentNote[]>(`/agent/clients/${clientId}/notes`);
+  },
+  addNote(clientId: number, content: string): Promise<AgentNote> {
+    return request<AgentNote>(`/agent/clients/${clientId}/notes`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ content }),
+    });
+  },
+  deleteNote(clientId: number, noteId: number): Promise<{ ok: boolean }> {
+    return request(`/agent/clients/${clientId}/notes/${noteId}`, { method: "DELETE" });
+  },
+  initClientUpload(clientId: number, payload: { policy_id: number; filename: string; content_type: string; doc_type: string }): Promise<{ upload_url: string; object_key: string }> {
+    return request(`/agent/clients/${clientId}/documents/init`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+  },
+  finalizeClientUpload(clientId: number, payload: { policy_id: number; filename: string; content_type: string; object_key: string; doc_type: string }): Promise<{ ok: boolean; document_id: number }> {
+    return request(`/agent/clients/${clientId}/documents/finalize`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
   },
 };
 

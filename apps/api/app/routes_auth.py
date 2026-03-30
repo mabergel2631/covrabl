@@ -22,6 +22,7 @@ from .models_features import (
 from .models_profile import UserProfile, ProfileContact
 from .models_chat import Conversation, ChatMessage
 from .models_documents import Document
+from .models_agent import AgentClient, AgentNote
 from .schemas import UserCreate, UserOut, Token
 
 logger = logging.getLogger(__name__)
@@ -86,6 +87,21 @@ def register(payload: UserCreate, db: Session = Depends(get_db)):
         role="agent" if payload.role == "broker" else "individual",
     )
     db.add(user)
+    db.flush()
+
+    # Claim any pending agent invites for this email
+    pending_invites = db.execute(
+        select(AgentClient).where(
+            AgentClient.invited_email == email,
+            AgentClient.status == "invited",
+            AgentClient.client_id.is_(None),
+        )
+    ).scalars().all()
+    for inv in pending_invites:
+        inv.client_id = user.id
+        inv.status = "active"
+        inv.invite_token = None
+
     db.commit()
     db.refresh(user)
     return Token(access_token=create_access_token(user.id))
@@ -221,6 +237,12 @@ def delete_user_cascade(db: Session, uid: int) -> None:
     if policy_ids:
         db.execute(delete(Policy).where(Policy.id.in_(policy_ids)))
     db.execute(delete(Exposure).where(Exposure.user_id == uid))
+
+    # Phase 3b: agent tables
+    db.execute(delete(AgentNote).where(AgentNote.agent_id == uid))
+    db.execute(delete(AgentNote).where(AgentNote.client_id == uid))
+    db.execute(delete(AgentClient).where(AgentClient.agent_id == uid))
+    db.execute(delete(AgentClient).where(AgentClient.client_id == uid))
 
     # Phase 4: events, auth tables & user
     db.execute(delete(UserEvent).where(UserEvent.user_id == uid))

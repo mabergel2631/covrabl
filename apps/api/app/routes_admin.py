@@ -17,6 +17,7 @@ from .models_features import UserEvent
 from .models_documents import Document
 from .models_features import PolicyDraft, AuditLog
 from .models_admin import EmailLog, Announcement
+from .models_agent import AgentClient
 
 logger = logging.getLogger(__name__)
 
@@ -897,3 +898,73 @@ def admin_list_events(
         }
         for r in rows
     ]
+
+
+# ── Agent-Client relationships ──────────────────────────
+
+
+@router.get("/agent-clients")
+def admin_agent_clients(
+    page: int = Query(1, ge=1),
+    limit: int = Query(50, ge=1, le=200),
+    admin: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    offset = (page - 1) * limit
+    total = db.execute(select(func.count(AgentClient.id))).scalar() or 0
+    rows = db.execute(
+        select(AgentClient).order_by(AgentClient.created_at.desc()).offset(offset).limit(limit)
+    ).scalars().all()
+
+    # Resolve user emails
+    user_ids = set()
+    for r in rows:
+        user_ids.add(r.agent_id)
+        if r.client_id:
+            user_ids.add(r.client_id)
+    user_map: dict[int, str] = {}
+    if user_ids:
+        users = db.execute(select(User.id, User.email).where(User.id.in_(user_ids))).all()
+        user_map = {u.id: u.email for u in users}
+
+    return {
+        "items": [
+            {
+                "id": r.id,
+                "agent_id": r.agent_id,
+                "agent_email": user_map.get(r.agent_id),
+                "client_id": r.client_id,
+                "client_email": user_map.get(r.client_id) if r.client_id else r.invited_email,
+                "status": r.status,
+                "created_at": str(r.created_at) if r.created_at else None,
+            }
+            for r in rows
+        ],
+        "total": total,
+        "page": page,
+        "limit": limit,
+    }
+
+
+class ReassignClientRequest(BaseModel):
+    new_agent_id: int
+
+
+@router.patch("/agent-clients/{rel_id}")
+def admin_reassign_client(
+    rel_id: int,
+    payload: ReassignClientRequest,
+    admin: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    rel = db.get(AgentClient, rel_id)
+    if not rel:
+        raise HTTPException(status_code=404, detail="Relationship not found")
+
+    new_agent = db.get(User, payload.new_agent_id)
+    if not new_agent or new_agent.role != "agent":
+        raise HTTPException(status_code=400, detail="New agent must have agent role")
+
+    rel.agent_id = payload.new_agent_id
+    db.commit()
+    return {"ok": True}

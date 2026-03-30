@@ -10,11 +10,13 @@ import AdminActivityTab from './AdminActivityTab';
 import AdminEmailsTab from './AdminEmailsTab';
 import AdminDraftsTab from './AdminDraftsTab';
 import AdminAnnouncementsTab from './AdminAnnouncementsTab';
+import AdminAgentClientsTab from './AdminAgentClientsTab';
 
 const TABS = [
   { key: 'overview', label: 'Overview', icon: '📊' },
   { key: 'users', label: 'Users', icon: '👥' },
   { key: 'activity', label: 'Activity', icon: '📋' },
+  { key: 'agents', label: 'Agents', icon: '🤝' },
   { key: 'emails', label: 'Emails', icon: '📧' },
   { key: 'drafts', label: 'Drafts', icon: '📝' },
   { key: 'announcements', label: 'Announcements', icon: '📢' },
@@ -107,6 +109,7 @@ export default function AdminDashboard() {
           {activeTab === 'overview' && <AdminOverviewTab />}
           {activeTab === 'users' && <AdminUsersTab />}
           {activeTab === 'activity' && <AdminActivityTab />}
+          {activeTab === 'agents' && <AdminAgentClientsTab />}
           {activeTab === 'emails' && <AdminEmailsTab />}
           {activeTab === 'drafts' && <AdminDraftsTab />}
           {activeTab === 'announcements' && <AdminAnnouncementsTab />}
