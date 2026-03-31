@@ -107,6 +107,79 @@ def _get_client_ids(db: Session, agent: User) -> list[int]:
     return list(rows)
 
 
+def _compute_coverage_status(flagged_items: list[dict], gaps: list[dict]) -> str:
+    """Return 'gaps', 'review', or 'good' based on flagged items and coverage gaps."""
+    has_high = any(f.get("severity") == "high" for f in flagged_items)
+    has_gaps = len(gaps) > 0
+    if has_high or has_gaps:
+        return "gaps"
+    if len(flagged_items) > 0:
+        return "review"
+    return "good"
+
+
+def _compute_next_action(flagged_items: list[dict], gaps: list[dict]) -> str:
+    """Return the single highest-priority next action string.
+
+    Priority:
+      1. Expired policy
+      2. Compliance failure
+      3. Renewal < 14 days
+      4. Coverage gap
+      5. Renewal < 30 days
+      6. No action needed
+    """
+    expired = [f for f in flagged_items if f.get("category") == "expired_policy"]
+    if expired:
+        return f"Renew {expired[0]['title'].replace(' expired', '')} policy"
+
+    compliance = [f for f in flagged_items if f.get("category") == "compliance_fail"]
+    if compliance:
+        return f"Address {compliance[0]['detail']}"
+
+    urgent_renewals = [f for f in flagged_items if f.get("category") == "upcoming_renewal" and f.get("severity") == "high"]
+    if urgent_renewals:
+        return f"Review {urgent_renewals[0]['title']}"
+
+    if gaps:
+        return f"Review {gaps[0].get('name', 'coverage gap')}"
+
+    other_renewals = [f for f in flagged_items if f.get("category") == "upcoming_renewal"]
+    if other_renewals:
+        return f"Review {other_renewals[0]['title']}"
+
+    return "No action needed"
+
+
+def _compute_what_to_do(flagged_items: list[dict], gaps: list[dict]) -> list[str]:
+    """Return 2-4 actionable steps for the client detail page."""
+    actions: list[str] = []
+
+    for f in flagged_items:
+        if f.get("category") == "expired_policy":
+            actions.append(f"Renew {f['title'].replace(' expired', '')} policy")
+        elif f.get("category") == "compliance_fail":
+            actions.append(f"Address {f['detail']}")
+        elif f.get("category") == "upcoming_renewal":
+            actions.append(f"Review {f['title']}")
+
+    for g in gaps:
+        rec = g.get("recommendation", g.get("name", "coverage gap"))
+        actions.append(rec)
+
+    # Deduplicate while preserving order, cap at 4
+    seen: set[str] = set()
+    unique: list[str] = []
+    for a in actions:
+        if a not in seen:
+            seen.add(a)
+            unique.append(a)
+        if len(unique) >= 4:
+            break
+
+    return unique if unique else ["No action needed"]
+
+
 def _flagged_items_for_client(db: Session, client_id: int, policies: list[Policy]) -> list[dict]:
     """Aggregate flagged items for a client: expired policies, upcoming renewals, compliance failures."""
     items = []
@@ -202,9 +275,11 @@ def list_clients(agent: User = Depends(require_agent), db: Session = Depends(get
         if not user:
             continue
 
-        policy_count = db.execute(
-            select(func.count(Policy.id)).where(Policy.user_id == cid)
-        ).scalar() or 0
+        policies = db.execute(
+            select(Policy).where(Policy.user_id == cid)
+        ).scalars().all()
+
+        policy_count = len(policies)
 
         score_row = db.execute(
             select(CoverageScore.score_total).where(
@@ -221,27 +296,13 @@ def list_clients(agent: User = Depends(require_agent), db: Session = Depends(get
             )
         ).scalar()
 
-        # Count flagged items
-        expired_count = db.execute(
-            select(func.count(Policy.id)).where(
-                Policy.user_id == cid,
-                Policy.status == "expired",
-            )
-        ).scalar() or 0
-        renewal_soon = db.execute(
-            select(func.count(Policy.id)).where(
-                Policy.user_id == cid,
-                Policy.renewal_date >= today,
-                Policy.renewal_date <= today + timedelta(days=30),
-            )
-        ).scalar() or 0
-        compliance_fails = db.execute(
-            select(func.count(ComplianceCheck.id)).where(
-                ComplianceCheck.user_id == cid,
-                ComplianceCheck.fail_count > 0,
-            )
-        ).scalar() or 0
-        flagged_count = expired_count + renewal_soon + compliance_fails
+        # Compute flagged items and gaps for next_action
+        flagged = _flagged_items_for_client(db, cid, policies)
+        policy_dicts = [_policy_to_dict(p) for p in policies]
+        gaps = analyze_coverage_gaps(policy_dicts)
+
+        coverage_status = _compute_coverage_status(flagged, gaps)
+        next_action = _compute_next_action(flagged, gaps)
 
         clients.append({
             "id": user.id,
@@ -251,7 +312,9 @@ def list_clients(agent: User = Depends(require_agent), db: Session = Depends(get
             "policy_count": policy_count,
             "protection_score": score_row,
             "next_renewal": str(next_renewal) if next_renewal else None,
-            "flagged_count": flagged_count,
+            "flagged_count": len(flagged),
+            "coverage_status": coverage_status,
+            "next_action": next_action,
         })
 
     # Try to populate full_name from profiles
@@ -275,6 +338,8 @@ def list_clients(agent: User = Depends(require_agent), db: Session = Depends(get
             "protection_score": None,
             "next_renewal": None,
             "flagged_count": 0,
+            "coverage_status": "good",
+            "next_action": "Awaiting client signup",
         })
 
     return clients
@@ -450,15 +515,19 @@ def client_summary(client_id: int, agent: User = Depends(require_agent), db: Ses
     renewals.sort(key=lambda r: r["renewal_date"])
 
     flagged = _flagged_items_for_client(db, client_id, policies)
+    coverage_status = _compute_coverage_status(flagged, gaps)
+    what_to_do = _compute_what_to_do(flagged, gaps)
 
     return {
         "client": {"id": client.id, "email": client.email},
         "protection_score": score_row,
+        "coverage_status": coverage_status,
         "policies": policy_list,
         "gaps": gaps,
         "summary": summary,
         "upcoming_renewals": renewals,
         "flagged_items": flagged,
+        "what_to_do": what_to_do,
     }
 
 

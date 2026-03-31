@@ -1687,6 +1687,8 @@ export type AgentClient = {
   protection_score: number | null;
   next_renewal: string | null;
   flagged_count: number;
+  coverage_status: 'good' | 'review' | 'gaps';
+  next_action: string;
 };
 
 export type AgentOverview = {
@@ -1742,11 +1744,13 @@ export type AgentClientDocument = {
 export type AgentClientSummary = {
   client: { id: number; email: string };
   protection_score: number | null;
+  coverage_status: 'good' | 'review' | 'gaps';
   policies: AgentClientPolicy[];
   gaps: CoverageGap[];
   summary: CoverageSummary;
   upcoming_renewals: { policy_id: number; carrier: string; policy_type: string; renewal_date: string }[];
   flagged_items: AgentFlaggedItem[];
+  what_to_do: string[];
 };
 
 export const agentApi = {

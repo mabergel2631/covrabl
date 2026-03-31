@@ -157,6 +157,12 @@ export default function ClientDetailPage() {
   }
 
   const scoreColor = (data.protection_score ?? 0) >= 70 ? 'var(--color-success)' : (data.protection_score ?? 0) >= 40 ? 'var(--color-warning)' : 'var(--color-danger)';
+  const coverageStatusConfig = {
+    gaps: { label: 'Gaps Detected', color: 'var(--color-danger)', bg: '#fef2f2', border: '#fecaca' },
+    review: { label: 'Review Recommended', color: '#92400e', bg: '#fef3c7', border: '#fde68a' },
+    good: { label: 'Good', color: 'var(--color-success)', bg: '#dcfce7', border: '#bbf7d0' },
+  } as const;
+  const csCfg = coverageStatusConfig[data.coverage_status] || coverageStatusConfig.good;
 
   const tabs: { key: Tab; label: string; count?: number }[] = [
     { key: 'overview', label: 'Overview' },
@@ -170,31 +176,47 @@ export default function ClientDetailPage() {
 
       {/* Client Header */}
       <div className="mobile-col" style={{ display: 'flex', alignItems: 'center', gap: 20, marginBottom: 24 }}>
-        <div>
+        <div style={{ flex: 1 }}>
           <h1 style={{ fontSize: 22, fontWeight: 700, margin: '0 0 4px', color: 'var(--color-text)' }}>
             {data.client.email}
           </h1>
           <p style={{ fontSize: 14, color: 'var(--color-text-secondary)', margin: 0 }}>
             {data.policies.length} {data.policies.length === 1 ? 'policy' : 'policies'}
-            {data.flagged_items.length > 0 && (
-              <span style={{ color: 'var(--color-danger)', marginLeft: 12 }}>
-                {data.flagged_items.length} flagged
-              </span>
-            )}
           </p>
         </div>
-        <div style={{
-          marginLeft: 'auto',
-          textAlign: 'center',
-          padding: '12px 20px',
-          borderRadius: 'var(--radius-md)',
-          backgroundColor: `${scoreColor}10`,
-          border: `1px solid ${scoreColor}30`,
-        }}>
-          <div style={{ fontSize: 28, fontWeight: 700, color: scoreColor }}>
-            {data.protection_score ?? '--'}
-          </div>
-          <div style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>Protection Score</div>
+        <div className="mobile-wrap" style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+          <button
+            onClick={() => { trackClick('agent_detail_upload', { client_id: clientId }); setActiveTab('documents'); setShowUpload(true); }}
+            style={{
+              padding: '8px 16px',
+              backgroundColor: 'var(--color-surface)',
+              color: 'var(--color-text)',
+              border: '1px solid var(--color-border)',
+              borderRadius: 'var(--radius-md)',
+              fontSize: 13,
+              fontWeight: 600,
+              cursor: 'pointer',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            Upload for Client
+          </button>
+          <button
+            onClick={() => { trackClick('agent_detail_add_note', { client_id: clientId }); setActiveTab('notes'); }}
+            style={{
+              padding: '8px 16px',
+              backgroundColor: 'var(--color-surface)',
+              color: 'var(--color-text)',
+              border: '1px solid var(--color-border)',
+              borderRadius: 'var(--radius-md)',
+              fontSize: 13,
+              fontWeight: 600,
+              cursor: 'pointer',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            Add Note
+          </button>
         </div>
       </div>
 
@@ -228,15 +250,33 @@ export default function ClientDetailPage() {
       {/* ─── Overview Tab ─── */}
       {activeTab === 'overview' && (
         <>
-          {/* Flagged Items */}
+          {/* 1. Coverage Status */}
+          <div className="card" onClick={() => trackClick('agent_coverage_status', { status: data.coverage_status, client_id: clientId })} style={{
+            padding: '20px 24px',
+            marginBottom: 24,
+            backgroundColor: csCfg.bg,
+            border: `1px solid ${csCfg.border}`,
+          }}>
+            <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-text-muted)', marginBottom: 6 }}>Coverage Status</div>
+            <div style={{ fontSize: 20, fontWeight: 700, color: csCfg.color }}>
+              {csCfg.label}
+            </div>
+            {data.coverage_status !== 'good' && (
+              <p style={{ fontSize: 13, color: csCfg.color, margin: '6px 0 0', opacity: 0.85 }}>
+                Based on the policies currently uploaded, there are items that need attention.
+              </p>
+            )}
+          </div>
+
+          {/* 2. What Needs Attention */}
           {data.flagged_items.length > 0 && (
             <>
-              <h2 style={{ fontSize: 16, fontWeight: 600, margin: '0 0 12px', color: 'var(--color-text)' }}>Needs Attention</h2>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 32 }}>
+              <h2 style={{ fontSize: 16, fontWeight: 600, margin: '0 0 12px', color: 'var(--color-text)' }}>What Needs Attention</h2>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 24 }}>
                 {data.flagged_items.map((item, i) => {
                   const colors = severityColors[item.severity] || severityColors.info;
                   return (
-                    <div key={i} onClick={() => trackClick('agent_flagged_item', { category: item.category, entity_id: item.entity_id })} style={{
+                    <div key={i} onClick={() => trackClick('agent_flagged_item', { category: item.category, entity_id: item.entity_id, severity: item.severity })} style={{
                       padding: '12px 16px',
                       borderRadius: 'var(--radius-md)',
                       backgroundColor: colors.bg,
@@ -264,7 +304,32 @@ export default function ClientDetailPage() {
             </>
           )}
 
-          {/* Policies */}
+          {/* 3. What To Do */}
+          {data.what_to_do && data.what_to_do.length > 0 && data.what_to_do[0] !== 'No action needed' && (
+            <>
+              <h2 style={{ fontSize: 16, fontWeight: 600, margin: '0 0 12px', color: 'var(--color-text)' }}>What To Do</h2>
+              <div className="card" style={{ padding: '16px 20px', marginBottom: 24 }}>
+                {data.what_to_do.map((action, i) => (
+                  <div
+                    key={i}
+                    onClick={() => trackClick('agent_what_to_do_item', { action, index: i, client_id: clientId })}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'flex-start',
+                      gap: 10,
+                      padding: '8px 0',
+                      borderBottom: i < data.what_to_do.length - 1 ? '1px solid var(--color-border)' : 'none',
+                    }}
+                  >
+                    <span style={{ fontSize: 14, color: 'var(--color-primary)', fontWeight: 700, flexShrink: 0 }}>{i + 1}.</span>
+                    <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--color-text)' }}>{action}</span>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+
+          {/* 4. Policies */}
           <h2 style={{ fontSize: 16, fontWeight: 600, margin: '0 0 12px', color: 'var(--color-text)' }}>Policies</h2>
           {data.policies.length === 0 ? (
             <div className="card" style={{ padding: 24, color: 'var(--color-text-muted)', textAlign: 'center' }}>No policies</div>
@@ -352,15 +417,15 @@ export default function ClientDetailPage() {
             );
           })()}
 
-          {/* Coverage Gaps */}
+          {/* 5. Compliance / Coverage Gaps */}
           {data.gaps.length > 0 && (
             <>
-              <h2 style={{ fontSize: 16, fontWeight: 600, margin: '0 0 12px', color: 'var(--color-text)' }}>Coverage Gaps</h2>
+              <h2 style={{ fontSize: 16, fontWeight: 600, margin: '0 0 12px', color: 'var(--color-text)' }}>Compliance</h2>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 32 }}>
                 {data.gaps.map((gap: CoverageGap, i: number) => {
                   const colors = severityColors[gap.severity] || severityColors.info;
                   return (
-                    <div key={gap.id || i} onClick={() => trackClick('agent_gap_item', { gap_id: gap.id })} style={{
+                    <div key={gap.id || i} onClick={() => trackClick('agent_gap_item', { gap_id: gap.id, severity: gap.severity, name: gap.name, client_id: clientId })} style={{
                       padding: '14px 20px',
                       borderRadius: 'var(--radius-md)',
                       backgroundColor: colors.bg,
@@ -390,11 +455,12 @@ export default function ClientDetailPage() {
               <h2 style={{ fontSize: 16, fontWeight: 600, margin: '0 0 12px', color: 'var(--color-text)' }}>Upcoming Renewals</h2>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 {data.upcoming_renewals.map(r => (
-                  <div key={r.policy_id} className="card" style={{
+                  <div key={r.policy_id} className="card" onClick={() => trackClick('agent_renewal_item', { policy_id: r.policy_id, carrier: r.carrier, renewal_date: r.renewal_date, client_id: clientId })} style={{
                     padding: '12px 20px',
                     display: 'flex',
                     justifyContent: 'space-between',
                     alignItems: 'center',
+                    cursor: 'pointer',
                   }}>
                     <div>
                       <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--color-text)' }}>{r.carrier}</span>
@@ -514,7 +580,7 @@ export default function ClientDetailPage() {
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               {documents.map(doc => (
-                <div key={doc.id} className="card" style={{ padding: '14px 20px' }}>
+                <div key={doc.id} className="card" onClick={() => trackClick('agent_document_item', { doc_id: doc.id, filename: doc.filename, doc_type: doc.doc_type, client_id: clientId })} style={{ padding: '14px 20px', cursor: 'pointer' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <div>
                       <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--color-text)' }}>{doc.filename}</div>

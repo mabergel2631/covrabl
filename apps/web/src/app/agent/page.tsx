@@ -7,20 +7,28 @@ import { agentApi, AgentOverview, AgentClient } from '../../../lib/api';
 import { trackClick, trackFeatureUse } from '../../../lib/track';
 import BackButton from '../components/BackButton';
 
-function ScoreBadge({ score }: { score: number | null }) {
-  if (score === null || score === undefined) return <span style={{ color: 'var(--color-text-muted)', fontSize: 13 }}>--</span>;
-  const color = score >= 70 ? 'var(--color-success)' : score >= 40 ? 'var(--color-warning)' : 'var(--color-danger)';
+const statusConfig = {
+  gaps: { label: 'Gaps Detected', icon: '\u2757', color: 'var(--color-danger)', bg: '#fef2f2' },
+  review: { label: 'Review Recommended', icon: '\u26A0\uFE0F', color: '#92400e', bg: '#fef3c7' },
+  good: { label: 'Good', icon: '\u2705', color: 'var(--color-success)', bg: '#dcfce7' },
+} as const;
+
+function CoverageStatusBadge({ status }: { status: 'good' | 'review' | 'gaps' }) {
+  const cfg = statusConfig[status] || statusConfig.good;
   return (
     <span style={{
-      display: 'inline-block',
-      padding: '2px 10px',
+      display: 'inline-flex',
+      alignItems: 'center',
+      gap: 4,
+      padding: '3px 10px',
       borderRadius: 12,
-      fontSize: 13,
+      fontSize: 12,
       fontWeight: 600,
-      backgroundColor: `${color}18`,
-      color,
+      backgroundColor: cfg.bg,
+      color: cfg.color,
+      whiteSpace: 'nowrap',
     }}>
-      {score}
+      {cfg.label}
     </span>
   );
 }
@@ -107,7 +115,10 @@ export default function AdvisorDashboard() {
     { label: 'Flagged Items', value: overview?.flagged_count ?? 0, color: (overview?.flagged_count ?? 0) > 0 ? 'var(--color-danger)' : undefined },
   ];
 
-  const activeClients = clients.filter(c => c.status === 'active');
+  const statusOrder = { gaps: 0, review: 1, good: 2 };
+  const activeClients = clients
+    .filter(c => c.status === 'active')
+    .sort((a, b) => (statusOrder[a.coverage_status] ?? 2) - (statusOrder[b.coverage_status] ?? 2));
   const invitedClients = clients.filter(c => c.status === 'invited');
 
   return (
@@ -134,7 +145,7 @@ export default function AdvisorDashboard() {
         </button>
       </div>
       <p style={{ fontSize: 14, color: 'var(--color-text-secondary)', margin: '0 0 24px' }}>
-        Manage your clients and their insurance coverage.
+        See which clients need attention right now.
       </p>
 
       {/* Invite form */}
@@ -212,12 +223,12 @@ export default function AdvisorDashboard() {
             <div
               key={client.id}
               className="card mobile-grid-1"
-              onClick={() => { trackClick('agent_client_row', { client_id: client.id }); router.push(`/agent/${client.id}`); }}
+              onClick={() => { trackClick('agent_client_row', { client_id: client.id, coverage_status: client.coverage_status }); router.push(`/agent/${client.id}`); }}
               style={{
                 padding: '16px 20px',
                 cursor: 'pointer',
                 display: 'grid',
-                gridTemplateColumns: '1fr auto auto auto auto',
+                gridTemplateColumns: '1.2fr auto 1.5fr auto auto',
                 alignItems: 'center',
                 gap: '12px 20px',
                 transition: 'box-shadow 0.15s',
@@ -234,21 +245,24 @@ export default function AdvisorDashboard() {
                 )}
               </div>
               <div style={{ textAlign: 'center' }}>
+                <CoverageStatusBadge status={client.coverage_status} />
+              </div>
+              <div>
+                <div style={{ fontSize: 12, color: 'var(--color-text-muted)', marginBottom: 2 }}>Next Action</div>
+                <div style={{
+                  fontSize: 13,
+                  fontWeight: 600,
+                  color: client.coverage_status === 'good' ? 'var(--color-text-muted)' : 'var(--color-text)',
+                }}>
+                  {client.next_action}
+                </div>
+              </div>
+              <div style={{ textAlign: 'center' }}>
                 <div style={{ fontSize: 12, color: 'var(--color-text-muted)', marginBottom: 2 }}>Policies</div>
                 <div style={{ fontSize: 14, fontWeight: 600 }}>{client.policy_count}</div>
               </div>
-              <div style={{ textAlign: 'center' }}>
-                <div style={{ fontSize: 12, color: 'var(--color-text-muted)', marginBottom: 2 }}>Score</div>
-                <ScoreBadge score={client.protection_score} />
-              </div>
-              <div style={{ textAlign: 'center' }}>
-                <div style={{ fontSize: 12, color: 'var(--color-text-muted)', marginBottom: 2 }}>Flagged</div>
-                <div style={{ fontSize: 14, fontWeight: 600, color: client.flagged_count > 0 ? 'var(--color-danger)' : 'var(--color-text-muted)' }}>
-                  {client.flagged_count || '--'}
-                </div>
-              </div>
               <div style={{ textAlign: 'right' }}>
-                <div style={{ fontSize: 12, color: 'var(--color-text-muted)', marginBottom: 2 }}>Next Renewal</div>
+                <div style={{ fontSize: 12, color: 'var(--color-text-muted)', marginBottom: 2 }}>Updated</div>
                 <div style={{ fontSize: 13, color: 'var(--color-text-secondary)' }}>
                   {client.next_renewal || '--'}
                 </div>
