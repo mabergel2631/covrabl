@@ -157,7 +157,10 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             const complianceItem = sections[0].items.find(i => i.href === '/certificates');
             if (complianceItem && complianceBadge > 0) complianceItem.badge = complianceBadge;
             if (role === 'agent') sections[0].items.push({ href: '/agent', label: 'My Clients', icon: '👥' });
-            if (role === 'admin') sections[0].items.push({ href: '/admin', label: 'Admin', icon: '⚙️' });
+            if (role === 'admin') {
+              sections[0].items.push({ href: '/agent', label: 'Agent Dashboard', icon: '👥' });
+              sections[0].items.push({ href: '/admin', label: 'Admin', icon: '⚙️' });
+            }
 
             return sections.map((section, si) => (
               <div key={section.label} style={{ marginBottom: si < sections.length - 1 ? 8 : 0, ...(section.label === 'ACCOUNT' ? { borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: 8, marginTop: 4 } : {}) }}>

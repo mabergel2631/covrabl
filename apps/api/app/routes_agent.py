@@ -25,22 +25,24 @@ router = APIRouter(prefix="/agent", tags=["agent"])
 
 
 def require_agent(user: User = Depends(get_current_user)) -> User:
-    if user.role != "agent":
+    if user.role not in ("agent", "admin"):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Agent role required")
     return user
 
 
 def _verify_client_access(db: Session, agent: User, client_id: int) -> User:
     """Verify agent has active relationship with client, return client User."""
-    rel = db.execute(
-        select(AgentClient).where(
-            AgentClient.agent_id == agent.id,
-            AgentClient.client_id == client_id,
-            AgentClient.status == "active",
-        )
-    ).scalar_one_or_none()
-    if not rel:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="No access to this client")
+    # Admins can access any client
+    if agent.role != "admin":
+        rel = db.execute(
+            select(AgentClient).where(
+                AgentClient.agent_id == agent.id,
+                AgentClient.client_id == client_id,
+                AgentClient.status == "active",
+            )
+        ).scalar_one_or_none()
+        if not rel:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="No access to this client")
     client = db.get(User, client_id)
     if not client:
         raise HTTPException(status_code=404, detail="Client not found")
@@ -74,8 +76,18 @@ def _policy_to_dict(p: Policy, contacts: list | None = None, details: list | Non
 def _get_client_ids(db: Session, agent: User) -> list[int]:
     """Get distinct client IDs for this agent from AgentClient table.
 
+    Admins see all non-admin, non-agent users. Agents see their own clients.
     Also migrates any legacy PolicyShare broker relationships into AgentClient rows.
     """
+    # Admins see all regular users as clients
+    if agent.role == "admin":
+        rows = db.execute(
+            select(User.id).where(
+                User.role.notin_(["admin", "agent"]),
+            )
+        ).scalars().all()
+        return list(rows)
+
     # Check for legacy PolicyShare broker relationships not yet in AgentClient
     legacy_owner_ids = db.execute(
         select(distinct(PolicyShare.owner_id)).where(

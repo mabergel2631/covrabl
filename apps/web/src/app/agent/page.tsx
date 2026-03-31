@@ -49,7 +49,7 @@ export default function AdvisorDashboard() {
 
   useEffect(() => {
     if (!token) { router.replace('/login'); return; }
-    if (role && role !== 'agent') { router.replace('/policies'); return; }
+    if (role && role !== 'agent' && role !== 'admin') { router.replace('/policies'); return; }
 
     const load = async () => {
       try {
