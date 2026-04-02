@@ -191,6 +191,7 @@ def reset_password(payload: ResetPasswordRequest, db: Session = Depends(get_db))
 
 def delete_user_cascade(db: Session, uid: int) -> None:
     """Delete all data for a user. Caller must commit afterward."""
+    logger.info("delete_user_cascade v3: starting for uid=%s", uid)
     # Evict all ORM-loaded objects to prevent relationship cascades
     # from interfering with our explicit delete ordering
     db.expunge_all()
