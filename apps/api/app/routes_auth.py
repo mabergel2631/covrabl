@@ -18,6 +18,7 @@ from .models_features import (
     Premium, Claim, RenewalReminder, AuditLog, PolicyShare, EmergencyCard,
     PremiumHistory, PolicyDelta, DeltaExplanation, CoverageScore,
     InboundAddress, InboundEmail, PolicyDraft, Certificate, CertificateReminder, UserEvent,
+    ComplianceCheck, LeaseRequirement,
 )
 from .models_profile import UserProfile, ProfileContact
 from .models_chat import Conversation, ChatMessage
@@ -220,7 +221,9 @@ def delete_user_cascade(db: Session, uid: int) -> None:
     if cert_ids:
         db.execute(delete(CertificateReminder).where(CertificateReminder.certificate_id.in_(cert_ids)))
 
-    # Phase 2: user-level tables
+    # Phase 2: user-level tables (compliance before lease requirements due to FK)
+    db.execute(delete(ComplianceCheck).where(ComplianceCheck.user_id == uid))
+    db.execute(delete(LeaseRequirement).where(LeaseRequirement.user_id == uid))
     db.execute(delete(PolicyDraft).where(PolicyDraft.user_id == uid))
     db.execute(delete(InboundEmail).where(InboundEmail.user_id == uid))
     db.execute(delete(InboundAddress).where(InboundAddress.user_id == uid))
