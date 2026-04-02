@@ -201,7 +201,11 @@ def delete_user_cascade(db: Session, uid: int) -> None:
         cid for (cid,) in db.execute(select(Certificate.id).where(Certificate.user_id == uid)).all()
     ]
 
-    # Phase 1: deepest leaf tables
+    # Phase 1: compliance tables (before lease requirements due to FK)
+    db.execute(delete(ComplianceCheck).where(ComplianceCheck.user_id == uid))
+    db.execute(delete(LeaseRequirement).where(LeaseRequirement.user_id == uid))
+
+    # Phase 2: policy-child tables
     if policy_ids:
         delta_ids = [
             did for (did,) in db.execute(
@@ -212,18 +216,25 @@ def delete_user_cascade(db: Session, uid: int) -> None:
             db.execute(delete(DeltaExplanation).where(DeltaExplanation.delta_id.in_(delta_ids)))
         for model in (
             PolicyDelta, PremiumHistory, Premium, Claim, RenewalReminder,
-            PolicyDetail, Contact, CoverageItem, PolicyShare, Document,
+            PolicyDetail, Contact, CoverageItem, Document,
         ):
             db.execute(delete(model).where(model.policy_id.in_(policy_ids)))
+        # PolicyShare references policy_id
+        db.execute(delete(PolicyShare).where(PolicyShare.policy_id.in_(policy_ids)))
+        # Clear self-referencing FK before deleting policies
+        db.execute(
+            Policy.__table__.update()
+            .where(Policy.replaces_policy_id.in_(policy_ids))
+            .values(replaces_policy_id=None)
+        )
+        db.flush()
 
     if convo_ids:
         db.execute(delete(ChatMessage).where(ChatMessage.conversation_id.in_(convo_ids)))
     if cert_ids:
         db.execute(delete(CertificateReminder).where(CertificateReminder.certificate_id.in_(cert_ids)))
 
-    # Phase 2: user-level tables (compliance before lease requirements due to FK)
-    db.execute(delete(ComplianceCheck).where(ComplianceCheck.user_id == uid))
-    db.execute(delete(LeaseRequirement).where(LeaseRequirement.user_id == uid))
+    # Phase 3: user-level tables
     db.execute(delete(PolicyDraft).where(PolicyDraft.user_id == uid))
     db.execute(delete(InboundEmail).where(InboundEmail.user_id == uid))
     db.execute(delete(InboundAddress).where(InboundAddress.user_id == uid))
@@ -236,21 +247,23 @@ def delete_user_cascade(db: Session, uid: int) -> None:
     db.execute(delete(ProfileContact).where(ProfileContact.user_id == uid))
     db.execute(delete(UserProfile).where(UserProfile.user_id == uid))
 
-    # Phase 3: policies & exposures
+    # Flush all child deletes before removing policies
+    db.flush()
+
+    # Phase 4: policies & exposures
     if policy_ids:
         db.execute(delete(Policy).where(Policy.id.in_(policy_ids)))
     db.execute(delete(Exposure).where(Exposure.user_id == uid))
 
-    # Phase 3b: agent tables
+    # Phase 5: agent tables
     db.execute(delete(AgentNote).where(AgentNote.agent_id == uid))
     db.execute(delete(AgentNote).where(AgentNote.client_id == uid))
     db.execute(delete(AgentClient).where(AgentClient.agent_id == uid))
     db.execute(delete(AgentClient).where(AgentClient.client_id == uid))
 
-    # Phase 4: events, auth tables & user
+    # Phase 6: events, auth tables & user
     db.execute(delete(UserEvent).where(UserEvent.user_id == uid))
     db.execute(delete(PasswordReset).where(PasswordReset.user_id == uid))
-    # Also clean up email logs referencing this user's email
     user = db.get(User, uid)
     if user:
         from .models_admin import EmailLog
