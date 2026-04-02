@@ -120,12 +120,19 @@ export default function AdminUsersTab() {
     loadUsers(1, '');
   }, [loadUsers]);
 
-  // Close actions dropdown when clicking outside
+  // Close actions dropdown when clicking outside (but not when confirm dialog is open)
   useEffect(() => {
     if (actionsOpen === null) return;
-    const handler = () => setActionsOpen(null);
-    document.addEventListener('click', handler);
-    return () => document.removeEventListener('click', handler);
+    const handler = (e: MouseEvent) => {
+      // Don't close if clicking inside the actions dropdown
+      const target = e.target as HTMLElement;
+      if (target.closest('[data-actions-dropdown]')) return;
+      setActionsOpen(null);
+      setConfirmDelete(null);
+    };
+    // Use setTimeout to avoid the opening click from immediately closing
+    const timer = setTimeout(() => document.addEventListener('click', handler), 0);
+    return () => { clearTimeout(timer); document.removeEventListener('click', handler); };
   }, [actionsOpen]);
 
   // Search handler
@@ -379,6 +386,7 @@ export default function AdminUsersTab() {
                   {/* Actions dropdown */}
                   {actionsOpen === u.id && (
                     <div
+                      data-actions-dropdown
                       onClick={e => e.stopPropagation()}
                       style={{
                         position: 'absolute',
