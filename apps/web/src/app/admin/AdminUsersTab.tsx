@@ -229,8 +229,15 @@ export default function AdminUsersTab() {
   };
 
   const handleDelete = async (userId: number) => {
+    console.log('[Admin] handleDelete called for userId:', userId);
+    // Close dropdown first so nothing interferes
+    setActionsOpen(null);
+    setConfirmDelete(null);
+    showToast('Deleting user...');
     try {
+      console.log('[Admin] Calling DELETE /admin/users/' + userId);
       await adminApi.deleteUser(userId);
+      console.log('[Admin] Delete succeeded for userId:', userId);
       setUsers(prev => prev.filter(u => u.id !== userId));
       setUserTotal(prev => prev - 1);
       showToast('User deleted');
@@ -239,10 +246,9 @@ export default function AdminUsersTab() {
         setUserDetail(null);
       }
     } catch (err: any) {
+      console.error('[Admin] Delete failed:', err);
       showToast(`Error: ${err.message || 'Failed to delete user'}`);
     }
-    setConfirmDelete(null);
-    setActionsOpen(null);
   };
 
   // ── Render ──────────────────────────────────────────
@@ -522,7 +528,7 @@ export default function AdminUsersTab() {
                           </div>
                           <div style={{ display: 'flex', gap: 8 }}>
                             <button
-                              onClick={() => handleDelete(u.id)}
+                              onClick={() => { console.log('[Admin] Confirm Delete clicked for', u.id); handleDelete(u.id); }}
                               style={{
                                 flex: 1,
                                 padding: '6px 12px',
@@ -548,7 +554,7 @@ export default function AdminUsersTab() {
                         </div>
                       ) : (
                         <button
-                          onClick={() => setConfirmDelete(u.id)}
+                          onClick={() => { console.log('[Admin] Delete Account clicked for', u.id); setConfirmDelete(u.id); }}
                           style={{
                             padding: '6px 12px',
                             fontSize: 12,
