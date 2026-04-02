@@ -443,8 +443,9 @@ def admin_delete_user(
 ):
     if user_id == admin.id:
         raise HTTPException(status_code=400, detail="Cannot delete yourself")
-    user = db.get(User, user_id)
-    if not user:
+    # Check existence without loading relationships into session
+    exists = db.execute(select(User.id).where(User.id == user_id)).scalar()
+    if not exists:
         raise HTTPException(status_code=404, detail="User not found")
 
     from .routes_auth import delete_user_cascade
