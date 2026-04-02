@@ -5,7 +5,7 @@ from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
-from sqlalchemy import delete, select, func, cast, Date
+from sqlalchemy import delete, select, func, cast, Date, or_
 from sqlalchemy.orm import Session
 
 from .auth import require_admin
@@ -170,18 +170,36 @@ def admin_users(
     page: int = Query(1, ge=1),
     limit: int = Query(50, ge=1, le=200),
     search: str = Query("", max_length=200),
+    sort: str = Query("newest", max_length=20),
     admin: User = Depends(require_admin),
     db: Session = Depends(get_db),
 ):
+    from .models_profile import UserProfile
+
     q = select(User)
     if search:
-        q = q.where(User.email.ilike(f"%{search}%"))
+        profile_user_ids = db.execute(
+            select(UserProfile.user_id).where(UserProfile.full_name.ilike(f"%{search}%"))
+        ).scalars().all()
+        if profile_user_ids:
+            q = q.where(or_(User.email.ilike(f"%{search}%"), User.id.in_(profile_user_ids)))
+        else:
+            q = q.where(User.email.ilike(f"%{search}%"))
     total = db.execute(
         select(func.count()).select_from(q.subquery())
     ).scalar() or 0
 
+    if sort == "oldest":
+        order = User.created_at.asc()
+    elif sort == "az":
+        order = User.email.asc()
+    elif sort == "za":
+        order = User.email.desc()
+    else:
+        order = User.created_at.desc()
+
     users = db.execute(
-        q.order_by(User.created_at.desc())
+        q.order_by(order)
         .offset((page - 1) * limit)
         .limit(limit)
     ).scalars().all()

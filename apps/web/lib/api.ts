@@ -1540,8 +1540,8 @@ export const adminApi = {
   },
 
   // Users
-  users(page = 1, limit = 50, search = ""): Promise<AdminUserList> {
-    const params = new URLSearchParams({ page: String(page), limit: String(limit) });
+  users(page = 1, limit = 50, search = "", sort = "newest"): Promise<AdminUserList> {
+    const params = new URLSearchParams({ page: String(page), limit: String(limit), sort });
     if (search) params.set("search", search);
     return request<AdminUserList>(`/admin/users?${params}`);
   },

@@ -97,6 +97,7 @@ export default function AdminUsersTab() {
   const [trialDaysInput, setTrialDaysInput] = useState<Record<number, string>>({});
   const [confirmDelete, setConfirmDelete] = useState<number | null>(null);
   const [toast, setToast] = useState<string | null>(null);
+  const [sortBy, setSortBy] = useState('newest');
 
   // Show a brief toast message
   const showToast = useCallback((msg: string) => {
@@ -104,10 +105,10 @@ export default function AdminUsersTab() {
     setTimeout(() => setToast(null), 2500);
   }, []);
 
-  // Load users (paginated + search)
-  const loadUsers = useCallback(async (pg: number, q: string) => {
+  // Load users (paginated + search + sort)
+  const loadUsers = useCallback(async (pg: number, q: string, sort: string = 'newest') => {
     try {
-      const res = await adminApi.users(pg, 50, q);
+      const res = await adminApi.users(pg, 50, q, sort);
       setUsers(res.items);
       setUserTotal(res.total);
       setUserPage(res.page);
@@ -128,12 +129,13 @@ export default function AdminUsersTab() {
   }, [actionsOpen]);
 
   // Search handler
-  const handleSearch = () => {
+  const handleSearch = (sort?: string) => {
+    const s = sort ?? sortBy;
     setSearch(searchInput);
     setExpandedUser(null);
     setUserDetail(null);
     setActionsOpen(null);
-    loadUsers(1, searchInput);
+    loadUsers(1, searchInput, s);
   };
 
   // Expand user detail
@@ -157,7 +159,7 @@ export default function AdminUsersTab() {
     setExpandedUser(null);
     setUserDetail(null);
     setActionsOpen(null);
-    loadUsers(pg, search);
+    loadUsers(pg, search, sortBy);
   };
 
   // ── Action handlers ─────────────────────────────────
@@ -268,7 +270,7 @@ export default function AdminUsersTab() {
         </div>
       )}
 
-      {/* Header + Search */}
+      {/* Header + Search + Sort */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16, flexWrap: 'wrap' }}>
         <h2 style={{ fontSize: 18, fontWeight: 600, margin: 0, color: 'var(--color-text)' }}>
           Users ({userTotal})
@@ -276,17 +278,35 @@ export default function AdminUsersTab() {
         <div style={{ display: 'flex', gap: 8, flex: 1, minWidth: 200 }}>
           <input
             type="text"
-            placeholder="Search by email..."
+            placeholder="Search by name or email..."
             value={searchInput}
             onChange={e => setSearchInput(e.target.value)}
             onKeyDown={e => e.key === 'Enter' && handleSearch()}
             className="form-input"
             style={{ flex: 1, padding: '8px 12px', fontSize: 14 }}
           />
-          <button onClick={handleSearch} className="btn btn-primary" style={{ padding: '8px 16px', fontSize: 13 }}>
+          <button onClick={() => handleSearch()} className="btn btn-primary" style={{ padding: '8px 16px', fontSize: 13 }}>
             Search
           </button>
         </div>
+        <select
+          value={sortBy}
+          onChange={e => { setSortBy(e.target.value); handleSearch(e.target.value); }}
+          style={{
+            padding: '8px 12px',
+            border: '1px solid var(--color-border)',
+            borderRadius: 'var(--radius-md)',
+            fontSize: 13,
+            backgroundColor: 'var(--color-surface)',
+            color: 'var(--color-text)',
+            cursor: 'pointer',
+          }}
+        >
+          <option value="newest">Newest First</option>
+          <option value="oldest">Oldest First</option>
+          <option value="az">A → Z</option>
+          <option value="za">Z → A</option>
+        </select>
       </div>
 
       {/* User List */}

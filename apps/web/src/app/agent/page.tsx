@@ -47,6 +47,10 @@ export default function AdvisorDashboard() {
   const [inviting, setInviting] = useState(false);
   const [inviteMsg, setInviteMsg] = useState('');
 
+  // Search & sort
+  const [searchQuery, setSearchQuery] = useState('');
+  const [sortBy, setSortBy] = useState<'urgency' | 'az' | 'za' | 'newest' | 'policies'>('urgency');
+
   useEffect(() => {
     if (!token) { router.replace('/login'); return; }
     if (role && role !== 'agent' && role !== 'admin') { router.replace('/policies'); return; }
@@ -116,9 +120,21 @@ export default function AdvisorDashboard() {
   ];
 
   const statusOrder = { gaps: 0, review: 1, good: 2 };
+  const query = searchQuery.toLowerCase();
   const activeClients = clients
     .filter(c => c.status === 'active')
-    .sort((a, b) => (statusOrder[a.coverage_status] ?? 2) - (statusOrder[b.coverage_status] ?? 2));
+    .filter(c => {
+      if (!query) return true;
+      return (c.full_name || '').toLowerCase().includes(query) || c.email.toLowerCase().includes(query);
+    })
+    .sort((a, b) => {
+      if (sortBy === 'az') return (a.full_name || a.email).localeCompare(b.full_name || b.email);
+      if (sortBy === 'za') return (b.full_name || b.email).localeCompare(a.full_name || a.email);
+      if (sortBy === 'policies') return (b.policy_count ?? 0) - (a.policy_count ?? 0);
+      if (sortBy === 'newest') return (b.id ?? 0) - (a.id ?? 0);
+      // urgency (default)
+      return (statusOrder[a.coverage_status] ?? 2) - (statusOrder[b.coverage_status] ?? 2);
+    });
   const invitedClients = clients.filter(c => c.status === 'invited');
 
   return (
@@ -255,9 +271,48 @@ export default function AdvisorDashboard() {
       </div>
 
       {/* Client List */}
-      <h2 style={{ fontSize: 18, fontWeight: 600, margin: '0 0 16px', color: 'var(--color-text)' }}>
-        Clients
-      </h2>
+      <div className="mobile-col" style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16, flexWrap: 'wrap' }}>
+        <h2 style={{ fontSize: 18, fontWeight: 600, margin: 0, color: 'var(--color-text)' }}>
+          Clients
+        </h2>
+        <div style={{ display: 'flex', gap: 8, flex: 1, minWidth: 180 }}>
+          <input
+            type="text"
+            placeholder="Search by name or email..."
+            value={searchQuery}
+            onChange={e => { setSearchQuery(e.target.value); trackClick('agent_search', { query: e.target.value }); }}
+            style={{
+              flex: 1,
+              padding: '8px 12px',
+              border: '1px solid var(--color-border)',
+              borderRadius: 'var(--radius-md)',
+              fontSize: 13,
+              outline: 'none',
+              backgroundColor: 'var(--color-surface)',
+              color: 'var(--color-text)',
+            }}
+          />
+        </div>
+        <select
+          value={sortBy}
+          onChange={e => { setSortBy(e.target.value as any); trackClick('agent_sort', { sort: e.target.value }); }}
+          style={{
+            padding: '8px 12px',
+            border: '1px solid var(--color-border)',
+            borderRadius: 'var(--radius-md)',
+            fontSize: 13,
+            backgroundColor: 'var(--color-surface)',
+            color: 'var(--color-text)',
+            cursor: 'pointer',
+          }}
+        >
+          <option value="urgency">Sort: Urgency</option>
+          <option value="az">Sort: A → Z</option>
+          <option value="za">Sort: Z → A</option>
+          <option value="newest">Sort: Newest</option>
+          <option value="policies">Sort: Most Policies</option>
+        </select>
+      </div>
 
       {activeClients.length === 0 && invitedClients.length === 0 ? (
         <div className="card" style={{ padding: 40, textAlign: 'center', color: 'var(--color-text-muted)' }}>
