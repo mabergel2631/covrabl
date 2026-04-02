@@ -144,9 +144,13 @@ export default function AdvisorDashboard() {
           + Invite Client
         </button>
       </div>
-      <p style={{ fontSize: 14, color: 'var(--color-text-secondary)', margin: '0 0 24px' }}>
+      <p style={{ fontSize: 14, color: 'var(--color-text-secondary)', margin: '0 0 16px' }}>
         See which clients need attention right now.
       </p>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: 'var(--color-text-muted)', marginBottom: 24 }}>
+        <span style={{ fontSize: 14 }}>&#128274;</span>
+        <span>Bank-level encryption &middot; Your data is private and never sold</span>
+      </div>
 
       {/* Invite form */}
       {showInvite && (
@@ -195,6 +199,48 @@ export default function AdvisorDashboard() {
           )}
         </div>
       )}
+
+      {/* Needs Attention — top 5 clients with issues */}
+      {(() => {
+        const needsAttention = activeClients.filter(c => c.coverage_status !== 'good').slice(0, 5);
+        if (needsAttention.length === 0) return null;
+        return (
+          <div style={{ marginBottom: 32 }}>
+            <h2 style={{ fontSize: 16, fontWeight: 600, margin: '0 0 12px', color: 'var(--color-text)' }}>
+              Needs Attention
+            </h2>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {needsAttention.map(client => (
+                <div
+                  key={`attn-${client.id}`}
+                  className="card"
+                  onClick={() => { trackClick('agent_needs_attention_row', { client_id: client.id, coverage_status: client.coverage_status }); router.push(`/agent/${client.id}`); }}
+                  style={{
+                    padding: '12px 20px',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 16,
+                    transition: 'box-shadow 0.15s',
+                  }}
+                  onMouseEnter={e => { (e.currentTarget as HTMLElement).style.boxShadow = '0 2px 8px rgba(0,0,0,0.08)'; }}
+                  onMouseLeave={e => { (e.currentTarget as HTMLElement).style.boxShadow = ''; }}
+                >
+                  <CoverageStatusBadge status={client.coverage_status} />
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--color-text)' }}>
+                      {client.full_name || client.email}
+                    </span>
+                  </div>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-text)', textAlign: 'right', flexShrink: 0 }}>
+                    {client.next_action}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Overview Cards */}
       <div className="mobile-grid-2" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 16, marginBottom: 40 }}>

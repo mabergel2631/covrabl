@@ -220,6 +220,11 @@ export default function ClientDetailPage() {
         </div>
       </div>
 
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: 'var(--color-text-muted)', marginBottom: 16 }}>
+        <span style={{ fontSize: 14 }}>&#128274;</span>
+        <span>Bank-level encryption &middot; Your data is private and never sold</span>
+      </div>
+
       {/* Tabs */}
       <div style={{ display: 'flex', gap: 0, borderBottom: '1px solid var(--color-border)', marginBottom: 24 }}>
         {tabs.map(tab => (
