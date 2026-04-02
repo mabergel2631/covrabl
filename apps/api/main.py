@@ -127,6 +127,26 @@ def on_startup():
             conn.execute(text("ALTER TABLE documents ADD COLUMN uploaded_by_user_id INTEGER"))
             logging.info("Added uploaded_by_user_id column to documents")
 
+    # Ensure agent_policy_access table exists
+    existing_tables = set(insp.get_table_names())
+    if "agent_policy_access" not in existing_tables:
+        with engine.begin() as conn:
+            conn.execute(text("""
+                CREATE TABLE agent_policy_access (
+                    id SERIAL PRIMARY KEY,
+                    agent_id INTEGER NOT NULL REFERENCES users(id),
+                    client_id INTEGER NOT NULL REFERENCES users(id),
+                    policy_id INTEGER NOT NULL REFERENCES policies(id) ON DELETE CASCADE,
+                    visible BOOLEAN NOT NULL DEFAULT TRUE,
+                    created_at TIMESTAMP DEFAULT NOW(),
+                    CONSTRAINT uq_agent_policy UNIQUE (agent_id, policy_id)
+                )
+            """))
+            conn.execute(text("CREATE INDEX ix_agent_policy_access_agent_id ON agent_policy_access(agent_id)"))
+            conn.execute(text("CREATE INDEX ix_agent_policy_access_client_id ON agent_policy_access(client_id)"))
+            conn.execute(text("CREATE INDEX ix_agent_policy_access_policy_id ON agent_policy_access(policy_id)"))
+            logging.info("Created agent_policy_access table")
+
     # Idempotent data normalization
     with engine.begin() as conn:
         conn.execute(text("UPDATE users SET email = lower(email) WHERE email != lower(email)"))

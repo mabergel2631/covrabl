@@ -11,6 +11,7 @@ import { trackClick } from '../../../lib/track';
 import { APP_NAME } from '../config';
 import { POLICY_TYPE_CONFIG, POLICY_TYPES, POLICY_TYPE_CATEGORIES, STATUS_COLORS, SEVERITY_COLORS } from '../constants';
 import TabNav from '../components/TabNav';
+import AgentInviteBanner from '../components/AgentInviteBanner';
 
 export default function PoliciesPage() {
   return (
@@ -764,6 +765,9 @@ function PoliciesPageInner() {
       />
 
       <div style={{ maxWidth: 1000, margin: '0 auto', padding: '32px 24px' }}>
+
+        {/* Agent invite notifications */}
+        <AgentInviteBanner />
 
         {/* ═══════════════════════════════════════════════════════════════
             1️⃣ SUMMARY HEADER

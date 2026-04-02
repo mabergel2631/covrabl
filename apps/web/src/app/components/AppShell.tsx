@@ -161,6 +161,11 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
               sections[0].items.push({ href: '/agent', label: 'Agent Dashboard', icon: '👥' });
               sections[0].items.push({ href: '/admin', label: 'Admin', icon: '⚙️' });
             }
+            // Add Agent Access link for regular users in Account section
+            if (role !== 'agent' && role !== 'admin') {
+              const accountSection = sections.find(s => s.label === 'ACCOUNT');
+              if (accountSection) accountSection.items.push({ href: '/agent-access', label: 'Agent Access', icon: '🔗' });
+            }
 
             return sections.map((section, si) => (
               <div key={section.label} style={{ marginBottom: si < sections.length - 1 ? 8 : 0, ...(section.label === 'ACCOUNT' ? { borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: 8, marginTop: 4 } : {}) }}>

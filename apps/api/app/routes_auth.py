@@ -23,7 +23,7 @@ from .models_features import (
 from .models_profile import UserProfile, ProfileContact
 from .models_chat import Conversation, ChatMessage
 from .models_documents import Document
-from .models_agent import AgentClient, AgentNote
+from .models_agent import AgentClient, AgentNote, AgentPolicyAccess
 from .schemas import UserCreate, UserOut, Token
 
 logger = logging.getLogger(__name__)
@@ -260,6 +260,8 @@ def delete_user_cascade(db: Session, uid: int) -> None:
     db.execute(delete(Exposure).where(Exposure.user_id == uid))
 
     # Phase 5: agent tables
+    db.execute(delete(AgentPolicyAccess).where(AgentPolicyAccess.agent_id == uid))
+    db.execute(delete(AgentPolicyAccess).where(AgentPolicyAccess.client_id == uid))
     db.execute(delete(AgentNote).where(AgentNote.agent_id == uid))
     db.execute(delete(AgentNote).where(AgentNote.client_id == uid))
     db.execute(delete(AgentClient).where(AgentClient.agent_id == uid))

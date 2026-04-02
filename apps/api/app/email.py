@@ -332,6 +332,36 @@ async def send_agent_invite_email(to_email: str, agent_email: str, invite_url: s
         logger.exception("Failed to send agent invite email to %s", to_email)
 
 
+async def send_agent_link_request_email(to_email: str, agent_email: str, app_url: str) -> None:
+    """Sent when an agent requests to link with an existing Covrabl user."""
+    review_url = f"{app_url}/policies"
+    html = f"""\
+<html>
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 480px; margin: 0 auto; padding: 40px 20px;">
+  <h2 style="color: #1a1a2e; margin-bottom: 16px;">An insurance advisor wants to connect with you</h2>
+  <p style="color: #555; line-height: 1.6;">
+    <strong>{agent_email}</strong> has requested access to view your insurance policies on Covrabl.
+  </p>
+  <p style="color: #555; line-height: 1.6;">
+    You can accept or decline this request from your dashboard. If you accept, you&#39;ll be able to choose which policies they can see.
+  </p>
+  {_email_button(review_url, "Review Request")}
+  <p style="color: #888; font-size: 13px; line-height: 1.5;">
+    If you don&#39;t recognize this advisor, you can safely decline the request.
+  </p>
+</body>
+</html>"""
+
+    try:
+        await asyncio.to_thread(
+            _send_email, to_email,
+            f"{agent_email} wants to connect with you on Covrabl",
+            html,
+        )
+    except Exception:
+        logger.exception("Failed to send agent link request email to %s", to_email)
+
+
 async def send_landlord_compliance_email(
     to_email: str,
     landlord_name: str,

@@ -41,6 +41,12 @@ export default function ClientDetailPage() {
   const [noteText, setNoteText] = useState('');
   const [addingNote, setAddingNote] = useState(false);
 
+  // Add Policy
+  const [showAddPolicy, setShowAddPolicy] = useState(false);
+  const [addPolicyData, setAddPolicyData] = useState({ scope: 'personal', policy_type: '', carrier: '', policy_number: '', coverage_amount: '', deductible: '', premium_amount: '', renewal_date: '', business_name: '' });
+  const [addingPolicy, setAddingPolicy] = useState(false);
+  const [addPolicyMsg, setAddPolicyMsg] = useState('');
+
   // Upload
   const [showUpload, setShowUpload] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -99,6 +105,37 @@ export default function ClientDetailPage() {
       setNotes(notes.filter(n => n.id !== noteId));
     } catch (err: any) {
       alert(err.message || 'Failed to delete');
+    }
+  };
+
+  const handleAddPolicy = async () => {
+    if (!addPolicyData.carrier || !addPolicyData.policy_type) return;
+    setAddingPolicy(true);
+    setAddPolicyMsg('');
+    trackClick('agent_create_policy', { client_id: clientId, carrier: addPolicyData.carrier, policy_type: addPolicyData.policy_type });
+    try {
+      const result = await agentApi.createPolicyForClient(clientId, {
+        scope: addPolicyData.scope,
+        policy_type: addPolicyData.policy_type,
+        carrier: addPolicyData.carrier,
+        policy_number: addPolicyData.policy_number || undefined,
+        coverage_amount: addPolicyData.coverage_amount ? parseInt(addPolicyData.coverage_amount) : undefined,
+        deductible: addPolicyData.deductible ? parseInt(addPolicyData.deductible) : undefined,
+        premium_amount: addPolicyData.premium_amount ? parseInt(addPolicyData.premium_amount) : undefined,
+        renewal_date: addPolicyData.renewal_date || undefined,
+        business_name: addPolicyData.business_name || undefined,
+      });
+      trackFeatureUse('agent_policy_created', { client_id: clientId, policy_id: result.policy_id });
+      setAddPolicyMsg('Policy added!');
+      setAddPolicyData({ scope: 'personal', policy_type: '', carrier: '', policy_number: '', coverage_amount: '', deductible: '', premium_amount: '', renewal_date: '', business_name: '' });
+      // Refresh data
+      const summary = await agentApi.clientSummary(clientId);
+      setData(summary);
+      setTimeout(() => { setShowAddPolicy(false); setAddPolicyMsg(''); }, 1500);
+    } catch (err: any) {
+      setAddPolicyMsg(err.message || 'Failed to add policy');
+    } finally {
+      setAddingPolicy(false);
     }
   };
 
@@ -202,6 +239,22 @@ export default function ClientDetailPage() {
             Upload for Client
           </button>
           <button
+            onClick={() => { trackClick('agent_detail_add_policy', { client_id: clientId }); setShowAddPolicy(!showAddPolicy); }}
+            style={{
+              padding: '8px 16px',
+              backgroundColor: 'var(--color-primary)',
+              color: '#fff',
+              border: 'none',
+              borderRadius: 'var(--radius-md)',
+              fontSize: 13,
+              fontWeight: 600,
+              cursor: 'pointer',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            + Add Policy
+          </button>
+          <button
             onClick={() => { trackClick('agent_detail_add_note', { client_id: clientId }); setActiveTab('notes'); }}
             style={{
               padding: '8px 16px',
@@ -251,6 +304,70 @@ export default function ClientDetailPage() {
           </button>
         ))}
       </div>
+
+      {/* Add Policy Form */}
+      {showAddPolicy && (
+        <div className="card" style={{ padding: 20, marginBottom: 16 }}>
+          <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 12, color: 'var(--color-text)' }}>Add Policy for Client</div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            <div>
+              <label style={{ fontSize: 12, color: 'var(--color-text-muted)', display: 'block', marginBottom: 4 }}>Carrier *</label>
+              <input value={addPolicyData.carrier} onChange={e => setAddPolicyData(d => ({ ...d, carrier: e.target.value }))} placeholder="e.g. State Farm" style={{ width: '100%', padding: '8px 12px', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', fontSize: 13, backgroundColor: 'var(--color-surface)', color: 'var(--color-text)', boxSizing: 'border-box' }} />
+            </div>
+            <div>
+              <label style={{ fontSize: 12, color: 'var(--color-text-muted)', display: 'block', marginBottom: 4 }}>Policy Type *</label>
+              <select value={addPolicyData.policy_type} onChange={e => setAddPolicyData(d => ({ ...d, policy_type: e.target.value }))} style={{ width: '100%', padding: '8px 12px', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', fontSize: 13, backgroundColor: 'var(--color-surface)', color: 'var(--color-text)' }}>
+                <option value="">Select type...</option>
+                <option value="auto">Auto</option>
+                <option value="homeowners">Homeowners</option>
+                <option value="renters">Renters</option>
+                <option value="umbrella">Umbrella</option>
+                <option value="life">Life</option>
+                <option value="health">Health</option>
+                <option value="general_liability">General Liability</option>
+                <option value="property">Property</option>
+                <option value="professional_liability">Professional Liability</option>
+                <option value="workers_comp">Workers Comp</option>
+                <option value="other">Other</option>
+              </select>
+            </div>
+            <div>
+              <label style={{ fontSize: 12, color: 'var(--color-text-muted)', display: 'block', marginBottom: 4 }}>Scope</label>
+              <select value={addPolicyData.scope} onChange={e => setAddPolicyData(d => ({ ...d, scope: e.target.value }))} style={{ width: '100%', padding: '8px 12px', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', fontSize: 13, backgroundColor: 'var(--color-surface)', color: 'var(--color-text)' }}>
+                <option value="personal">Personal</option>
+                <option value="business">Business</option>
+              </select>
+            </div>
+            <div>
+              <label style={{ fontSize: 12, color: 'var(--color-text-muted)', display: 'block', marginBottom: 4 }}>Policy Number</label>
+              <input value={addPolicyData.policy_number} onChange={e => setAddPolicyData(d => ({ ...d, policy_number: e.target.value }))} placeholder="Optional" style={{ width: '100%', padding: '8px 12px', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', fontSize: 13, backgroundColor: 'var(--color-surface)', color: 'var(--color-text)', boxSizing: 'border-box' }} />
+            </div>
+            <div>
+              <label style={{ fontSize: 12, color: 'var(--color-text-muted)', display: 'block', marginBottom: 4 }}>Coverage Amount</label>
+              <input type="number" value={addPolicyData.coverage_amount} onChange={e => setAddPolicyData(d => ({ ...d, coverage_amount: e.target.value }))} placeholder="e.g. 500000" style={{ width: '100%', padding: '8px 12px', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', fontSize: 13, backgroundColor: 'var(--color-surface)', color: 'var(--color-text)', boxSizing: 'border-box' }} />
+            </div>
+            <div>
+              <label style={{ fontSize: 12, color: 'var(--color-text-muted)', display: 'block', marginBottom: 4 }}>Deductible</label>
+              <input type="number" value={addPolicyData.deductible} onChange={e => setAddPolicyData(d => ({ ...d, deductible: e.target.value }))} placeholder="e.g. 1000" style={{ width: '100%', padding: '8px 12px', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', fontSize: 13, backgroundColor: 'var(--color-surface)', color: 'var(--color-text)', boxSizing: 'border-box' }} />
+            </div>
+            <div>
+              <label style={{ fontSize: 12, color: 'var(--color-text-muted)', display: 'block', marginBottom: 4 }}>Premium</label>
+              <input type="number" value={addPolicyData.premium_amount} onChange={e => setAddPolicyData(d => ({ ...d, premium_amount: e.target.value }))} placeholder="e.g. 2400" style={{ width: '100%', padding: '8px 12px', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', fontSize: 13, backgroundColor: 'var(--color-surface)', color: 'var(--color-text)', boxSizing: 'border-box' }} />
+            </div>
+            <div>
+              <label style={{ fontSize: 12, color: 'var(--color-text-muted)', display: 'block', marginBottom: 4 }}>Renewal Date</label>
+              <input type="date" value={addPolicyData.renewal_date} onChange={e => setAddPolicyData(d => ({ ...d, renewal_date: e.target.value }))} style={{ width: '100%', padding: '8px 12px', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', fontSize: 13, backgroundColor: 'var(--color-surface)', color: 'var(--color-text)', boxSizing: 'border-box' }} />
+            </div>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 12 }}>
+            <button onClick={() => setShowAddPolicy(false)} style={{ padding: '8px 16px', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', background: 'var(--color-surface)', color: 'var(--color-text)', fontSize: 13, cursor: 'pointer' }}>Cancel</button>
+            <button onClick={handleAddPolicy} disabled={addingPolicy || !addPolicyData.carrier || !addPolicyData.policy_type} style={{ padding: '8px 20px', backgroundColor: 'var(--color-primary)', color: '#fff', border: 'none', borderRadius: 'var(--radius-md)', fontSize: 13, fontWeight: 600, cursor: addingPolicy ? 'wait' : 'pointer', opacity: addingPolicy || !addPolicyData.carrier || !addPolicyData.policy_type ? 0.6 : 1 }}>
+              {addingPolicy ? 'Adding...' : 'Add Policy'}
+            </button>
+          </div>
+          {addPolicyMsg && <div style={{ marginTop: 8, fontSize: 13, color: addPolicyMsg === 'Policy added!' ? 'var(--color-success)' : 'var(--color-danger)' }}>{addPolicyMsg}</div>}
+        </div>
+      )}
 
       {/* ─── Overview Tab ─── */}
       {activeTab === 'overview' && (

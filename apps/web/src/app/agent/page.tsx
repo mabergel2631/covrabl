@@ -135,7 +135,7 @@ export default function AdvisorDashboard() {
       // urgency (default)
       return (statusOrder[a.coverage_status] ?? 2) - (statusOrder[b.coverage_status] ?? 2);
     });
-  const invitedClients = clients.filter(c => c.status === 'invited');
+  const invitedClients = clients.filter(c => c.status === 'invited' || c.status === 'pending');
 
   return (
     <div style={{ padding: '32px 24px', maxWidth: 1000, margin: '0 auto' }}>
@@ -395,10 +395,10 @@ export default function AdvisorDashboard() {
                     borderRadius: 12,
                     fontSize: 12,
                     fontWeight: 600,
-                    backgroundColor: '#fef3c7',
-                    color: '#92400e',
+                    backgroundColor: client.status === 'pending' ? '#dbeafe' : '#fef3c7',
+                    color: client.status === 'pending' ? '#1e40af' : '#92400e',
                   }}>
-                    Invited
+                    {client.status === 'pending' ? 'Awaiting Approval' : 'Invited'}
                   </span>
                 </div>
               ))}

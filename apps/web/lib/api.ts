@@ -1803,6 +1803,41 @@ export const agentApi = {
       body: JSON.stringify(payload),
     });
   },
+  createPolicyForClient(clientId: number, payload: {
+    scope: string; policy_type: string; carrier: string; policy_number?: string;
+    coverage_amount?: number; deductible?: number; premium_amount?: number;
+    renewal_date?: string; business_name?: string;
+  }): Promise<{ ok: boolean; policy_id: number; carrier: string; policy_type: string }> {
+    return request(`/agent/clients/${clientId}/policies`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+  },
+  // Client-facing endpoints
+  myInvites(): Promise<{ id: number; agent_id: number; agent_email: string; agent_name: string | null; created_at: string | null }[]> {
+    return request("/agent/my-invites");
+  },
+  respondToInvite(inviteId: number, action: "accept" | "decline"): Promise<{ ok: boolean; status: string }> {
+    return request(`/agent/my-invites/${inviteId}/respond`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action }),
+    });
+  },
+  myAgents(): Promise<{ id: number; agent_id: number; agent_email: string; agent_name: string | null; created_at: string | null }[]> {
+    return request("/agent/my-agents");
+  },
+  myPolicyVisibility(agentId: number): Promise<{ policy_id: number; carrier: string; policy_type: string; policy_number: string; status: string; visible: boolean }[]> {
+    return request(`/agent/my-policy-visibility/${agentId}`);
+  },
+  togglePolicyVisibility(agentId: number, policyId: number, visible: boolean): Promise<{ ok: boolean; visible: boolean }> {
+    return request(`/agent/my-policy-visibility/${agentId}/${policyId}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ visible }),
+    });
+  },
 };
 
 // ── Certificates ──────────────────────────────────────
