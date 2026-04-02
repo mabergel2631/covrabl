@@ -95,7 +95,6 @@ export default function AdminUsersTab() {
   const [loading, setLoading] = useState(true);
   const [actionsOpen, setActionsOpen] = useState<number | null>(null);
   const [trialDaysInput, setTrialDaysInput] = useState<Record<number, string>>({});
-  const [confirmDelete, setConfirmDelete] = useState<number | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const [sortBy, setSortBy] = useState('newest');
 
@@ -120,17 +119,10 @@ export default function AdminUsersTab() {
     loadUsers(1, '');
   }, [loadUsers]);
 
-  // Close actions dropdown when clicking outside (but not when confirm dialog is open)
+  // Close actions dropdown when clicking outside
   useEffect(() => {
     if (actionsOpen === null) return;
-    const handler = (e: MouseEvent) => {
-      // Don't close if clicking inside the actions dropdown
-      const target = e.target as HTMLElement;
-      if (target.closest('[data-actions-dropdown]')) return;
-      setActionsOpen(null);
-      setConfirmDelete(null);
-    };
-    // Use setTimeout to avoid the opening click from immediately closing
+    const handler = () => setActionsOpen(null);
     const timer = setTimeout(() => document.addEventListener('click', handler), 0);
     return () => { clearTimeout(timer); document.removeEventListener('click', handler); };
   }, [actionsOpen]);
@@ -230,9 +222,7 @@ export default function AdminUsersTab() {
 
   const handleDelete = async (userId: number) => {
     console.log('[Admin] handleDelete called for userId:', userId);
-    // Close dropdown first so nothing interferes
     setActionsOpen(null);
-    setConfirmDelete(null);
     showToast('Deleting user...');
     try {
       console.log('[Admin] Calling DELETE /admin/users/' + userId);
@@ -375,7 +365,7 @@ export default function AdminUsersTab() {
                     onClick={e => {
                       e.stopPropagation();
                       setActionsOpen(actionsOpen === u.id ? null : u.id);
-                      setConfirmDelete(null);
+
                     }}
                     className="btn btn-outline"
                     style={{
@@ -513,62 +503,25 @@ export default function AdminUsersTab() {
                       </button>
 
                       {/* Delete Account */}
-                      {confirmDelete === u.id ? (
-                        <div style={{
-                          padding: 12,
-                          borderRadius: 'var(--radius-md)',
-                          backgroundColor: 'var(--color-danger)10',
+                      <button
+                        onClick={() => {
+                          if (window.confirm(`Permanently delete ${u.email} and all their data?`)) {
+                            handleDelete(u.id);
+                          }
+                        }}
+                        style={{
+                          padding: '6px 12px',
+                          fontSize: 12,
+                          fontWeight: 600,
                           border: '1px solid var(--color-danger)',
-                          display: 'flex',
-                          flexDirection: 'column',
-                          gap: 8,
-                        }}>
-                          <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-danger)' }}>
-                            Permanently delete this user and all their data?
-                          </div>
-                          <div style={{ display: 'flex', gap: 8 }}>
-                            <button
-                              onClick={() => { console.log('[Admin] Confirm Delete clicked for', u.id); handleDelete(u.id); }}
-                              style={{
-                                flex: 1,
-                                padding: '6px 12px',
-                                fontSize: 12,
-                                fontWeight: 600,
-                                border: 'none',
-                                borderRadius: 'var(--radius-sm)',
-                                backgroundColor: 'var(--color-danger)',
-                                color: '#fff',
-                                cursor: 'pointer',
-                              }}
-                            >
-                              Confirm Delete
-                            </button>
-                            <button
-                              onClick={() => setConfirmDelete(null)}
-                              className="btn btn-outline"
-                              style={{ flex: 1, padding: '6px 12px', fontSize: 12 }}
-                            >
-                              Cancel
-                            </button>
-                          </div>
-                        </div>
-                      ) : (
-                        <button
-                          onClick={() => { console.log('[Admin] Delete Account clicked for', u.id); setConfirmDelete(u.id); }}
-                          style={{
-                            padding: '6px 12px',
-                            fontSize: 12,
-                            fontWeight: 600,
-                            border: '1px solid var(--color-danger)',
-                            borderRadius: 'var(--radius-sm)',
-                            backgroundColor: 'transparent',
-                            color: 'var(--color-danger)',
-                            cursor: 'pointer',
-                          }}
-                        >
-                          Delete Account
-                        </button>
-                      )}
+                          borderRadius: 'var(--radius-sm)',
+                          backgroundColor: 'transparent',
+                          color: 'var(--color-danger)',
+                          cursor: 'pointer',
+                        }}
+                      >
+                        Delete Account
+                      </button>
                     </div>
                   )}
                 </div>
