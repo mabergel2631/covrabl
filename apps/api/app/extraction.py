@@ -238,8 +238,8 @@ class AnthropicExtractor(BaseExtractor):
     def extract_lease_images(self, images: list[bytes]) -> "LeaseExtractionResult":
         import anthropic, base64
         client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
-        content: list[dict] = [{"type": "text", "text": "Extract insurance requirements from this lease clause (scanned pages):"}]
-        for img in images[:20]:
+        content: list[dict] = [{"type": "text", "text": "Extract ALL insurance requirements from this lease document. Look through every page carefully for insurance-related sections, coverage requirements, endorsements, and certificate requirements:"}]
+        for img in images:
             content.append({"type": "image", "source": {"type": "base64", "media_type": "image/png", "data": base64.b64encode(img).decode()}})
         message = client.messages.create(
             model="claude-sonnet-4-20250514",
@@ -356,8 +356,8 @@ class OpenAIExtractor(BaseExtractor):
     def extract_lease_images(self, images: list[bytes]) -> "LeaseExtractionResult":
         import openai, base64
         client = openai.OpenAI(api_key=settings.openai_api_key)
-        content: list[dict] = [{"type": "text", "text": "Extract insurance requirements from this lease clause (scanned pages):"}]
-        for img in images[:20]:
+        content: list[dict] = [{"type": "text", "text": "Extract ALL insurance requirements from this lease document. Look through every page carefully for insurance-related sections, coverage requirements, endorsements, and certificate requirements:"}]
+        for img in images:
             content.append({"type": "image_url", "image_url": {"url": f"data:image/png;base64,{base64.b64encode(img).decode()}"}})
         response = client.chat.completions.create(
             model="gpt-4o",
