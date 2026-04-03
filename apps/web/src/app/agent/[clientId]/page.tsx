@@ -41,6 +41,9 @@ export default function ClientDetailPage() {
   const [noteText, setNoteText] = useState('');
   const [addingNote, setAddingNote] = useState(false);
 
+  // Expanded policy
+  const [expandedPolicy, setExpandedPolicy] = useState<number | null>(null);
+
   // Add Policy
   const [showAddPolicy, setShowAddPolicy] = useState(false);
   const [addPolicyData, setAddPolicyData] = useState({ scope: 'personal', policy_type: '', carrier: '', policy_number: '', coverage_amount: '', deductible: '', premium_amount: '', renewal_date: '', business_name: '' });
@@ -472,45 +475,107 @@ export default function ClientDetailPage() {
             const ungrouped = groups['__none'] || [];
             const hasGroups = groupKeys.length > 0;
 
-            const renderPolicy = (p: typeof data.policies[0]) => (
-              <div key={p.id} className="card mobile-grid-1" style={{
-                padding: '14px 20px',
-                display: 'grid',
-                gridTemplateColumns: '1fr auto auto auto',
-                alignItems: 'center',
-                gap: '12px 20px',
-              }}>
-                <div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--color-text)' }}>{p.carrier}</span>
-                    {p.status && p.status !== 'active' && (
-                      <span style={{
-                        padding: '1px 8px', borderRadius: 10, fontSize: 11, fontWeight: 600,
-                        backgroundColor: p.status === 'expired' ? '#fef2f2' : '#f3f4f6',
-                        color: p.status === 'expired' ? 'var(--color-danger)' : '#6b7280',
-                      }}>
-                        {p.status.charAt(0).toUpperCase() + p.status.slice(1)}
-                      </span>
-                    )}
+            const renderPolicy = (p: typeof data.policies[0]) => {
+              const isExpanded = expandedPolicy === p.id;
+              const policyDocs = documents.filter(d => d.policy_id === p.id);
+              return (
+                <div key={p.id} className="card" style={{ overflow: 'hidden' }}>
+                  <div
+                    className="mobile-grid-1"
+                    onClick={() => { trackClick('agent_policy_expand', { policy_id: p.id, carrier: p.carrier, client_id: clientId }); setExpandedPolicy(isExpanded ? null : p.id); }}
+                    style={{
+                      padding: '14px 20px',
+                      display: 'grid',
+                      gridTemplateColumns: '1fr auto auto auto',
+                      alignItems: 'center',
+                      gap: '12px 20px',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    <div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--color-text)' }}>{p.carrier}</span>
+                        {p.status && p.status !== 'active' && (
+                          <span style={{
+                            padding: '1px 8px', borderRadius: 10, fontSize: 11, fontWeight: 600,
+                            backgroundColor: p.status === 'expired' ? '#fef2f2' : '#f3f4f6',
+                            color: p.status === 'expired' ? 'var(--color-danger)' : '#6b7280',
+                          }}>
+                            {p.status.charAt(0).toUpperCase() + p.status.slice(1)}
+                          </span>
+                        )}
+                        {policyDocs.length > 0 && (
+                          <span style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>
+                            {policyDocs.length} doc{policyDocs.length !== 1 ? 's' : ''}
+                          </span>
+                        )}
+                      </div>
+                      <div style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>
+                        {p.policy_type} &middot; {p.policy_number}
+                      </div>
+                    </div>
+                    <div style={{ textAlign: 'center' }}>
+                      <div style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>Coverage</div>
+                      <div style={{ fontSize: 13, fontWeight: 600 }}>{formatCurrency(p.coverage_amount)}</div>
+                    </div>
+                    <div style={{ textAlign: 'center' }}>
+                      <div style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>Deductible</div>
+                      <div style={{ fontSize: 13 }}>{formatCurrency(p.deductible)}</div>
+                    </div>
+                    <div style={{ textAlign: 'right' }}>
+                      <div style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>Renewal</div>
+                      <div style={{ fontSize: 13 }}>{p.renewal_date || '--'}</div>
+                    </div>
                   </div>
-                  <div style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>
-                    {p.policy_type} &middot; {p.policy_number}
-                  </div>
+                  {isExpanded && (
+                    <div style={{ padding: '0 20px 16px', borderTop: '1px solid var(--color-border)' }}>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, padding: '12px 0', fontSize: 13 }}>
+                        <div><span style={{ color: 'var(--color-text-muted)' }}>Premium:</span> <strong>{formatCurrency(p.premium_amount)}</strong></div>
+                        <div><span style={{ color: 'var(--color-text-muted)' }}>Scope:</span> <strong style={{ textTransform: 'capitalize' }}>{p.scope || '--'}</strong></div>
+                        {p.nickname && <div><span style={{ color: 'var(--color-text-muted)' }}>Nickname:</span> <strong>{p.nickname}</strong></div>}
+                      </div>
+                      {policyDocs.length > 0 ? (
+                        <>
+                          <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-text)', marginBottom: 8 }}>Documents</div>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                            {policyDocs.map(doc => (
+                              <div key={doc.id} onClick={() => trackClick('agent_policy_doc_view', { doc_id: doc.id, filename: doc.filename, client_id: clientId })} style={{
+                                padding: '8px 12px',
+                                backgroundColor: 'var(--color-bg)',
+                                borderRadius: 'var(--radius-sm)',
+                                display: 'flex',
+                                justifyContent: 'space-between',
+                                alignItems: 'center',
+                                fontSize: 13,
+                              }}>
+                                <div>
+                                  <div style={{ fontWeight: 600, color: 'var(--color-text)' }}>{doc.filename}</div>
+                                  <div style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>
+                                    {doc.doc_type} &middot; {doc.created_at ? new Date(doc.created_at).toLocaleDateString() : ''}
+                                    {doc.uploaded_by && <span style={{ marginLeft: 6, color: '#6d28d9' }}>Uploaded by agent</span>}
+                                  </div>
+                                </div>
+                                <span style={{
+                                  fontSize: 11, padding: '1px 6px', borderRadius: 6,
+                                  backgroundColor: doc.extraction_status === 'done' ? '#dcfce7' : '#f3f4f6',
+                                  color: doc.extraction_status === 'done' ? '#166534' : '#6b7280',
+                                }}>
+                                  {doc.extraction_status === 'done' ? 'Extracted' : doc.extraction_status === 'pending' ? 'Processing' : doc.extraction_status === 'failed' ? 'Failed' : 'Pending'}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        </>
+                      ) : (
+                        <div style={{ fontSize: 13, color: 'var(--color-text-muted)', fontStyle: 'italic' }}>
+                          No documents uploaded for this policy.
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
-                <div style={{ textAlign: 'center' }}>
-                  <div style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>Coverage</div>
-                  <div style={{ fontSize: 13, fontWeight: 600 }}>{formatCurrency(p.coverage_amount)}</div>
-                </div>
-                <div style={{ textAlign: 'center' }}>
-                  <div style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>Deductible</div>
-                  <div style={{ fontSize: 13 }}>{formatCurrency(p.deductible)}</div>
-                </div>
-                <div style={{ textAlign: 'right' }}>
-                  <div style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>Renewal</div>
-                  <div style={{ fontSize: 13 }}>{p.renewal_date || '--'}</div>
-                </div>
-              </div>
-            );
+              );
+            };
 
             return (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 32 }}>

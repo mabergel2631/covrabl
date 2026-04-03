@@ -1712,6 +1712,7 @@ export type AgentClientPolicy = {
   exposure_id?: number | null;
   exposure_name?: string | null;
   status?: string;
+  scope?: string;
 };
 
 export type AgentFlaggedItem = {
@@ -1818,11 +1819,11 @@ export const agentApi = {
   myInvites(): Promise<{ id: number; agent_id: number; agent_email: string; agent_name: string | null; created_at: string | null }[]> {
     return request("/agent/my-invites");
   },
-  respondToInvite(inviteId: number, action: "accept" | "decline"): Promise<{ ok: boolean; status: string }> {
+  respondToInvite(inviteId: number, action: "accept" | "decline", sharedPolicyIds?: number[]): Promise<{ ok: boolean; status: string }> {
     return request(`/agent/my-invites/${inviteId}/respond`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action }),
+      body: JSON.stringify({ action, shared_policy_ids: sharedPolicyIds }),
     });
   },
   myAgents(): Promise<{ id: number; agent_id: number; agent_email: string; agent_name: string | null; created_at: string | null }[]> {

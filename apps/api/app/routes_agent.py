@@ -321,6 +321,7 @@ class CreatePolicyForClient(BaseModel):
 
 class InviteResponse(BaseModel):
     action: str  # "accept" or "decline"
+    shared_policy_ids: list[int] | None = None  # policy IDs to share (only used on accept)
 
 
 class VisibilityToggle(BaseModel):
@@ -589,6 +590,7 @@ def client_summary(client_id: int, agent: User = Depends(require_agent), db: Ses
             "exposure_id": p.exposure_id,
             "exposure_name": exposure_name,
             "status": p.status or "active",
+            "scope": p.scope,
         })
 
     score_row = db.execute(
@@ -873,9 +875,20 @@ def respond_to_invite(
 
     if payload.action == "accept":
         rel.status = "active"
-        # Create visibility rows for all existing policies (default visible)
-        _ensure_policy_access_rows(db, rel.agent_id, user.id)
-        log_action(db, user.id, "accepted", "agent_client", rel.agent_id, f"Accepted agent invite")
+        # Create visibility rows based on selected policies
+        all_policy_ids = [
+            pid for (pid,) in db.execute(
+                select(Policy.id).where(Policy.user_id == user.id)
+            ).all()
+        ]
+        shared_ids = set(payload.shared_policy_ids) if payload.shared_policy_ids else set(all_policy_ids)
+        for pid in all_policy_ids:
+            db.add(AgentPolicyAccess(
+                agent_id=rel.agent_id, client_id=user.id,
+                policy_id=pid, visible=(pid in shared_ids),
+            ))
+        log_action(db, user.id, "accepted", "agent_client", rel.agent_id,
+                   f"Accepted agent invite, shared {len(shared_ids)}/{len(all_policy_ids)} policies")
         db.commit()
         return {"ok": True, "status": "active"}
     elif payload.action == "decline":
