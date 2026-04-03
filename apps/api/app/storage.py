@@ -2,7 +2,19 @@ import os
 from pathlib import Path
 
 UPLOAD_DIR = Path(__file__).resolve().parent.parent / "uploads"
-API_BASE = os.getenv("API_BASE_URL", "http://127.0.0.1:8000")
+
+def _get_api_base() -> str:
+    """Resolve API base URL for file download links."""
+    explicit = os.getenv("API_BASE_URL")
+    if explicit:
+        return explicit.rstrip("/")
+    # Use Railway public domain if available
+    railway_domain = os.getenv("RAILWAY_PUBLIC_DOMAIN")
+    if railway_domain:
+        return f"https://{railway_domain}"
+    return "http://127.0.0.1:8000"
+
+API_BASE = _get_api_base()
 
 
 def presign_put_url(object_key: str, content_type: str = "") -> str:
