@@ -13,15 +13,40 @@ def build_evidence_from_certificate(cert) -> list[dict]:
     coverage_types = [ct.strip().lower() for ct in coverage_types if ct.strip()]
 
     # Map coverage type strings to category keys
+    # Industry standard: General Liability (CGL) covers bodily injury, property damage,
+    # personal & advertising injury, products/completed operations, and premises liability.
+    # Commercial Auto covers auto liability, hired auto, and non-owned auto.
     type_map = {
         "general liability": "general_liability",
+        "commercial general liability": "general_liability",
+        "cgl": "general_liability",
+        "bodily injury": "general_liability",
+        "property damage": "general_liability",
+        "personal injury": "general_liability",
+        "personal and advertising injury": "general_liability",
+        "personal & advertising injury": "general_liability",
+        "products completed operations": "general_liability",
+        "products/completed operations": "general_liability",
+        "premises liability": "general_liability",
+        "contractual liability": "general_liability",
         "auto": "commercial_auto",
         "commercial auto": "commercial_auto",
+        "auto liability": "commercial_auto",
+        "hired auto": "commercial_auto",
+        "non-owned auto": "commercial_auto",
+        "non owned auto": "commercial_auto",
         "workers comp": "workers_comp",
         "workers compensation": "workers_comp",
         "umbrella": "umbrella",
+        "excess liability": "umbrella",
+        "umbrella/excess": "umbrella",
         "professional liability": "professional_liability",
+        "errors and omissions": "professional_liability",
+        "e&o": "professional_liability",
         "property": "property",
+        "commercial property": "property",
+        "building coverage": "property",
+        "business personal property": "property",
     }
 
     for ct in coverage_types:
@@ -62,15 +87,22 @@ def build_evidence_from_policies(policies) -> list[dict]:
     evidence = []
 
     # Map policy_type to lease requirement categories
+    # A General Liability policy provides evidence for GL and all sub-coverages
     type_map = {
         "general_liability": "general_liability",
+        "bodily_injury": "general_liability",
+        "property_damage": "general_liability",
+        "personal_injury": "general_liability",
         "commercial_auto": "commercial_auto",
         "auto": "commercial_auto",
         "umbrella": "umbrella",
+        "excess_liability": "umbrella",
         "workers_comp": "workers_comp",
+        "workers_compensation": "workers_comp",
         "property": "property",
         "commercial_property": "property",
         "professional_liability": "professional_liability",
+        "errors_and_omissions": "professional_liability",
         "cyber": "cyber",
     }
 
@@ -94,6 +126,26 @@ def compare_requirements(requirements: list[dict], evidence: list[dict]) -> list
     Compare structured requirements against coverage evidence.
     Returns a list of result objects with status: pass, fail, or unclear.
     """
+
+    # Categories that are covered by General Liability
+    _GL_COVERS = {
+        "bodily_injury", "property_damage", "personal_injury",
+        "personal_and_advertising_injury", "products_completed_operations",
+        "premises_liability", "contractual_liability",
+    }
+
+    # Categories that are covered by Commercial Auto
+    _AUTO_COVERS = {
+        "auto_liability", "hired_auto", "non_owned_auto",
+    }
+
+    # Parent category lookup: sub-category → parent categories to also search
+    _CATEGORY_PARENTS = {}
+    for sub in _GL_COVERS:
+        _CATEGORY_PARENTS[sub] = ["general_liability"]
+    for sub in _AUTO_COVERS:
+        _CATEGORY_PARENTS[sub] = ["commercial_auto"]
+
     results = []
 
     for req in requirements:
@@ -102,8 +154,9 @@ def compare_requirements(requirements: list[dict], evidence: list[dict]) -> list
         required_value = req.get("required_value")
         label = req.get("label", "")
 
-        # Find matching evidence by category
-        matching = [e for e in evidence if e.get("category") == category]
+        # Find matching evidence by category, including parent categories
+        categories_to_check = [category] + _CATEGORY_PARENTS.get(category, [])
+        matching = [e for e in evidence if e.get("category") in categories_to_check]
 
         result = {
             "requirement_label": label,

@@ -644,7 +644,11 @@ Return ONLY valid JSON with this exact schema (use null for missing fields):
 CRITICAL INSTRUCTIONS:
 1. REQUIREMENTS: Extract EVERY insurance requirement mentioned. Be thorough — include coverage types, limits, endorsements, additional insured, waiver of subrogation, primary & non-contributory, notice of cancellation, insurer ratings (AM Best), certificate holder formatting.
 2. DOLLAR AMOUNTS: Normalize to integers. "$1,000,000" → "1000000". "$2M" → "2000000". "$500K" → "500000".
-3. CATEGORIES: Map each requirement to the most specific category. If a requirement applies to multiple coverage types, create separate entries for each.
+3. CATEGORIES: Map each requirement to the most specific category. IMPORTANT INDUSTRY STANDARD MAPPINGS:
+   - Bodily Injury, Property Damage, Personal Injury, Personal & Advertising Injury, Products/Completed Operations, Premises Liability, and Contractual Liability are ALL covered under "general_liability" (Commercial General Liability / CGL). Use category "general_liability" for all of these.
+   - Auto Liability, Hired Auto, Non-Owned Auto are covered under "commercial_auto".
+   - Excess Liability is the same as "umbrella".
+   If a requirement applies to multiple coverage types, create separate entries for each.
 4. ADDITIONAL INSURED / WAIVER: Create separate requirement entries for each coverage type that requires these endorsements.
 5. Be aggressive — it is better to extract too many requirements than to miss one.
 6. If the text mentions "per occurrence", "each occurrence", or "per claim" use coverage_limit_each_occurrence. If it mentions "aggregate" or "general aggregate" use coverage_limit_aggregate. If it mentions "combined single limit" or "CSL" use coverage_limit_combined_single.
