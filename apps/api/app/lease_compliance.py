@@ -158,6 +158,12 @@ def compare_requirements(requirements: list[dict], evidence: list[dict]) -> list
         categories_to_check = [category] + _CATEGORY_PARENTS.get(category, [])
         matching = [e for e in evidence if e.get("category") in categories_to_check]
 
+        # Track if we matched via parent category (industry standard)
+        matched_via_parent = (
+            not any(e.get("category") == category for e in matching)
+            and any(e.get("category") in _CATEGORY_PARENTS.get(category, []) for e in matching)
+        )
+
         result = {
             "requirement_label": label,
             "category": category,
@@ -184,6 +190,17 @@ def compare_requirements(requirements: list[dict], evidence: list[dict]) -> list
             result = _check_certificate_holder(req, matching)
         else:
             result = _check_generic(req, matching)
+
+        # Add industry standard context when matched via parent category
+        if matched_via_parent and result["status"] in ("pass", "unclear"):
+            parent_names = {
+                "general_liability": "Commercial General Liability (CGL)",
+                "commercial_auto": "Commercial Auto",
+            }
+            parent_cat = _CATEGORY_PARENTS.get(category, [""])[0]
+            parent_label = parent_names.get(parent_cat, parent_cat)
+            industry_note = f" (Industry standard: {_category_label(category)} is covered under {parent_label} policy)"
+            result["note"] = (result.get("note") or "") + industry_note
 
         results.append(result)
 

@@ -1826,6 +1826,65 @@ function CertificatesContent() {
                 </div>
               )}
 
+              {/* Run New Check — upload COI against these saved requirements */}
+              <div style={{ marginBottom: 16, padding: 14, backgroundColor: '#f0f9ff', border: '1px dashed #93c5fd', borderRadius: 'var(--radius-md)' }}>
+                <div style={{ fontSize: 13, fontWeight: 600, color: '#0c4a6e', marginBottom: 8 }}>
+                  Run a new compliance check
+                </div>
+                <div style={{ fontSize: 12, color: '#64748b', marginBottom: 10 }}>
+                  Upload a COI to check against these saved requirements. You can run this as many times as needed.
+                </div>
+                <input
+                  ref={docCoiRef}
+                  type="file"
+                  accept=".pdf"
+                  style={{ fontSize: 12, marginBottom: 8, display: 'block' }}
+                />
+                <button
+                  onClick={async () => {
+                    const file = docCoiRef.current?.files?.[0];
+                    if (!file) { toast('Please select a PDF file', 'error'); return; }
+                    setLeaseDetailLoading(true);
+                    trackClick('lease_detail_run_new_check', { id: req.id });
+                    try {
+                      const res = await leaseComplianceApi.checkDocument(req.id, file);
+                      let attempts = 0;
+                      const poll = async (): Promise<void> => {
+                        const status = await leaseComplianceApi.pollCheckStatus(res.id);
+                        if (status.status === 'complete' && status.results) {
+                          setLeaseDetailResults(status.results);
+                          setLeaseDetailCheckId(status.id || res.id);
+                          setLeaseDetailLoading(false);
+                          trackFeatureUse('lease_detail_check_completed', { id: req.id, pass: status.pass_count, fail: status.fail_count });
+                          load();
+                          return;
+                        } else if (status.status === 'error') {
+                          toast(status.error || 'Comparison failed', 'error');
+                          setLeaseDetailLoading(false);
+                          return;
+                        }
+                        attempts++;
+                        if (attempts > 60) { toast('Comparison timed out', 'error'); setLeaseDetailLoading(false); return; }
+                        await new Promise(r => setTimeout(r, 2000));
+                        return poll();
+                      };
+                      await poll();
+                    } catch (err: any) {
+                      toast(err.message || 'Check failed', 'error');
+                      setLeaseDetailLoading(false);
+                    }
+                  }}
+                  disabled={leaseDetailLoading}
+                  style={{
+                    padding: '8px 16px', backgroundColor: '#2563eb', color: '#fff',
+                    border: 'none', borderRadius: 'var(--radius-sm)', cursor: leaseDetailLoading ? 'wait' : 'pointer',
+                    fontSize: 13, fontWeight: 600, opacity: leaseDetailLoading ? 0.7 : 1,
+                  }}
+                >
+                  {leaseDetailLoading ? 'Checking...' : 'Upload & Check COI'}
+                </button>
+              </div>
+
               {/* Action buttons */}
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', borderTop: '1px solid var(--color-border)', paddingTop: 14 }}>
                 {/* Send to counterparty — request their COI */}
