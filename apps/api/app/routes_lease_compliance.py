@@ -26,6 +26,7 @@ from .schemas import (
     ComplianceCheckOut,
 )
 from .routes_billing import check_feature
+import re
 from .lease_compliance import (
     compare_requirements,
     build_evidence_from_certificate,
@@ -73,6 +74,64 @@ def extract_lease_text(
     }
 
 
+# ── Smart page filtering ──────────────────────────────
+
+_INSURANCE_KEYWORDS = re.compile(
+    r"insurance|liability|coverage|indemnif|certific|waiver.{0,20}subrogation|"
+    r"additional.{0,10}insured|umbrella|workers.{0,5}comp|general.{0,10}liability|"
+    r"professional.{0,10}liability|commercial.{0,10}auto|property.{0,10}damage|"
+    r"bodily.{0,10}injury|aggregate|per.{0,10}occurrence|deductible|premium|"
+    r"endorsement|insurer|underwriter|am.{0,5}best|policy.{0,10}limit|"
+    r"proof.{0,10}of.{0,10}insurance|maintain.{0,20}insurance|"
+    r"certificate.{0,10}holder|notice.{0,10}of.{0,10}cancellation",
+    re.IGNORECASE,
+)
+
+
+def _extract_relevant_pages(pdf_content: bytes, max_pages: int = 50) -> list[bytes]:
+    """Extract only insurance-relevant pages from a PDF as PNG images.
+
+    Scans every page's text for insurance keywords. If relevant pages are found,
+    returns only those (plus one page before/after each for context). If no
+    relevant pages are found (e.g. scanned PDF with no text), falls back to
+    sending all pages up to max_pages.
+    """
+    import fitz
+    doc = fitz.open(stream=pdf_content, filetype="pdf")
+    total_pages = len(doc)
+
+    # First pass: scan text for keywords
+    relevant_indices: set[int] = set()
+    for i in range(total_pages):
+        text = doc[i].get_text()
+        if _INSURANCE_KEYWORDS.search(text):
+            relevant_indices.add(i)
+
+    # Add context pages (one before and after each relevant page)
+    if relevant_indices:
+        with_context: set[int] = set()
+        for i in relevant_indices:
+            with_context.add(max(0, i - 1))
+            with_context.add(i)
+            with_context.add(min(total_pages - 1, i + 1))
+        page_indices = sorted(with_context)
+        logger.info("Lease PDF: %d/%d pages contain insurance keywords, sending %d with context",
+                     len(relevant_indices), total_pages, len(page_indices))
+    else:
+        # No text found (scanned PDF) or no keywords — send all up to max
+        page_indices = list(range(min(total_pages, max_pages)))
+        logger.info("Lease PDF: no keyword matches in %d pages (possibly scanned), sending %d",
+                     total_pages, len(page_indices))
+
+    images = []
+    for i in page_indices:
+        pix = doc[i].get_pixmap(dpi=200)
+        images.append(pix.tobytes("png"))
+    doc.close()
+
+    return images
+
+
 @router.post("/extract-pdf")
 async def extract_lease_pdf(
     file: UploadFile = File(...),
@@ -86,19 +145,15 @@ async def extract_lease_pdf(
     if len(content) > 20 * 1024 * 1024:
         raise HTTPException(status_code=400, detail="File too large (max 20MB)")
 
-    # Convert PDF to images
+    # Extract only insurance-relevant pages
     try:
-        import fitz
-        doc = fitz.open(stream=content, filetype="pdf")
-        images = []
-        for page_num in range(min(len(doc), 20)):
-            page = doc[page_num]
-            pix = page.get_pixmap(dpi=200)
-            images.append(pix.tobytes("png"))
-        doc.close()
+        images = _extract_relevant_pages(content)
     except Exception as e:
         logger.exception("PDF conversion failed")
         raise HTTPException(status_code=400, detail=f"Could not process PDF: {str(e)}")
+
+    if not images:
+        raise HTTPException(status_code=400, detail="No pages found in PDF")
 
     extractor = get_extractor()
     try:
@@ -142,16 +197,9 @@ async def create_requirement_from_document(
     if len(content) > 20 * 1024 * 1024:
         raise HTTPException(status_code=400, detail="File too large (max 20MB)")
 
-    # Convert PDF to images
+    # Extract only insurance-relevant pages
     try:
-        import fitz
-        doc = fitz.open(stream=content, filetype="pdf")
-        images = []
-        for page_num in range(min(len(doc), 20)):
-            page = doc[page_num]
-            pix = page.get_pixmap(dpi=200)
-            images.append(pix.tobytes("png"))
-        doc.close()
+        images = _extract_relevant_pages(content)
     except Exception as e:
         logger.exception("PDF conversion failed")
         raise HTTPException(status_code=400, detail=f"Could not process PDF: {str(e)}")
