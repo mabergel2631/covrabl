@@ -88,38 +88,51 @@ _INSURANCE_KEYWORDS = re.compile(
 )
 
 
-def _extract_relevant_pages(pdf_content: bytes, max_pages: int = 50) -> list[bytes]:
+def _extract_relevant_pages(pdf_content: bytes, max_relevant: int = 10) -> list[bytes]:
     """Extract only insurance-relevant pages from a PDF as PNG images.
 
-    Scans every page's text for insurance keywords. If relevant pages are found,
-    returns only those (plus one page before/after each for context). If no
-    relevant pages are found (e.g. scanned PDF with no text), falls back to
-    sending all pages up to max_pages.
+    Two-pass approach:
+    1. Score every page by insurance keyword density
+    2. Take the top-scoring pages (up to max_relevant), plus context pages
+
+    For scanned PDFs with no text, falls back to first 20 pages.
     """
     import fitz
     doc = fitz.open(stream=pdf_content, filetype="pdf")
     total_pages = len(doc)
 
-    # First pass: scan text for keywords
-    relevant_indices: set[int] = set()
+    # First pass: score each page by keyword match count
+    page_scores: list[tuple[int, int]] = []
     for i in range(total_pages):
         text = doc[i].get_text()
-        if _INSURANCE_KEYWORDS.search(text):
-            relevant_indices.add(i)
+        matches = len(_INSURANCE_KEYWORDS.findall(text))
+        page_scores.append((i, matches))
 
-    # Add context pages (one before and after each relevant page)
-    if relevant_indices:
+    # Filter to pages with any matches
+    matched_pages = [(i, score) for i, score in page_scores if score > 0]
+
+    if matched_pages:
+        # Sort by score (highest first), take top N
+        matched_pages.sort(key=lambda x: x[1], reverse=True)
+        top_indices = set(i for i, _ in matched_pages[:max_relevant])
+
+        # Add one context page before and after each selected page
         with_context: set[int] = set()
-        for i in relevant_indices:
+        for i in top_indices:
             with_context.add(max(0, i - 1))
             with_context.add(i)
             with_context.add(min(total_pages - 1, i + 1))
         page_indices = sorted(with_context)
-        logger.info("Lease PDF: %d/%d pages contain insurance keywords, sending %d with context",
-                     len(relevant_indices), total_pages, len(page_indices))
+
+        logger.info(
+            "Lease PDF: %d/%d pages matched keywords. Top scores: %s. Sending %d pages.",
+            len(matched_pages), total_pages,
+            [(i, s) for i, s in matched_pages[:5]],
+            len(page_indices),
+        )
     else:
-        # No text found (scanned PDF) or no keywords — send all up to max
-        page_indices = list(range(min(total_pages, max_pages)))
+        # No text or no keywords (scanned PDF) — send first 20
+        page_indices = list(range(min(total_pages, 20)))
         logger.info("Lease PDF: no keyword matches in %d pages (possibly scanned), sending %d",
                      total_pages, len(page_indices))
 
