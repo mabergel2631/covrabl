@@ -91,18 +91,15 @@ _INSURANCE_KEYWORDS = re.compile(
 def _extract_relevant_pages(pdf_content: bytes, max_relevant: int = 10) -> list[bytes]:
     """Extract only insurance-relevant pages from a PDF as PNG images.
 
-    Two-pass approach:
-    1. Score every page by insurance keyword density
-    2. Take the top-scoring pages (up to max_relevant), plus context pages
-
-    For scanned PDFs with no text, falls back to first 20 pages.
+    For text PDFs: scores pages by keyword density, sends top N.
+    For scanned PDFs: uses LLM to identify insurance pages from tiny thumbnails,
+    then sends only those pages at full resolution.
     """
     import fitz
     doc = fitz.open(stream=pdf_content, filetype="pdf")
     total_pages = len(doc)
 
-    # First pass: score each page by keyword match count
-    # For scanned PDFs, use OCR via PyMuPDF's built-in text extraction on rendered pages
+    # First pass: try text-based keyword scoring
     page_scores: list[tuple[int, int]] = []
     has_any_text = False
     for i in range(total_pages):
@@ -112,49 +109,34 @@ def _extract_relevant_pages(pdf_content: bytes, max_relevant: int = 10) -> list[
         matches = _INSURANCE_KEYWORDS.findall(text)
         page_scores.append((i, len(matches)))
         if matches:
-            logger.info("Lease PDF page %d: %d keyword hits — %s", i + 1, len(matches), matches[:5])
+            logger.info("Lease PDF page %d: %d keyword hits", i + 1, len(matches))
 
-    # For scanned PDFs with no text, we can't keyword-filter
-    # We'll handle this in the fallback below
-
-    # Filter to pages with any matches
     matched_pages = [(i, score) for i, score in page_scores if score > 0]
 
     if matched_pages:
-        # Sort by score (highest first), take top N
+        # Text PDF with keyword matches — take top N by score
         matched_pages.sort(key=lambda x: x[1], reverse=True)
         top_indices = set(i for i, _ in matched_pages[:max_relevant])
-
-        # Add one context page before and after each selected page
         with_context: set[int] = set()
         for i in top_indices:
             with_context.add(max(0, i - 1))
             with_context.add(i)
             with_context.add(min(total_pages - 1, i + 1))
         page_indices = sorted(with_context)
-
-        logger.info(
-            "Lease PDF: %d/%d pages matched keywords. Top scores: %s. Sending %d pages.",
-            len(matched_pages), total_pages,
-            [(i, s) for i, s in matched_pages[:5]],
-            len(page_indices),
-        )
+        logger.info("Lease PDF: %d/%d pages matched. Sending %d with context.",
+                     len(matched_pages), total_pages, len(page_indices))
+    elif not has_any_text:
+        # Scanned PDF — use LLM to find insurance pages via thumbnails
+        logger.info("Lease PDF: scanned document (%d pages), using LLM to find insurance pages", total_pages)
+        page_indices = _find_insurance_pages_via_llm(doc, total_pages)
+        logger.info("Lease PDF: LLM identified %d insurance-relevant pages", len(page_indices))
     else:
-        # Check if any page has extractable text at all
-        has_text = any(len(doc[i].get_text().strip()) > 50 for i in range(min(total_pages, 5)))
-        if has_any_text:
-            # Has text but no insurance keywords — send all up to 30
-            page_indices = list(range(min(total_pages, 30)))
-            logger.info("Lease PDF: text found but no keyword matches in %d pages, sending all %d",
-                         total_pages, len(page_indices))
-        else:
-            # Scanned PDF — send all pages, use lower DPI to fit within token limits
-            page_indices = list(range(total_pages))
-            logger.info("Lease PDF: scanned document (%d pages), sending all at reduced DPI",
-                         total_pages)
+        # Has text but no keyword matches — send all up to 20
+        page_indices = list(range(min(total_pages, 20)))
+        logger.info("Lease PDF: text but no keywords in %d pages, sending first %d",
+                     total_pages, len(page_indices))
 
-    # Use lower DPI for large page counts to stay within LLM token limits
-    dpi = 200 if len(page_indices) <= 15 else 150 if len(page_indices) <= 30 else 100
+    dpi = 200 if len(page_indices) <= 15 else 150
     logger.info("Lease PDF: rendering %d pages at %d DPI", len(page_indices), dpi)
 
     images = []
@@ -164,6 +146,92 @@ def _extract_relevant_pages(pdf_content: bytes, max_relevant: int = 10) -> list[
     doc.close()
 
     return images
+
+
+def _find_insurance_pages_via_llm(doc, total_pages: int) -> list[int]:
+    """For scanned PDFs: send tiny thumbnails to LLM and ask which pages contain insurance requirements."""
+    import base64
+    from .extraction import get_extractor
+    from .config import settings
+
+    # Render all pages as tiny thumbnails (50 DPI = very small images)
+    thumbnails = []
+    for i in range(total_pages):
+        pix = doc[i].get_pixmap(dpi=50)
+        thumbnails.append(pix.tobytes("png"))
+
+    # Send to LLM in batches of 20 thumbnails
+    all_identified: list[int] = []
+    batch_size = 20
+    for batch_start in range(0, total_pages, batch_size):
+        batch_end = min(batch_start + batch_size, total_pages)
+        batch = thumbnails[batch_start:batch_end]
+
+        try:
+            provider = settings.llm_provider.lower()
+            if provider == "openai":
+                import openai
+                client = openai.OpenAI(api_key=settings.openai_api_key)
+                content: list[dict] = [{
+                    "type": "text",
+                    "text": f"These are pages {batch_start + 1} through {batch_end} of a lease document. "
+                            f"Which page numbers contain INSURANCE requirements, coverage limits, or certificate of insurance language? "
+                            f"Reply with ONLY a comma-separated list of page numbers, or 'NONE' if no pages contain insurance content. "
+                            f"Example: {batch_start + 1},{batch_start + 2},{batch_start + 4}",
+                }]
+                for img in batch:
+                    content.append({"type": "image_url", "image_url": {"url": f"data:image/png;base64,{base64.b64encode(img).decode()}"}})
+
+                response = client.chat.completions.create(
+                    model="gpt-4o",
+                    max_tokens=100,
+                    messages=[{"role": "user", "content": content}],
+                )
+                answer = response.choices[0].message.content or ""
+            else:
+                import anthropic
+                client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
+                content = [{
+                    "type": "text",
+                    "text": f"These are pages {batch_start + 1} through {batch_end} of a lease document. "
+                            f"Which page numbers contain INSURANCE requirements, coverage limits, or certificate of insurance language? "
+                            f"Reply with ONLY a comma-separated list of page numbers, or 'NONE' if no pages contain insurance content. "
+                            f"Example: {batch_start + 1},{batch_start + 2},{batch_start + 4}",
+                }]
+                for img in batch:
+                    content.append({"type": "image", "source": {"type": "base64", "media_type": "image/png", "data": base64.b64encode(img).decode()}})
+
+                message = client.messages.create(
+                    model="claude-sonnet-4-20250514",
+                    max_tokens=100,
+                    messages=[{"role": "user", "content": content}],
+                )
+                answer = message.content[0].text
+
+            logger.info("Lease page finder batch %d-%d: %s", batch_start + 1, batch_end, answer.strip())
+
+            if "none" not in answer.lower():
+                # Parse page numbers from response
+                for num_str in re.findall(r"\d+", answer):
+                    page_num = int(num_str) - 1  # Convert to 0-indexed
+                    if 0 <= page_num < total_pages:
+                        all_identified.append(page_num)
+
+        except Exception as e:
+            logger.warning("LLM page identification failed for batch %d-%d: %s", batch_start + 1, batch_end, e)
+
+    if all_identified:
+        # Add context pages
+        with_context: set[int] = set()
+        for i in set(all_identified):
+            with_context.add(max(0, i - 1))
+            with_context.add(i)
+            with_context.add(min(total_pages - 1, i + 1))
+        return sorted(with_context)
+    else:
+        # LLM couldn't find any — fall back to first 20
+        logger.info("Lease page finder: no insurance pages identified, falling back to first 20")
+        return list(range(min(total_pages, 20)))
 
 
 @router.post("/extract-pdf")
