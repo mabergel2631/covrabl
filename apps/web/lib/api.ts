@@ -1740,6 +1740,7 @@ export type AgentClientDocument = {
   carrier: string;
   policy_type: string;
   uploaded_by: string | null;
+  download_url: string | null;
 };
 
 export type AgentClientSummary = {

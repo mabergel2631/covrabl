@@ -455,25 +455,40 @@ export default function ClientDetailPage() {
           )}
 
           {/* 4. Policies */}
-          <h2 style={{ fontSize: 16, fontWeight: 600, margin: '0 0 12px', color: 'var(--color-text)' }}>Policies</h2>
           {data.policies.length === 0 ? (
-            <div className="card" style={{ padding: 24, color: 'var(--color-text-muted)', textAlign: 'center' }}>No policies</div>
+            <>
+              <h2 style={{ fontSize: 16, fontWeight: 600, margin: '0 0 12px', color: 'var(--color-text)' }}>Policies</h2>
+              <div className="card" style={{ padding: 24, color: 'var(--color-text-muted)', textAlign: 'center' }}>No policies</div>
+            </>
           ) : (() => {
-            const groups: Record<string, typeof data.policies> = {};
-            data.policies.forEach(p => {
-              const key = p.exposure_id ? String(p.exposure_id) : '__none';
-              if (!groups[key]) groups[key] = [];
-              groups[key].push(p);
-            });
+            const personalPolicies = data.policies.filter(p => p.scope !== 'business');
+            const businessPolicies = data.policies.filter(p => p.scope === 'business');
+
+            // Group by exposure within each scope
+            const groupByExposure = (policies: typeof data.policies) => {
+              const groups: Record<string, typeof data.policies> = {};
+              policies.forEach(p => {
+                const key = p.exposure_id ? String(p.exposure_id) : '__none';
+                if (!groups[key]) groups[key] = [];
+                groups[key].push(p);
+              });
+              const exposureNames: Record<string, string> = {};
+              Object.keys(groups).forEach(key => {
+                if (key === '__none') return;
+                const first = groups[key].find(pp => pp.exposure_name);
+                exposureNames[key] = first?.exposure_name || `Asset #${key}`;
+              });
+              return { groups, exposureNames };
+            };
+
+            const hasGroups = data.policies.some(p => p.exposure_id);
+            const ungrouped = data.policies.filter(p => !p.exposure_id);
+            const groupKeys = [...new Set(data.policies.filter(p => p.exposure_id).map(p => String(p.exposure_id)))];
             const exposureNames: Record<string, string> = {};
-            Object.keys(groups).forEach(key => {
-              if (key === '__none') return;
-              const first = groups[key].find(p => p.exposure_name);
+            groupKeys.forEach(key => {
+              const first = data.policies.find(p => String(p.exposure_id) === key && p.exposure_name);
               exposureNames[key] = first?.exposure_name || `Asset #${key}`;
             });
-            const groupKeys = Object.keys(groups).filter(k => k !== '__none');
-            const ungrouped = groups['__none'] || [];
-            const hasGroups = groupKeys.length > 0;
 
             const renderPolicy = (p: typeof data.policies[0]) => {
               const isExpanded = expandedPolicy === p.id;
@@ -539,22 +554,38 @@ export default function ClientDetailPage() {
                           <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-text)', marginBottom: 8 }}>Documents</div>
                           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                             {policyDocs.map(doc => (
-                              <div key={doc.id} onClick={() => trackClick('agent_policy_doc_view', { doc_id: doc.id, filename: doc.filename, client_id: clientId })} style={{
+                              <div key={doc.id} style={{
                                 padding: '8px 12px',
                                 backgroundColor: 'var(--color-bg)',
                                 borderRadius: 'var(--radius-sm)',
                                 display: 'flex',
                                 justifyContent: 'space-between',
                                 alignItems: 'center',
+                                gap: 8,
                                 fontSize: 13,
                               }}>
-                                <div>
+                                <div style={{ flex: 1, minWidth: 0 }}>
                                   <div style={{ fontWeight: 600, color: 'var(--color-text)' }}>{doc.filename}</div>
                                   <div style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>
                                     {doc.doc_type} &middot; {doc.created_at ? new Date(doc.created_at).toLocaleDateString() : ''}
                                     {doc.uploaded_by && <span style={{ marginLeft: 6, color: '#6d28d9' }}>Uploaded by agent</span>}
                                   </div>
                                 </div>
+                                {doc.download_url && (
+                                  <a
+                                    href={doc.download_url}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    onClick={(e) => { e.stopPropagation(); trackClick('agent_doc_download', { doc_id: doc.id, filename: doc.filename, client_id: clientId }); }}
+                                    style={{
+                                      fontSize: 12, fontWeight: 600, color: 'var(--color-primary)',
+                                      textDecoration: 'none', padding: '4px 10px', borderRadius: 6,
+                                      border: '1px solid var(--color-primary)', whiteSpace: 'nowrap',
+                                    }}
+                                  >
+                                    View
+                                  </a>
+                                )}
                                 <span style={{
                                   fontSize: 11, padding: '1px 6px', borderRadius: 6,
                                   backgroundColor: doc.extraction_status === 'done' ? '#dcfce7' : '#f3f4f6',
@@ -577,29 +608,26 @@ export default function ClientDetailPage() {
               );
             };
 
+            const renderScopeSection = (label: string, policies: typeof data.policies, color: string, bgColor: string) => {
+              if (policies.length === 0) return null;
+              return (
+                <div key={label}>
+                  <div style={{ fontSize: 14, fontWeight: 600, color, marginBottom: 8, marginTop: 4, display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span style={{ padding: '2px 12px', borderRadius: 12, fontSize: 12, fontWeight: 600, backgroundColor: bgColor, color }}>
+                      {label}
+                    </span>
+                    <span style={{ fontSize: 12, color: 'var(--color-text-muted)', fontWeight: 400 }}>{policies.length} {policies.length === 1 ? 'policy' : 'policies'}</span>
+                  </div>
+                  {policies.map(renderPolicy)}
+                </div>
+              );
+            };
+
             return (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 32 }}>
-                {hasGroups && groupKeys.map(key => (
-                  <div key={key}>
-                    <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-primary)', marginBottom: 6, marginTop: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <span style={{ padding: '2px 10px', borderRadius: 12, fontSize: 12, fontWeight: 600, backgroundColor: '#ede9fe', color: '#6d28d9' }}>
-                        {exposureNames[key]}
-                      </span>
-                      <span style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>{groups[key].length} {groups[key].length === 1 ? 'policy' : 'policies'}</span>
-                    </div>
-                    {groups[key].map(renderPolicy)}
-                  </div>
-                ))}
-                {ungrouped.length > 0 && (
-                  <div>
-                    {hasGroups && (
-                      <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-text-muted)', marginBottom: 6, marginTop: 8 }}>
-                        Ungrouped
-                      </div>
-                    )}
-                    {ungrouped.map(renderPolicy)}
-                  </div>
-                )}
+                <h2 style={{ fontSize: 16, fontWeight: 600, margin: '0 0 4px', color: 'var(--color-text)' }}>Policies</h2>
+                {renderScopeSection('Personal', personalPolicies, '#2563eb', '#dbeafe')}
+                {renderScopeSection('Business', businessPolicies, '#6d28d9', '#ede9fe')}
               </div>
             );
           })()}

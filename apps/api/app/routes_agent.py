@@ -285,11 +285,18 @@ def _flagged_items_for_client(db: Session, client_id: int, policies: list[Policy
     for check in checks:
         lr = db.get(LeaseRequirement, check.lease_requirement_id) if check.lease_requirement_id else None
         label = lr.label if lr else "Requirement"
+        role = lr.role if lr else "unknown"
+        if role == "landlord":
+            role_desc = "Tenant does not meet"
+        elif role == "tenant":
+            role_desc = "Does not meet landlord's"
+        else:
+            role_desc = "Does not meet"
         items.append({
             "category": "compliance_fail",
             "severity": "high",
-            "title": f"Compliance failure: {label}",
-            "detail": f"{check.fail_count} requirement(s) not met",
+            "title": f"{role_desc} requirements: {label}",
+            "detail": f"{check.fail_count} of {check.fail_count + check.pass_count} requirement(s) not met",
             "entity_id": check.id,
         })
 
@@ -653,6 +660,8 @@ def client_documents(client_id: int, agent: User = Depends(require_agent), db: S
         if doc.uploaded_by_user_id:
             uploader = db.get(User, doc.uploaded_by_user_id)
             uploaded_by = uploader.email if uploader else "unknown"
+        from .storage import presign_get_url
+        download_url = presign_get_url(doc.object_key) if doc.object_key else None
         results.append({
             "id": doc.id,
             "policy_id": doc.policy_id,
@@ -663,6 +672,7 @@ def client_documents(client_id: int, agent: User = Depends(require_agent), db: S
             "created_at": str(doc.created_at) if doc.created_at else None,
             "carrier": carrier,
             "policy_type": policy_type,
+            "download_url": download_url,
             "uploaded_by": uploaded_by,
         })
 
