@@ -105,8 +105,10 @@ def _extract_relevant_pages(pdf_content: bytes, max_relevant: int = 10) -> list[
     page_scores: list[tuple[int, int]] = []
     for i in range(total_pages):
         text = doc[i].get_text()
-        matches = len(_INSURANCE_KEYWORDS.findall(text))
-        page_scores.append((i, matches))
+        matches = _INSURANCE_KEYWORDS.findall(text)
+        page_scores.append((i, len(matches)))
+        if matches:
+            logger.info("Lease PDF page %d: %d keyword hits — %s", i + 1, len(matches), matches[:5])
 
     # Filter to pages with any matches
     matched_pages = [(i, score) for i, score in page_scores if score > 0]
@@ -131,10 +133,19 @@ def _extract_relevant_pages(pdf_content: bytes, max_relevant: int = 10) -> list[
             len(page_indices),
         )
     else:
-        # No text or no keywords (scanned PDF) — send first 20
-        page_indices = list(range(min(total_pages, 20)))
-        logger.info("Lease PDF: no keyword matches in %d pages (possibly scanned), sending %d",
-                     total_pages, len(page_indices))
+        # Check if any page has extractable text at all
+        has_text = any(len(doc[i].get_text().strip()) > 50 for i in range(min(total_pages, 5)))
+        if has_text:
+            # Has text but no insurance keywords — this lease may not contain insurance requirements
+            # Send all pages anyway (up to 30) in case keywords were too narrow
+            page_indices = list(range(min(total_pages, 30)))
+            logger.info("Lease PDF: text found but no keyword matches in %d pages, sending all %d",
+                         total_pages, len(page_indices))
+        else:
+            # Scanned PDF — send all pages up to 30
+            page_indices = list(range(min(total_pages, 30)))
+            logger.info("Lease PDF: scanned document (%d pages), sending %d",
+                         total_pages, len(page_indices))
 
     images = []
     for i in page_indices:
