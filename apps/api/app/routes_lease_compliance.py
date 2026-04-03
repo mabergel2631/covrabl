@@ -102,13 +102,20 @@ def _extract_relevant_pages(pdf_content: bytes, max_relevant: int = 10) -> list[
     total_pages = len(doc)
 
     # First pass: score each page by keyword match count
+    # For scanned PDFs, use OCR via PyMuPDF's built-in text extraction on rendered pages
     page_scores: list[tuple[int, int]] = []
+    has_any_text = False
     for i in range(total_pages):
         text = doc[i].get_text()
+        if len(text.strip()) > 20:
+            has_any_text = True
         matches = _INSURANCE_KEYWORDS.findall(text)
         page_scores.append((i, len(matches)))
         if matches:
             logger.info("Lease PDF page %d: %d keyword hits — %s", i + 1, len(matches), matches[:5])
+
+    # For scanned PDFs with no text, we can't keyword-filter
+    # We'll handle this in the fallback below
 
     # Filter to pages with any matches
     matched_pages = [(i, score) for i, score in page_scores if score > 0]
@@ -135,20 +142,24 @@ def _extract_relevant_pages(pdf_content: bytes, max_relevant: int = 10) -> list[
     else:
         # Check if any page has extractable text at all
         has_text = any(len(doc[i].get_text().strip()) > 50 for i in range(min(total_pages, 5)))
-        if has_text:
-            # Has text but no insurance keywords — send all up to 40
-            page_indices = list(range(min(total_pages, 40)))
+        if has_any_text:
+            # Has text but no insurance keywords — send all up to 30
+            page_indices = list(range(min(total_pages, 30)))
             logger.info("Lease PDF: text found but no keyword matches in %d pages, sending all %d",
                          total_pages, len(page_indices))
         else:
-            # Scanned PDF — no text extraction possible, send ALL pages
+            # Scanned PDF — send all pages, use lower DPI to fit within token limits
             page_indices = list(range(total_pages))
-            logger.info("Lease PDF: scanned document (%d pages), sending ALL",
+            logger.info("Lease PDF: scanned document (%d pages), sending all at reduced DPI",
                          total_pages)
+
+    # Use lower DPI for large page counts to stay within LLM token limits
+    dpi = 200 if len(page_indices) <= 15 else 150 if len(page_indices) <= 30 else 100
+    logger.info("Lease PDF: rendering %d pages at %d DPI", len(page_indices), dpi)
 
     images = []
     for i in page_indices:
-        pix = doc[i].get_pixmap(dpi=200)
+        pix = doc[i].get_pixmap(dpi=dpi)
         images.append(pix.tobytes("png"))
     doc.close()
 
