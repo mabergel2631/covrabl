@@ -229,26 +229,27 @@ export default function AdvisorDashboard() {
               {needsAttention.map(client => (
                 <div
                   key={`attn-${client.id}`}
-                  className="card"
+                  className="card mobile-col"
                   onClick={() => { trackClick('agent_needs_attention_row', { client_id: client.id, coverage_status: client.coverage_status }); router.push(`/agent/${client.id}`); }}
                   style={{
                     padding: '12px 20px',
                     cursor: 'pointer',
                     display: 'flex',
                     alignItems: 'center',
-                    gap: 16,
+                    gap: 8,
+                    flexWrap: 'wrap',
                     transition: 'box-shadow 0.15s',
                   }}
                   onMouseEnter={e => { (e.currentTarget as HTMLElement).style.boxShadow = '0 2px 8px rgba(0,0,0,0.08)'; }}
                   onMouseLeave={e => { (e.currentTarget as HTMLElement).style.boxShadow = ''; }}
                 >
                   <CoverageStatusBadge status={client.coverage_status} />
-                  <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ flex: 1, minWidth: 120 }}>
                     <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--color-text)' }}>
                       {client.full_name || client.email}
                     </span>
                   </div>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-text)', textAlign: 'right', flexShrink: 0 }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-text-secondary)' }}>
                     {client.next_action}
                   </div>
                 </div>
