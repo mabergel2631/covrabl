@@ -268,6 +268,7 @@ class ComplianceCheck(Base):
     coi_file_data: Mapped[bytes | None] = mapped_column(LargeBinary, nullable=True)
     status: Mapped[str] = mapped_column(String(20), default="complete")  # pending, processing, complete, error
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    report_text: Mapped[str | None] = mapped_column(Text, nullable=True)  # Narrative compliance report (markdown)
     submitted_at: Mapped[DateTime | None] = mapped_column(DateTime, nullable=True)
     created_at: Mapped[DateTime] = mapped_column(DateTime, server_default=func.now())
 

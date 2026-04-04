@@ -201,6 +201,9 @@ function CertificatesContent() {
   const [leaseDetailLoading, setLeaseDetailLoading] = useState(false);
   const [leaseDetailCheckId, setLeaseDetailCheckId] = useState<number | null>(null);
   const [leaseDetailHasDoc, setLeaseDetailHasDoc] = useState(false);
+  const [leaseCheckHistory, setLeaseCheckHistory] = useState<any[]>([]);
+  const [showFullReport, setShowFullReport] = useState(false);
+  const [fullReportText, setFullReportText] = useState('');
   const [showSendToCounterparty, setShowSendToCounterparty] = useState(false);
   const [sendEmail, setSendEmail] = useState('');
   const [sendName, setSendName] = useState('');
@@ -407,22 +410,26 @@ function CertificatesContent() {
     setLeaseDetailResults([]);
     setLeaseDetailCheckId(null);
     setLeaseDetailHasDoc(false);
+    setLeaseCheckHistory([]);
+    setShowFullReport(false);
+    setFullReportText('');
     setLeaseDetailLoading(true);
     try {
       // Refresh the requirement to get up-to-date tenants/latest_check
       const freshReq = await leaseComplianceApi.get(req.id);
       if (freshReq) {
         setViewingLease(freshReq);
-        // Also update in the main list so card reflects latest state
         setLeaseReqs(prev => prev.map(r => r.id === freshReq.id ? freshReq : r));
       }
       const checks = await leaseComplianceApi.listChecks(req.id);
+      setLeaseCheckHistory(checks);
       if (checks.length > 0) {
         const latest = checks[0];
         const results: ComplianceResultItem[] = latest.results || (latest.results_json ? JSON.parse(latest.results_json) : []);
         setLeaseDetailResults(results);
         setLeaseDetailCheckId(latest.id);
         setLeaseDetailHasDoc(!!latest.has_document);
+        if (latest.report_text) setFullReportText(latest.report_text);
       }
     } catch { /* ignore — just won't show results */ }
     setLeaseDetailLoading(false);
@@ -1826,6 +1833,114 @@ function CertificatesContent() {
                 </div>
               )}
 
+              {/* View Full Report */}
+              {fullReportText && (
+                <div style={{ marginBottom: 16 }}>
+                  <button
+                    onClick={() => { trackClick('lease_detail_toggle_report'); setShowFullReport(!showFullReport); }}
+                    style={{
+                      padding: '8px 16px', fontSize: 13, fontWeight: 600,
+                      backgroundColor: showFullReport ? 'var(--color-primary)' : '#f0f9ff',
+                      color: showFullReport ? '#fff' : '#0c4a6e',
+                      border: showFullReport ? 'none' : '1px solid #bae6fd',
+                      borderRadius: 'var(--radius-sm)', cursor: 'pointer',
+                      marginRight: 8,
+                    }}
+                  >
+                    {showFullReport ? 'Hide Full Report' : 'View Full Report'}
+                  </button>
+                  {showFullReport && (
+                    <button
+                      onClick={() => {
+                        trackClick('lease_detail_print_report');
+                        const printWindow = window.open('', '_blank');
+                        if (printWindow) {
+                          printWindow.document.write(`<!DOCTYPE html><html><head><title>Compliance Report</title>
+                            <style>
+                              body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 800px; margin: 0 auto; padding: 40px 20px; line-height: 1.6; color: #1a1a2e; }
+                              h1 { font-size: 22px; border-bottom: 2px solid #2563eb; padding-bottom: 8px; }
+                              h2 { font-size: 18px; margin-top: 24px; color: #1e40af; }
+                              h3 { font-size: 15px; margin-top: 16px; }
+                              ul, ol { padding-left: 24px; }
+                              li { margin-bottom: 6px; }
+                              strong { color: #1a1a2e; }
+                              @media print { body { padding: 20px; } }
+                            </style>
+                          </head><body>${fullReportText.replace(/\n/g, '<br>')}</body></html>`);
+                          printWindow.document.close();
+                          printWindow.print();
+                        }
+                      }}
+                      style={{
+                        padding: '8px 16px', fontSize: 13, fontWeight: 600,
+                        backgroundColor: 'transparent', color: 'var(--color-text)',
+                        border: '1px solid var(--color-border)',
+                        borderRadius: 'var(--radius-sm)', cursor: 'pointer',
+                      }}
+                    >
+                      Print Report
+                    </button>
+                  )}
+                  {showFullReport && (
+                    <div style={{
+                      marginTop: 12, padding: 20,
+                      border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)',
+                      backgroundColor: '#fff', fontSize: 13, lineHeight: 1.7,
+                      maxHeight: 400, overflowY: 'auto',
+                      whiteSpace: 'pre-wrap',
+                    }}>
+                      {fullReportText}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Check History */}
+              {leaseCheckHistory.length > 1 && (
+                <div style={{ marginBottom: 16 }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--color-text)', marginBottom: 6 }}>
+                    Check History ({leaseCheckHistory.length})
+                  </div>
+                  <div style={{ maxHeight: 120, overflowY: 'auto', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)' }}>
+                    {leaseCheckHistory.map((c, i) => {
+                      const isSelected = c.id === leaseDetailCheckId;
+                      const statusIcon = c.fail_count === 0 && c.pass_count > 0 ? '\u2705' : c.fail_count > 0 ? '\u274C' : '\u2753';
+                      const dateStr = c.created_at ? new Date(c.created_at).toLocaleString() : c.submitted_at ? new Date(c.submitted_at).toLocaleString() : 'Unknown date';
+                      return (
+                        <div
+                          key={c.id}
+                          onClick={() => {
+                            trackClick('lease_detail_switch_check', { check_id: c.id, index: i });
+                            const results: ComplianceResultItem[] = c.results || (c.results_json ? JSON.parse(c.results_json) : []);
+                            setLeaseDetailResults(results);
+                            setLeaseDetailCheckId(c.id);
+                            setLeaseDetailHasDoc(!!c.has_document);
+                            setFullReportText(c.report_text || '');
+                            setShowFullReport(false);
+                          }}
+                          style={{
+                            padding: '8px 12px',
+                            borderBottom: i < leaseCheckHistory.length - 1 ? '1px solid var(--color-border)' : 'none',
+                            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                            cursor: 'pointer',
+                            backgroundColor: isSelected ? '#eff6ff' : 'transparent',
+                          }}
+                        >
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <span style={{ fontSize: 14 }}>{statusIcon}</span>
+                            <span style={{ fontSize: 12, color: 'var(--color-text)' }}>{dateStr}</span>
+                            {c.tenant_name && <span style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>({c.tenant_name})</span>}
+                          </div>
+                          <div style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>
+                            {c.pass_count}P / {c.fail_count}F / {c.unclear_count}U
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
               {/* Run New Check — upload COI against these saved requirements */}
               <div style={{ marginBottom: 16, padding: 14, backgroundColor: '#f0f9ff', border: '1px dashed #93c5fd', borderRadius: 'var(--radius-md)' }}>
                 <div style={{ fontSize: 13, fontWeight: 600, color: '#0c4a6e', marginBottom: 8 }}>
@@ -1854,9 +1969,16 @@ function CertificatesContent() {
                         if (status.status === 'complete' && status.results) {
                           setLeaseDetailResults(status.results);
                           setLeaseDetailCheckId(status.id || res.id);
+                          setLeaseDetailHasDoc(true);
                           setLeaseDetailLoading(false);
                           trackFeatureUse('lease_detail_check_completed', { id: req.id, pass: status.pass_count, fail: status.fail_count });
-                          load();
+                          // Refresh everything: main list, check history, and modal data
+                          await load();
+                          const freshReq = await leaseComplianceApi.get(req.id);
+                          if (freshReq) setViewingLease(freshReq);
+                          const freshChecks = await leaseComplianceApi.listChecks(req.id);
+                          setLeaseCheckHistory(freshChecks);
+                          toast('Compliance check complete', 'success');
                           return;
                         } else if (status.status === 'error') {
                           toast(status.error || 'Comparison failed', 'error');

@@ -147,6 +147,13 @@ def on_startup():
             conn.execute(text("CREATE INDEX ix_agent_policy_access_policy_id ON agent_policy_access(policy_id)"))
             logging.info("Created agent_policy_access table")
 
+    # Ensure report_text column exists on compliance_checks
+    cc_cols = [c["name"] for c in insp.get_columns("compliance_checks")]
+    if "report_text" not in cc_cols:
+        with engine.begin() as conn:
+            conn.execute(text("ALTER TABLE compliance_checks ADD COLUMN report_text TEXT"))
+            logging.info("Added report_text column to compliance_checks")
+
     # Idempotent data normalization
     with engine.begin() as conn:
         conn.execute(text("UPDATE users SET email = lower(email) WHERE email != lower(email)"))

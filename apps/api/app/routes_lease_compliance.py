@@ -616,6 +616,69 @@ def run_compliance_check(
     }
 
 
+def _generate_compliance_report(requirements: list[dict], results: list[dict], evidence: list[dict]) -> str:
+    """Generate a comprehensive narrative compliance report using LLM."""
+    from .extraction import get_extractor
+    from .config import settings
+
+    pass_count = sum(1 for r in results if r["status"] == "pass")
+    fail_count = sum(1 for r in results if r["status"] == "fail")
+    unclear_count = sum(1 for r in results if r["status"] == "unclear")
+
+    prompt = f"""You are an expert insurance compliance analyst writing a report for a property manager, asset manager, or landlord. Write a comprehensive compliance analysis report in markdown format.
+
+Here are the lease insurance requirements:
+{json.dumps(requirements, indent=2)}
+
+Here are the compliance check results (pass/fail/unclear for each requirement):
+{json.dumps(results, indent=2)}
+
+Here is the coverage evidence found:
+{json.dumps(evidence, indent=2)}
+
+Summary: {pass_count} passed, {fail_count} failed, {unclear_count} unclear out of {len(results)} requirements.
+
+Write a professional compliance report with these sections:
+
+1. **Overall Compliance Conclusion** — One clear verdict (Compliant / Partially Compliant / Non-Compliant) with a 2-3 sentence summary.
+
+2. **Requirements Analysis** — For each coverage category found in the requirements (General Liability, Auto, Workers Comp, Umbrella, Property, etc.), create a subsection showing:
+   - What the lease requires
+   - What the certificate/policy provides
+   - Whether it passes, fails, or is unclear
+   - Industry context (e.g., "General Liability covers bodily injury and property damage per ISO CGL form", "Modern policies do not guarantee cancellation notice periods", etc.)
+
+3. **Coverage Gaps & Deficiencies** — List any failures with specific details on what's missing and what action is needed.
+
+4. **Items Requiring Manual Verification** — List unclear items and explain why they need human review.
+
+5. **Industry Notes** — Flag any cases where lease language is outdated vs. modern insurance practice (e.g., "named insured" vs. "additional interest", old cancellation notice requirements, etc.)
+
+6. **Recommended Actions** — 2-4 specific next steps.
+
+Use professional insurance terminology. Be specific with dollar amounts and coverage types. Format with clear headers, bullet points, and checkmark/cross emojis for pass/fail items."""
+
+    provider = settings.llm_provider.lower()
+    if provider == "openai":
+        import openai
+        client = openai.OpenAI(api_key=settings.openai_api_key)
+        response = client.chat.completions.create(
+            model="gpt-4o",
+            max_tokens=4096,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        return response.choices[0].message.content or ""
+    else:
+        import anthropic
+        client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
+        message = client.messages.create(
+            model="claude-sonnet-4-20250514",
+            max_tokens=4096,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        return message.content[0].text
+
+
 def _build_evidence_from_coi(coi_result) -> list[dict]:
     """Build evidence list from a COIExtractionResult."""
     evidence = []
@@ -689,6 +752,14 @@ def _process_coi_check(check_id: int, requirements_json: str, content: bytes,
         check.unclear_count = unclear_count
         check.status = "complete"
         db.commit()
+
+        # Generate narrative compliance report via LLM
+        try:
+            report = _generate_compliance_report(requirements, results, evidence)
+            check.report_text = report
+            db.commit()
+        except Exception as e:
+            logger.warning("Failed to generate narrative report for check %s: %s", check_id, e)
 
         # If this was a public submission, email the landlord
         if notify_owner_id:
@@ -773,6 +844,7 @@ def get_check_status(
             "unclear_count": check.unclear_count,
             "checked_against": check.checked_against,
             "has_document": bool(check.coi_file_key),
+            "report_text": check.report_text,
         })
     elif check.status == "error":
         result["error"] = check.error_message or "Processing failed"
@@ -884,6 +956,7 @@ def list_compliance_checks(
             "tenant_name": c.tenant_name,
             "tenant_email": c.tenant_email,
             "has_document": bool(c.coi_file_key),
+            "report_text": c.report_text,
             "status": getattr(c, 'status', 'complete'),
             "submitted_at": c.submitted_at.isoformat() if c.submitted_at else None,
             "created_at": c.created_at.isoformat() if c.created_at else None,

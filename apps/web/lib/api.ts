@@ -2234,6 +2234,7 @@ export type ComplianceCheckResult = {
   tenant_name?: string | null;
   tenant_email?: string | null;
   has_document?: boolean;
+  report_text?: string | null;
   created_at: string;
 };
 
