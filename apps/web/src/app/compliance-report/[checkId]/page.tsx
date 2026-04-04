@@ -22,12 +22,21 @@ export default function ComplianceReportPage() {
   const [unclearCount, setUnclearCount] = useState(0);
 
   useEffect(() => {
-    if (!token) { router.replace('/login'); return; }
     trackPageView('compliance_report');
 
     const load = async () => {
       try {
-        const status = await leaseComplianceApi.pollCheckStatus(checkId);
+        // Try authenticated endpoint first, fall back to public
+        let status: any;
+        try {
+          status = await leaseComplianceApi.pollCheckStatus(checkId);
+        } catch {
+          // Not authenticated or no access — try public endpoint
+          const { API_BASE } = await import('../../../../lib/api');
+          const res = await fetch(`${API_BASE}/lease-compliance/public/checks/${checkId}/status`);
+          if (!res.ok) throw new Error('Report not found');
+          status = await res.json();
+        }
         if (status.results) setResults(status.results);
         if (status.report_text) setReportText(status.report_text);
         setPassCount(status.pass_count || 0);
@@ -38,8 +47,10 @@ export default function ComplianceReportPage() {
         if (!status.report_text && status.status === 'complete') {
           let attempts = 0;
           const poll = async () => {
-            const s = await leaseComplianceApi.pollCheckStatus(checkId);
-            if (s.report_text) { setReportText(s.report_text); return; }
+            try {
+              const s = await leaseComplianceApi.pollCheckStatus(checkId);
+              if (s.report_text) { setReportText(s.report_text); return; }
+            } catch { /* ignore */ }
             attempts++;
             if (attempts < 10) { await new Promise(r => setTimeout(r, 3000)); return poll(); }
           };
@@ -59,7 +70,7 @@ export default function ComplianceReportPage() {
     window.print();
   };
 
-  if (!token || loading) {
+  if (loading) {
     return <div style={{ padding: 40, textAlign: 'center', color: '#6b7280' }}>Loading report...</div>;
   }
 

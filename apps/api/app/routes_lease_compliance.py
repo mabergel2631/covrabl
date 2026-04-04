@@ -1302,6 +1302,11 @@ async def send_deficiency_notice(
         ).scalar_one_or_none()
         landlord_name = profile.full_name if profile and profile.full_name else user.email
 
+    # Build full report URL
+    report_url = None
+    if latest_check:
+        report_url = f"{_base2}/compliance-report/{latest_check.id}"
+
     from .email import send_deficiency_notice_email
     await send_deficiency_notice_email(
         to_email=payload.tenant_email,
@@ -1311,6 +1316,7 @@ async def send_deficiency_notice(
         failed_items=failed_items,
         notes=payload.notes,
         resubmit_url=resubmit_url,
+        report_url=report_url,
     )
 
     from .email import log_email_send
@@ -1463,6 +1469,7 @@ def get_public_check_status(
             "pass_count": check.pass_count,
             "fail_count": check.fail_count,
             "unclear_count": check.unclear_count,
+            "report_text": check.report_text,
         })
     elif check.status == "error":
         result["error"] = check.error_message or "Processing failed"
