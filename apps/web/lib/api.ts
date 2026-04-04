@@ -2391,7 +2391,7 @@ export const leaseComplianceApi = {
     if (!res.ok) throw new Error(data.detail || "Document check failed");
     return data;
   },
-  async pollCheckStatus(checkId: number): Promise<{ id: number; status: string; ok?: boolean; results?: ComplianceResultItem[]; pass_count?: number; fail_count?: number; unclear_count?: number; checked_against?: string; has_document?: boolean; error?: string }> {
+  async pollCheckStatus(checkId: number): Promise<{ id: number; status: string; ok?: boolean; results?: ComplianceResultItem[]; pass_count?: number; fail_count?: number; unclear_count?: number; checked_against?: string; has_document?: boolean; report_text?: string | null; error?: string }> {
     return request(`/lease-compliance/checks/${checkId}/status`);
   },
   sendToLandlord(id: number, landlordEmail: string, landlordName?: string, notes?: string, fromName?: string): Promise<{ ok: boolean }> {

@@ -202,8 +202,6 @@ function CertificatesContent() {
   const [leaseDetailCheckId, setLeaseDetailCheckId] = useState<number | null>(null);
   const [leaseDetailHasDoc, setLeaseDetailHasDoc] = useState(false);
   const [leaseCheckHistory, setLeaseCheckHistory] = useState<any[]>([]);
-  const [showFullReport, setShowFullReport] = useState(false);
-  const [fullReportText, setFullReportText] = useState('');
   const [showSendToCounterparty, setShowSendToCounterparty] = useState(false);
   const [sendEmail, setSendEmail] = useState('');
   const [sendName, setSendName] = useState('');
@@ -411,8 +409,6 @@ function CertificatesContent() {
     setLeaseDetailCheckId(null);
     setLeaseDetailHasDoc(false);
     setLeaseCheckHistory([]);
-    setShowFullReport(false);
-    setFullReportText('');
     setLeaseDetailLoading(true);
     try {
       // Refresh the requirement to get up-to-date tenants/latest_check
@@ -429,7 +425,6 @@ function CertificatesContent() {
         setLeaseDetailResults(results);
         setLeaseDetailCheckId(latest.id);
         setLeaseDetailHasDoc(!!latest.has_document);
-        if (latest.report_text) setFullReportText(latest.report_text);
       }
     } catch { /* ignore — just won't show results */ }
     setLeaseDetailLoading(false);
@@ -1834,64 +1829,37 @@ function CertificatesContent() {
               )}
 
               {/* View Full Report */}
-              {fullReportText && (
-                <div style={{ marginBottom: 16 }}>
+              {leaseDetailCheckId && (
+                <div style={{ marginBottom: 16, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                   <button
-                    onClick={() => { trackClick('lease_detail_toggle_report'); setShowFullReport(!showFullReport); }}
+                    onClick={() => {
+                      trackClick('lease_detail_view_full_report', { check_id: leaseDetailCheckId });
+                      window.open(`/compliance-report/${leaseDetailCheckId}`, '_blank');
+                    }}
                     style={{
                       padding: '8px 16px', fontSize: 13, fontWeight: 600,
-                      backgroundColor: showFullReport ? 'var(--color-primary)' : '#f0f9ff',
-                      color: showFullReport ? '#fff' : '#0c4a6e',
-                      border: showFullReport ? 'none' : '1px solid #bae6fd',
+                      backgroundColor: '#f0f9ff', color: '#0c4a6e',
+                      border: '1px solid #bae6fd',
                       borderRadius: 'var(--radius-sm)', cursor: 'pointer',
-                      marginRight: 8,
                     }}
                   >
-                    {showFullReport ? 'Hide Full Report' : 'View Full Report'}
+                    View Full Report
                   </button>
-                  {showFullReport && (
-                    <button
-                      onClick={() => {
-                        trackClick('lease_detail_print_report');
-                        const printWindow = window.open('', '_blank');
-                        if (printWindow) {
-                          printWindow.document.write(`<!DOCTYPE html><html><head><title>Compliance Report</title>
-                            <style>
-                              body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 800px; margin: 0 auto; padding: 40px 20px; line-height: 1.6; color: #1a1a2e; }
-                              h1 { font-size: 22px; border-bottom: 2px solid #2563eb; padding-bottom: 8px; }
-                              h2 { font-size: 18px; margin-top: 24px; color: #1e40af; }
-                              h3 { font-size: 15px; margin-top: 16px; }
-                              ul, ol { padding-left: 24px; }
-                              li { margin-bottom: 6px; }
-                              strong { color: #1a1a2e; }
-                              @media print { body { padding: 20px; } }
-                            </style>
-                          </head><body>${fullReportText.replace(/\n/g, '<br>')}</body></html>`);
-                          printWindow.document.close();
-                          printWindow.print();
-                        }
-                      }}
-                      style={{
-                        padding: '8px 16px', fontSize: 13, fontWeight: 600,
-                        backgroundColor: 'transparent', color: 'var(--color-text)',
-                        border: '1px solid var(--color-border)',
-                        borderRadius: 'var(--radius-sm)', cursor: 'pointer',
-                      }}
-                    >
-                      Print Report
-                    </button>
-                  )}
-                  {showFullReport && (
-                    <div style={{
-                      marginTop: 12, padding: 20,
-                      border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)',
-                      backgroundColor: '#fff', fontSize: 13, lineHeight: 1.7,
-                      maxHeight: 400, overflowY: 'auto',
-                      whiteSpace: 'pre-wrap',
-                    }}>
-                      {fullReportText}
-                    </div>
-                  )}
+                  <button
+                    onClick={() => {
+                      trackClick('lease_detail_share_report', { check_id: leaseDetailCheckId });
+                      navigator.clipboard.writeText(`${window.location.origin}/compliance-report/${leaseDetailCheckId}`);
+                      toast('Report link copied');
+                    }}
+                    style={{
+                      padding: '8px 16px', fontSize: 13, fontWeight: 600,
+                      backgroundColor: 'transparent', color: 'var(--color-text)',
+                      border: '1px solid var(--color-border)',
+                      borderRadius: 'var(--radius-sm)', cursor: 'pointer',
+                    }}
+                  >
+                    Copy Report Link
+                  </button>
                 </div>
               )}
 
@@ -1915,8 +1883,6 @@ function CertificatesContent() {
                             setLeaseDetailResults(results);
                             setLeaseDetailCheckId(c.id);
                             setLeaseDetailHasDoc(!!c.has_document);
-                            setFullReportText(c.report_text || '');
-                            setShowFullReport(false);
                           }}
                           style={{
                             padding: '8px 12px',
