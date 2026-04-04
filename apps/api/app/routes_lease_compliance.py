@@ -1357,6 +1357,7 @@ def get_public_requirement(
             "pass_count": latest_check.pass_count,
             "fail_count": latest_check.fail_count,
             "unclear_count": latest_check.unclear_count,
+            "report_text": latest_check.report_text,
             "checked_at": latest_check.created_at.isoformat() if latest_check.created_at else None,
         }
 

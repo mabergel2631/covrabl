@@ -2268,6 +2268,7 @@ export type LeasePublicData = {
     pass_count: number;
     fail_count: number;
     unclear_count: number;
+    report_text?: string | null;
     checked_at: string | null;
   } | null;
 };
@@ -2363,7 +2364,7 @@ export const leaseComplianceApi = {
     if (!res.ok) throw new Error(data.detail || "Submission failed");
     return data;
   },
-  async pollPublicCheckStatus(checkId: number): Promise<{ id: number; status: string; ok?: boolean; results?: ComplianceResultItem[]; pass_count?: number; fail_count?: number; unclear_count?: number; error?: string }> {
+  async pollPublicCheckStatus(checkId: number): Promise<{ id: number; status: string; ok?: boolean; results?: ComplianceResultItem[]; pass_count?: number; fail_count?: number; unclear_count?: number; report_text?: string | null; error?: string }> {
     const url = `${API_BASE}/lease-compliance/public/checks/${checkId}/status`;
     const res = await fetch(url);
     const data = await res.json();

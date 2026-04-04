@@ -286,9 +286,6 @@ async def send_deficiency_notice_email(
   <h3 style="color: #991b1b; font-size: 15px; margin: 20px 0 8px;">Requirements Not Met</h3>
   {items_html}{notes_html}
   {_email_button(resubmit_url, "View Details &amp; Resubmit Certificate")}
-  {f'''<p style="margin: 16px 0; text-align: center;">
-    <a href="{report_url}" style="color: #2563eb; font-size: 14px; text-decoration: underline;">View Full Compliance Report</a>
-  </p>''' if report_url else ''}
   <hr style="border: none; border-top: 1px solid #eee; margin: 24px 0;">
   <p style="color: #999; font-size: 12px; line-height: 1.5; text-align: center;">
     Want to manage your own insurance policies?

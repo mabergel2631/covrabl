@@ -153,6 +153,7 @@ export default function LeaseCompliancePublicPage() {
   const [results, setResults] = useState<ComplianceResultItem[] | null>(null);
   const [counts, setCounts] = useState({ pass: 0, fail: 0, unclear: 0 });
   const [showUploadAfterResults, setShowUploadAfterResults] = useState(false);
+  const [reportText, setReportText] = useState('');
 
   useEffect(() => {
     if (!code) return;
@@ -171,6 +172,7 @@ export default function LeaseCompliancePublicPage() {
           fail: d.latest_check.fail_count,
           unclear: d.latest_check.unclear_count,
         });
+        if (d.latest_check.report_text) setReportText(d.latest_check.report_text);
       }
     } catch (err: any) {
       setError(err.message || 'Requirements not found or link expired');
@@ -194,6 +196,19 @@ export default function LeaseCompliancePublicPage() {
         if (status.status === 'complete') {
           setResults(status.results || []);
           setCounts({ pass: status.pass_count || 0, fail: status.fail_count || 0, unclear: status.unclear_count || 0 });
+          if (status.report_text) {
+            setReportText(status.report_text);
+          } else {
+            // Report generates after pass/fail — poll for it
+            const pollReport = async () => {
+              for (let j = 0; j < 15; j++) {
+                await new Promise(r => setTimeout(r, 3000));
+                const s2 = await leaseComplianceApi.pollPublicCheckStatus(checkId);
+                if (s2.report_text) { setReportText(s2.report_text); return; }
+              }
+            };
+            pollReport();
+          }
           setSubmitting(false);
           setShowUploadAfterResults(false);
           return;
@@ -291,6 +306,22 @@ export default function LeaseCompliancePublicPage() {
 
         {/* Existing compliance results (from previous check or just-submitted) */}
         {results && <ResultsSection results={results} counts={counts} />}
+
+        {/* Full Narrative Report */}
+        {results && (
+          <div style={{ marginBottom: 32 }}>
+            <h2 style={{ fontSize: 16, fontWeight: 700, color: '#1f2937', marginBottom: 14 }}>Detailed Compliance Analysis</h2>
+            {reportText ? (
+              <div style={{ backgroundColor: '#fff', border: '1px solid #e5e7eb', borderRadius: 10, padding: '20px 24px', fontSize: 14, lineHeight: 1.8, color: '#1f2937', whiteSpace: 'pre-wrap' }}>
+                {reportText}
+              </div>
+            ) : (
+              <div style={{ padding: 20, textAlign: 'center', color: '#6b7280', fontSize: 13, border: '1px dashed #e5e7eb', borderRadius: 10 }}>
+                Generating detailed analysis...
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Post-results guidance */}
         {results && (

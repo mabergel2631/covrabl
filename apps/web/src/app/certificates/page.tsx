@@ -183,6 +183,7 @@ function CertificatesContent() {
   const [docSavedReq, setDocSavedReq] = useState<LeaseRequirement | null>(null);
   const [docResults, setDocResults] = useState<ComplianceResultItem[]>([]);
   const [docResultCounts, setDocResultCounts] = useState({ pass: 0, fail: 0, unclear: 0 });
+  const [docCheckId, setDocCheckId] = useState<number | null>(null);
   const docPollCancelled = useRef(false);
 
   function resetDocFlow() {
@@ -1063,6 +1064,7 @@ function CertificatesContent() {
                           if (status.status === 'complete' && status.results) {
                             setDocResults(status.results);
                             setDocResultCounts({ pass: status.pass_count || 0, fail: status.fail_count || 0, unclear: status.unclear_count || 0 });
+                            setDocCheckId(res.id);
                             setDocStep(4);
                             setDocBusy(false);
                             load();
@@ -1161,7 +1163,7 @@ function CertificatesContent() {
                 })()}
 
                 {/* Results list */}
-                <div style={{ maxHeight: 280, overflowY: 'auto', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)' }}>
+                <div style={{ border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)' }}>
                   {docResults.map((r, i) => (
                     <div key={i} style={{ padding: '10px 14px', borderBottom: i < docResults.length - 1 ? '1px solid var(--color-border)' : 'none', display: 'flex', alignItems: 'flex-start', gap: 10 }}>
                       <span style={{ fontSize: 16, flexShrink: 0, marginTop: 1 }}>
@@ -1174,6 +1176,19 @@ function CertificatesContent() {
                     </div>
                   ))}
                 </div>
+
+                {/* View Full Report */}
+                {docCheckId && (
+                  <button
+                    onClick={() => {
+                      trackClick('doc_flow_view_full_report', { check_id: docCheckId });
+                      window.open(`/compliance-report/${docCheckId}`, '_blank');
+                    }}
+                    style={{ padding: '10px 18px', backgroundColor: '#f0f9ff', color: '#0c4a6e', border: '1px solid #bae6fd', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontSize: 13, fontWeight: 600 }}
+                  >
+                    View Full Report
+                  </button>
+                )}
 
                 {/* Actions */}
                 <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
@@ -1793,7 +1808,7 @@ function CertificatesContent() {
                   <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--color-text)', marginBottom: 6 }}>
                     Requirements ({reqItems.length})
                   </div>
-                  <div style={{ maxHeight: 140, overflowY: 'auto', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', fontSize: 12 }}>
+                  <div style={{ border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', fontSize: 12 }}>
                     {reqItems.map((r, i) => (
                       <div key={i} style={{ padding: '6px 10px', borderBottom: i < reqItems.length - 1 ? '1px solid var(--color-border)' : 'none', color: 'var(--color-text)' }}>
                         {r.label}
@@ -1812,7 +1827,7 @@ function CertificatesContent() {
                   <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--color-text)', marginBottom: 6 }}>
                     Compliance Results
                   </div>
-                  <div style={{ maxHeight: 200, overflowY: 'auto', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)' }}>
+                  <div style={{ border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)' }}>
                     {leaseDetailResults.map((r, i) => (
                       <div key={i} style={{ padding: '8px 12px', borderBottom: i < leaseDetailResults.length - 1 ? '1px solid var(--color-border)' : 'none', display: 'flex', alignItems: 'flex-start', gap: 8 }}>
                         <span style={{ fontSize: 14, flexShrink: 0, marginTop: 1 }}>
