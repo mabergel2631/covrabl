@@ -597,6 +597,11 @@ export default function AdvisorDashboard() {
                 {client.full_name && (
                   <div style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>{client.email}</div>
                 )}
+                {client.producer_name && (
+                  <div style={{ fontSize: 11, color: 'var(--color-text-muted)', marginTop: 2 }}>
+                    Producer: {client.producer_name}
+                  </div>
+                )}
               </div>
               <div style={{ textAlign: 'center' }}>
                 <CoverageStatusBadge status={client.coverage_status} />

@@ -1689,6 +1689,23 @@ export type AgentClient = {
   flagged_count: number;
   coverage_status: 'good' | 'review' | 'gaps';
   next_action: string;
+  producer_member_id?: number | null;
+  producer_name?: string | null;
+};
+
+export type AgencyMember = {
+  member_id: number;
+  user_id: number | null;
+  name: string | null;
+  email: string | null;
+  role: 'owner' | 'producer' | 'csr' | 'viewer';
+};
+
+export type AgencyContext = {
+  member_id: number | null;
+  agency_id: number | null;
+  agency_name: string | null;
+  role: 'owner' | 'producer' | 'csr' | 'viewer' | null;
 };
 
 export type AgentOverview = {
@@ -1754,6 +1771,8 @@ export type AgentClientSummary = {
   upcoming_renewals: { policy_id: number; carrier: string; policy_type: string; renewal_date: string }[];
   flagged_items: AgentFlaggedItem[];
   what_to_do: string[];
+  producer_member_id?: number | null;
+  producer_name?: string | null;
 };
 
 export type AgentClientActivityItem = {
@@ -1812,6 +1831,19 @@ export const agentApi = {
   },
   overview(): Promise<AgentOverview> {
     return request<AgentOverview>("/agent/overview");
+  },
+  agencyMe(): Promise<AgencyContext> {
+    return request<AgencyContext>("/agent/agency/me");
+  },
+  agencyMembers(): Promise<AgencyMember[]> {
+    return request<AgencyMember[]>("/agent/agency/members");
+  },
+  assignProducer(clientId: number, producerMemberId: number | null): Promise<{ client_id: number; producer_member_id: number | null }> {
+    return request(`/agent/clients/${clientId}/producer`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ producer_member_id: producerMemberId }),
+    });
   },
   clientSummary(clientId: number): Promise<AgentClientSummary> {
     return request<AgentClientSummary>(`/agent/clients/${clientId}/summary`);

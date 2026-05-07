@@ -809,6 +809,30 @@ def client_summary(client_id: int, agent: User = Depends(require_agent), db: Ses
     coverage_status = _compute_coverage_status(flagged, gaps)
     what_to_do = _compute_what_to_do(flagged, gaps)
 
+    # Producer assignment (agency-scoped)
+    producer_member_id: int | None = None
+    producer_name: str | None = None
+    rel = db.execute(
+        select(AgentClient).where(
+            _agency_client_filter(db, agent),
+            AgentClient.client_id == client_id,
+            AgentClient.status == "active",
+        )
+    ).scalar_one_or_none()
+    if rel and rel.producer_member_id:
+        producer_member_id = rel.producer_member_id
+        m = db.get(AgencyMember, rel.producer_member_id)
+        if m and m.user_id:
+            from .models_profile import UserProfile
+            name = db.execute(
+                select(UserProfile.full_name).where(UserProfile.user_id == m.user_id)
+            ).scalar()
+            if not name:
+                u = db.get(User, m.user_id)
+                if u:
+                    name = u.email
+            producer_name = name
+
     return {
         "client": {"id": client.id, "email": client.email},
         "protection_score": score_row,
@@ -819,6 +843,8 @@ def client_summary(client_id: int, agent: User = Depends(require_agent), db: Ses
         "upcoming_renewals": renewals,
         "flagged_items": flagged,
         "what_to_do": what_to_do,
+        "producer_member_id": producer_member_id,
+        "producer_name": producer_name,
     }
 
 
@@ -1670,3 +1696,73 @@ def assign_producer(
         "client_id": client_id,
         "producer_member_id": rel.producer_member_id,
     }
+
+
+# ── Agency: introspection ───────────────────────────────
+
+
+@router.get("/agency/me")
+def get_my_agency_membership(agent: User = Depends(require_agent), db: Session = Depends(get_db)):
+    """Return the caller's primary agency context (or null fields if none).
+
+    UI uses this to know whether to surface owner-only affordances and to
+    display the agency name on team-aware screens.
+    """
+    member = _member_for(db, agent.id)
+    if member is None:
+        return {
+            "member_id": None,
+            "agency_id": None,
+            "agency_name": None,
+            "role": None,
+        }
+    from .models_agency import Agency
+    agency = db.get(Agency, member.agency_id)
+    return {
+        "member_id": member.id,
+        "agency_id": member.agency_id,
+        "agency_name": agency.name if agency else None,
+        "role": member.role,
+    }
+
+
+@router.get("/agency/members")
+def list_agency_members(agent: User = Depends(require_agent), db: Session = Depends(get_db)):
+    """List active members of the caller's agency. Display order: Owner first, then by name."""
+    aid = _agency_id_for(db, agent.id)
+    if aid is None:
+        return []
+
+    members = db.execute(
+        select(AgencyMember).where(
+            AgencyMember.agency_id == aid,
+            AgencyMember.status == "active",
+        )
+    ).scalars().all()
+
+    from .models_profile import UserProfile
+    out: list[dict] = []
+    for m in members:
+        name = None
+        email = None
+        if m.user_id:
+            name = db.execute(
+                select(UserProfile.full_name).where(UserProfile.user_id == m.user_id)
+            ).scalar()
+            u = db.get(User, m.user_id)
+            if u:
+                email = u.email
+                if not name:
+                    name = u.email
+        out.append({
+            "member_id": m.id,
+            "user_id": m.user_id,
+            "name": name,
+            "email": email,
+            "role": m.role,
+        })
+
+    # Owner first, then alphabetical by name
+    role_order = {"owner": 0, "producer": 1, "csr": 2, "viewer": 3}
+    out.sort(key=lambda x: (role_order.get(x["role"], 99), (x["name"] or "").lower()))
+    return out

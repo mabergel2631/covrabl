@@ -207,6 +207,41 @@ emails = [c.get("email") for c in r.json()] if r.status_code == 200 else []
 ok = "other-client@example.test" not in emails
 expect("agency 1 member does NOT see agency 2's client (no cross-tenant leak)", ok, f"emails={emails}")
 
+# Test 11: GET /agent/agency/me returns the caller's role and agency
+r = client.get("/agent/agency/me", headers=hdr(owner_token))
+ok = r.status_code == 200 and r.json().get("role") == "owner" and r.json().get("agency_id") == AGENCY_ID
+expect("/agency/me returns owner context", ok, f"resp={r.json() if r.status_code==200 else r.text[:80]}")
+
+# Test 12: GET /agent/agency/members returns 3 members in role-priority order
+r = client.get("/agent/agency/members", headers=hdr(producer_token))
+mlist = r.json() if r.status_code == 200 else []
+ok = (
+    r.status_code == 200
+    and len(mlist) == 3
+    and mlist[0]["role"] == "owner"
+    and {m["role"] for m in mlist} == {"owner", "producer", "viewer"}
+)
+expect("/agency/members returns 3 members, owner first", ok, f"len={len(mlist)} roles={[m['role'] for m in mlist]}")
+
+# Test 13: client_summary now includes producer_member_id + producer_name once assigned
+# Re-assign producer first since test 9 cleared it
+client.put(f"/agent/clients/{CLIENT_ID}/producer", headers=hdr(owner_token), json={"producer_member_id": PRODUCER_MEMBER_ID})
+r = client.get(f"/agent/clients/{CLIENT_ID}/summary", headers=hdr(producer_token))
+body = r.json() if r.status_code == 200 else {}
+ok = (
+    r.status_code == 200
+    and body.get("producer_member_id") == PRODUCER_MEMBER_ID
+    and body.get("producer_name") == "producer@acme.test"
+)
+expect("client_summary includes producer info", ok, f"got={body.get('producer_member_id')}/{body.get('producer_name')}")
+
+# Test 14: Cross-agency members list — owner of agency 1 should NOT see members of agency 2
+r = client.get("/agent/agency/members", headers=hdr(owner_token))
+mlist = r.json() if r.status_code == 200 else []
+emails = {m.get("email") for m in mlist}
+ok = "other-owner@other.test" not in emails
+expect("agency 1 members list does NOT include agency 2 owner", ok, f"emails={sorted(emails)}")
+
 
 # Summary
 print()

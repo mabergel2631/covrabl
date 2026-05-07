@@ -5,7 +5,7 @@ import { useRouter, useParams } from 'next/navigation';
 import { useAuth } from '../../../../lib/auth';
 import {
   agentApi, AgentClientSummary, AgentFlaggedItem, AgentNote, AgentClientDocument,
-  AgentClientActivity, CoverageGap, API_BASE,
+  AgentClientActivity, AgencyContext, AgencyMember, CoverageGap, API_BASE,
 } from '../../../../lib/api';
 import { trackClick, trackFeatureUse } from '../../../../lib/track';
 import BackButton from '../../components/BackButton';
@@ -64,22 +64,32 @@ export default function ClientDetailPage() {
   const [uploadDocType, setUploadDocType] = useState('policy');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Producer assignment
+  const [agencyContext, setAgencyContext] = useState<AgencyContext | null>(null);
+  const [members, setMembers] = useState<AgencyMember[]>([]);
+  const [producerPickerOpen, setProducerPickerOpen] = useState(false);
+  const [savingProducer, setSavingProducer] = useState(false);
+
   useEffect(() => {
     if (!token) { router.replace('/login'); return; }
     if (role && role !== 'agent' && role !== 'admin') { router.replace('/policies'); return; }
 
     const load = async () => {
       try {
-        const [summary, docs, notesList, act] = await Promise.all([
+        const [summary, docs, notesList, act, agencyMe, agencyMembers] = await Promise.all([
           agentApi.clientSummary(clientId),
           agentApi.clientDocuments(clientId),
           agentApi.clientNotes(clientId),
           agentApi.clientActivity(clientId).catch(() => ({ items: [], last_seen: null, total: 0 })),
+          agentApi.agencyMe().catch(() => null),
+          agentApi.agencyMembers().catch(() => []),
         ]);
         setData(summary);
         setDocuments(docs);
         setNotes(notesList);
         setActivity(act);
+        setAgencyContext(agencyMe);
+        setMembers(agencyMembers);
         if (summary.policies.length > 0 && !uploadPolicyId) {
           setUploadPolicyId(summary.policies[0].id);
         }
@@ -134,6 +144,22 @@ export default function ClientDetailPage() {
       setNotes(notes.filter(n => n.id !== noteId));
     } catch (err: any) {
       alert(err.message || 'Failed to delete');
+    }
+  };
+
+  const handleAssignProducer = async (memberId: number | null) => {
+    setSavingProducer(true);
+    trackClick('agent_assign_producer', { client_id: clientId, member_id: memberId });
+    try {
+      await agentApi.assignProducer(clientId, memberId);
+      // Refetch summary to get updated producer info
+      const refreshed = await agentApi.clientSummary(clientId);
+      setData(refreshed);
+      setProducerPickerOpen(false);
+    } catch (err: any) {
+      alert(err.message || 'Failed to assign producer');
+    } finally {
+      setSavingProducer(false);
     }
   };
 
@@ -286,6 +312,98 @@ export default function ClientDetailPage() {
               </>
             )}
           </p>
+          {/* Producer assignment — visible if agency has >1 member or someone is assigned */}
+          {(members.length > 1 || data.producer_member_id) && (
+            <div style={{ marginTop: 8, position: 'relative', display: 'inline-block' }}>
+              <button
+                type="button"
+                onClick={() => {
+                  if (agencyContext?.role !== 'owner') return;
+                  setProducerPickerOpen(!producerPickerOpen);
+                  trackClick('agent_open_producer_picker', { client_id: clientId });
+                }}
+                disabled={agencyContext?.role !== 'owner'}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  padding: '4px 10px',
+                  fontSize: 12,
+                  fontWeight: 500,
+                  color: data.producer_name ? 'var(--color-text)' : 'var(--color-text-secondary)',
+                  backgroundColor: data.producer_name ? '#eff6ff' : 'transparent',
+                  border: data.producer_name ? '1px solid #bfdbfe' : '1px dashed var(--color-border)',
+                  borderRadius: 'var(--radius-sm)',
+                  cursor: agencyContext?.role === 'owner' ? 'pointer' : 'default',
+                }}
+              >
+                <span style={{ color: 'var(--color-text-secondary)' }}>Producer:</span>
+                <span>{data.producer_name || 'Unassigned'}</span>
+                {agencyContext?.role === 'owner' && <span style={{ fontSize: 10, opacity: 0.7 }}>{producerPickerOpen ? '▲' : '▼'}</span>}
+              </button>
+              {producerPickerOpen && agencyContext?.role === 'owner' && (
+                <div
+                  style={{
+                    position: 'absolute',
+                    top: '100%',
+                    left: 0,
+                    marginTop: 4,
+                    minWidth: 240,
+                    backgroundColor: 'var(--color-surface)',
+                    border: '1px solid var(--color-border)',
+                    borderRadius: 'var(--radius-md)',
+                    boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
+                    zIndex: 10,
+                    overflow: 'hidden',
+                  }}
+                >
+                  <button
+                    type="button"
+                    onClick={() => handleAssignProducer(null)}
+                    disabled={savingProducer || !data.producer_member_id}
+                    style={{
+                      width: '100%',
+                      padding: '8px 12px',
+                      fontSize: 13,
+                      textAlign: 'left',
+                      backgroundColor: 'transparent',
+                      border: 'none',
+                      color: 'var(--color-text-secondary)',
+                      cursor: !data.producer_member_id ? 'default' : 'pointer',
+                      opacity: !data.producer_member_id ? 0.5 : 1,
+                    }}
+                  >
+                    Unassigned
+                  </button>
+                  {members.map(m => (
+                    <button
+                      key={m.member_id}
+                      type="button"
+                      onClick={() => handleAssignProducer(m.member_id)}
+                      disabled={savingProducer || data.producer_member_id === m.member_id}
+                      style={{
+                        width: '100%',
+                        padding: '8px 12px',
+                        fontSize: 13,
+                        textAlign: 'left',
+                        backgroundColor: data.producer_member_id === m.member_id ? '#eff6ff' : 'transparent',
+                        border: 'none',
+                        borderTop: '1px solid var(--color-border)',
+                        color: 'var(--color-text)',
+                        cursor: data.producer_member_id === m.member_id ? 'default' : 'pointer',
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                      }}
+                    >
+                      <span>{m.name || m.email}</span>
+                      <span style={{ fontSize: 10, color: 'var(--color-text-secondary)', textTransform: 'capitalize' }}>{m.role}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </div>
         <div className="mobile-wrap" style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
           <button
