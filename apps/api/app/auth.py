@@ -69,3 +69,36 @@ def require_admin(user: User = Depends(get_current_user)) -> User:
     if user.role != "admin":
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin role required")
     return user
+
+
+def get_current_member(
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Returns the user's primary AgencyMember row, or None if they're not a member of any agency.
+
+    For phase 1 (Agency of One), each agent has exactly one membership. Multi-agency
+    membership (a single user belonging to multiple firms) is a phase-2+ concern and
+    will require an X-Agency-Id header to disambiguate.
+    """
+    from sqlalchemy import select
+    from .models_agency import AgencyMember
+
+    member = db.execute(
+        select(AgencyMember)
+        .where(AgencyMember.user_id == user.id)
+        .where(AgencyMember.status == "active")
+        .order_by(AgencyMember.created_at.asc())
+        .limit(1)
+    ).scalar_one_or_none()
+    return member
+
+
+def require_agency(member=Depends(get_current_member)):
+    """Use on routes that require the caller be an active member of some agency."""
+    if member is None:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Agency membership required",
+        )
+    return member

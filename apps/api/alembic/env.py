@@ -25,6 +25,8 @@ from app.models_documents import Document  # noqa: E402, F401
 from app.models_profile import UserProfile, ProfileContact  # noqa: E402, F401
 from app.models_chat import Conversation, ChatMessage  # noqa: E402, F401
 from app.models_admin import EmailLog, Announcement  # noqa: E402, F401
+from app.models_agent import AgentClient, AgentNote, AgentPolicyAccess  # noqa: E402, F401
+from app.models_agency import Agency, AgencyMember  # noqa: E402, F401
 
 target_metadata = Base.metadata
 

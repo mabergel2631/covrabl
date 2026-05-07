@@ -12,6 +12,7 @@ from .config import settings
 from .coverage_taxonomy import analyze_coverage_gaps, get_coverage_summary
 from .db import get_db
 from .models import User, Policy, Contact, PolicyDetail, Exposure
+from .models_agency import AgencyMember
 from .models_agent import AgentClient, AgentNote, AgentPolicyAccess
 from .models_documents import Document
 from .models_features import PolicyShare, CoverageScore, ComplianceCheck, LeaseRequirement, AuditLog, UserEvent, PolicyDelta, RenewalReview
@@ -65,6 +66,20 @@ def require_agent(user: User = Depends(get_current_user)) -> User:
     if user.role not in ("agent", "admin"):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Agent role required")
     return user
+
+
+def _agency_id_for(db: Session, user_id: int) -> int | None:
+    """Return the agency_id of the user's primary active membership, or None.
+
+    For phase 1 (Agency of One), each agent has exactly one membership.
+    """
+    return db.execute(
+        select(AgencyMember.agency_id)
+        .where(AgencyMember.user_id == user_id)
+        .where(AgencyMember.status == "active")
+        .order_by(AgencyMember.created_at.asc())
+        .limit(1)
+    ).scalar_one_or_none()
 
 
 def _verify_client_access(db: Session, agent: User, client_id: int) -> User:
@@ -142,7 +157,10 @@ def _get_client_ids(db: Session, agent: User) -> list[int]:
             )
         ).scalar_one_or_none()
         if not existing:
-            db.add(AgentClient(agent_id=agent.id, client_id=owner_id, status="active"))
+            db.add(AgentClient(
+                agent_id=agent.id, client_id=owner_id, status="active",
+                agency_id=_agency_id_for(db, agent.id),
+            ))
     if legacy_owner_ids:
         db.commit()
 
@@ -203,11 +221,12 @@ def _ensure_policy_access_rows(db: Session, agent_id: int, client_id: int) -> No
     ).scalars().all()
     existing_set = set(existing)
 
+    agency_id = _agency_id_for(db, agent_id)
     for pid in policy_ids:
         if pid not in existing_set:
             db.add(AgentPolicyAccess(
                 agent_id=agent_id, client_id=client_id,
-                policy_id=pid, visible=True,
+                policy_id=pid, visible=True, agency_id=agency_id,
             ))
     if set(policy_ids) - existing_set:
         db.flush()
@@ -569,7 +588,10 @@ async def invite_client(payload: InviteRequest, agent: User = Depends(require_ag
             raise HTTPException(status_code=400, detail="Already a client")
 
         # Set to "pending" — client must accept before agent can see data
-        rel = AgentClient(agent_id=agent.id, client_id=existing_user.id, status="pending", invited_email=email)
+        rel = AgentClient(
+            agent_id=agent.id, client_id=existing_user.id, status="pending",
+            invited_email=email, agency_id=_agency_id_for(db, agent.id),
+        )
         db.add(rel)
         log_action(db, agent.id, "created", "agent_client", existing_user.id, f"Invite sent to existing user {email}")
         db.commit()
@@ -587,7 +609,11 @@ async def invite_client(payload: InviteRequest, agent: User = Depends(require_ag
     else:
         # User doesn't exist yet — create invite
         invite_token = secrets.token_urlsafe(32)
-        rel = AgentClient(agent_id=agent.id, client_id=None, status="invited", invited_email=email, invite_token=invite_token)
+        rel = AgentClient(
+            agent_id=agent.id, client_id=None, status="invited",
+            invited_email=email, invite_token=invite_token,
+            agency_id=_agency_id_for(db, agent.id),
+        )
         db.add(rel)
         log_action(db, agent.id, "created", "agent_client_invite", 0, f"Invited {email}")
         db.commit()
@@ -804,7 +830,11 @@ def list_notes(client_id: int, agent: User = Depends(require_agent), db: Session
 def add_note(client_id: int, payload: NoteRequest, agent: User = Depends(require_agent), db: Session = Depends(get_db)):
     _verify_client_access(db, agent, client_id)
 
-    note = AgentNote(agent_id=agent.id, client_id=client_id, content=payload.content.strip())
+    note = AgentNote(
+        agent_id=agent.id, client_id=client_id,
+        content=payload.content.strip(),
+        agency_id=_agency_id_for(db, agent.id),
+    )
     db.add(note)
     db.flush()
     log_action(db, agent.id, "created", "agent_note", note.id)
@@ -868,6 +898,7 @@ def create_policy_for_client(
         db.add(AgentPolicyAccess(
             agent_id=agent.id, client_id=client_id,
             policy_id=policy.id, visible=True,
+            agency_id=_agency_id_for(db, agent.id),
         ))
 
     log_action(db, agent.id, "created", "policy", policy.id, f"Agent created policy for client {client_id}")
@@ -942,6 +973,7 @@ def respond_to_invite(
             db.add(AgentPolicyAccess(
                 agent_id=rel.agent_id, client_id=user.id,
                 policy_id=pid, visible=(pid in shared_ids),
+                agency_id=rel.agency_id,
             ))
         log_action(db, user.id, "accepted", "agent_client", rel.agent_id,
                    f"Accepted agent invite, shared {len(shared_ids)}/{len(all_policy_ids)} policies")
@@ -1074,6 +1106,7 @@ def toggle_policy_visibility(
         db.add(AgentPolicyAccess(
             agent_id=agent_id, client_id=user.id,
             policy_id=policy_id, visible=payload.visible,
+            agency_id=_agency_id_for(db, agent_id),
         ))
 
     log_action(db, user.id, "updated", "policy_visibility", policy_id,
@@ -1310,6 +1343,7 @@ def link_renewal(
         db.add(RenewalReview(
             policy_id=new_policy.id,
             agent_id=agent.id,
+            agency_id=_agency_id_for(db, agent.id),
             summary_text=None,
         ))
 
@@ -1374,7 +1408,11 @@ def update_renewal_review(
         select(RenewalReview).where(RenewalReview.policy_id == policy_id)
     ).scalar_one_or_none()
     if not review:
-        review = RenewalReview(policy_id=policy_id, agent_id=agent.id)
+        review = RenewalReview(
+            policy_id=policy_id,
+            agent_id=agent.id,
+            agency_id=_agency_id_for(db, agent.id),
+        )
         db.add(review)
 
     review.summary_text = (payload.summary_text or "").strip() or None

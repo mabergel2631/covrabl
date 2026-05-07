@@ -13,7 +13,8 @@ from app.models_features import Premium, Claim, RenewalReminder, AuditLog, Polic
 from app.models_profile import UserProfile, ProfileContact  # noqa: F401
 from app.models_chat import Conversation, ChatMessage  # noqa: F401
 from app.models_admin import EmailLog, Announcement  # noqa: F401
-from app.models_agent import AgentClient, AgentNote  # noqa: F401
+from app.models_agent import AgentClient, AgentNote, AgentPolicyAccess  # noqa: F401
+from app.models_agency import Agency, AgencyMember  # noqa: F401
 
 from app.routes_auth import router as auth_router
 from app.routes_policies import router as policies_router
@@ -138,6 +139,7 @@ def on_startup():
                     agent_id INTEGER NOT NULL REFERENCES users(id),
                     client_id INTEGER NOT NULL REFERENCES users(id),
                     policy_id INTEGER NOT NULL REFERENCES policies(id) ON DELETE CASCADE,
+                    agency_id INTEGER REFERENCES agencies(id),
                     visible BOOLEAN NOT NULL DEFAULT TRUE,
                     created_at TIMESTAMP DEFAULT NOW(),
                     CONSTRAINT uq_agent_policy UNIQUE (agent_id, policy_id)
@@ -146,7 +148,16 @@ def on_startup():
             conn.execute(text("CREATE INDEX ix_agent_policy_access_agent_id ON agent_policy_access(agent_id)"))
             conn.execute(text("CREATE INDEX ix_agent_policy_access_client_id ON agent_policy_access(client_id)"))
             conn.execute(text("CREATE INDEX ix_agent_policy_access_policy_id ON agent_policy_access(policy_id)"))
+            conn.execute(text("CREATE INDEX ix_agent_policy_access_agency_id ON agent_policy_access(agency_id)"))
             logging.info("Created agent_policy_access table")
+    else:
+        # Idempotent: ensure agency_id column exists on already-created table
+        apa_cols = [c["name"] for c in insp.get_columns("agent_policy_access")]
+        if "agency_id" not in apa_cols:
+            with engine.begin() as conn:
+                conn.execute(text("ALTER TABLE agent_policy_access ADD COLUMN agency_id INTEGER REFERENCES agencies(id)"))
+                conn.execute(text("CREATE INDEX IF NOT EXISTS ix_agent_policy_access_agency_id ON agent_policy_access(agency_id)"))
+                logging.info("Added agency_id column to agent_policy_access")
 
     # Ensure report_text column exists on compliance_checks
     cc_cols = [c["name"] for c in insp.get_columns("compliance_checks")]

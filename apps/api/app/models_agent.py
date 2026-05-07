@@ -12,6 +12,8 @@ class AgentClient(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
     agent_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), index=True)
     client_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("users.id"), nullable=True, index=True)
+    agency_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("agencies.id"), nullable=True, index=True)
+    producer_member_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("agency_members.id"), nullable=True)
     status: Mapped[str] = mapped_column(String(20), default="invited")  # invited, pending, active, removed
     invited_email: Mapped[str | None] = mapped_column(String(255), nullable=True)
     invite_token: Mapped[str | None] = mapped_column(String(100), nullable=True, unique=True, index=True)
@@ -29,6 +31,7 @@ class AgentPolicyAccess(Base):
     agent_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), index=True)
     client_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), index=True)
     policy_id: Mapped[int] = mapped_column(Integer, ForeignKey("policies.id", ondelete="CASCADE"), index=True)
+    agency_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("agencies.id"), nullable=True, index=True)
     visible: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[DateTime] = mapped_column(DateTime, server_default=func.now())
 
@@ -39,5 +42,6 @@ class AgentNote(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
     agent_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), index=True)
     client_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), index=True)
+    agency_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("agencies.id"), nullable=True, index=True)
     content: Mapped[str] = mapped_column(Text, nullable=False)
     created_at: Mapped[DateTime] = mapped_column(DateTime, server_default=func.now())

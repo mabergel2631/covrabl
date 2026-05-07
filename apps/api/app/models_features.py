@@ -140,6 +140,7 @@ class RenewalReview(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
     policy_id: Mapped[int] = mapped_column(Integer, ForeignKey("policies.id", ondelete="CASCADE"), unique=True, index=True)
     agent_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), index=True)
+    agency_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("agencies.id"), nullable=True, index=True)
     summary_text: Mapped[str | None] = mapped_column(Text, nullable=True)
     share_token: Mapped[str | None] = mapped_column(String(60), nullable=True, unique=True, index=True)
     shared_at: Mapped[DateTime | None] = mapped_column(DateTime, nullable=True)
