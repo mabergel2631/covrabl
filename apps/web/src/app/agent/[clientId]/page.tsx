@@ -225,6 +225,21 @@ export default function ClientDetailPage() {
     }
   };
 
+  const [seedingPriorFor, setSeedingPriorFor] = useState<number | null>(null);
+  const handleSeedPriorYear = async (policyId: number) => {
+    if (!confirm('Generate a sample prior-year version of this policy? This is for testing/demo — it creates a realistic prior policy with adjusted fields and links them.')) return;
+    setSeedingPriorFor(policyId);
+    trackClick('agent_seed_prior_year', { policy_id: policyId, client_id: clientId });
+    try {
+      await agentApi.seedPriorYear(clientId, policyId);
+      router.push(`/agent/${clientId}/policies/${policyId}/renewal`);
+    } catch (err: any) {
+      alert(err?.message || 'Failed to seed prior year');
+    } finally {
+      setSeedingPriorFor(null);
+    }
+  };
+
   const handleUpload = async (file: File) => {
     if (!uploadPolicyId) return;
     setUploading(true);
@@ -462,8 +477,18 @@ export default function ClientDetailPage() {
         <span>Bank-level encryption &middot; Your data is private and never sold</span>
       </div>
 
-      {/* Tabs */}
-      <div style={{ display: 'flex', gap: 0, borderBottom: '1px solid var(--color-border)', marginBottom: 24 }}>
+      {/* Tabs — sticky so they stay visible while scrolling long client pages */}
+      <div style={{
+        display: 'flex',
+        gap: 0,
+        borderBottom: '1px solid var(--color-border)',
+        marginBottom: 24,
+        position: 'sticky',
+        top: 0,
+        backgroundColor: 'var(--color-bg)',
+        zIndex: 5,
+        paddingTop: 4,
+      }}>
         {tabs.map(tab => (
           <button
             key={tab.key}
@@ -891,21 +916,43 @@ export default function ClientDetailPage() {
                             <div style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>
                               Renewal review &mdash; link this policy to the prior term to see year-over-year changes.
                             </div>
-                            <button
-                              onClick={(e) => { e.stopPropagation(); trackClick('agent_renewal_picker_open', { policy_id: p.id, client_id: clientId }); setRenewalPickerFor(p.id); setRenewalPickerSelection(null); }}
-                              style={{
-                                padding: '6px 14px',
-                                backgroundColor: 'var(--color-surface)',
-                                color: 'var(--color-text)',
-                                border: '1px solid var(--color-border)',
-                                borderRadius: 'var(--radius-md)',
-                                fontSize: 12,
-                                fontWeight: 600,
-                                cursor: 'pointer',
-                              }}
-                            >
-                              Mark as renewal of...
-                            </button>
+                            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                              <button
+                                onClick={(e) => { e.stopPropagation(); trackClick('agent_renewal_picker_open', { policy_id: p.id, client_id: clientId }); setRenewalPickerFor(p.id); setRenewalPickerSelection(null); }}
+                                style={{
+                                  padding: '6px 14px',
+                                  backgroundColor: 'var(--color-surface)',
+                                  color: 'var(--color-text)',
+                                  border: '1px solid var(--color-border)',
+                                  borderRadius: 'var(--radius-md)',
+                                  fontSize: 12,
+                                  fontWeight: 600,
+                                  cursor: 'pointer',
+                                }}
+                              >
+                                Mark as renewal of...
+                              </button>
+                              {(role === 'admin' || role === 'agent') && (
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); handleSeedPriorYear(p.id); }}
+                                  disabled={seedingPriorFor === p.id}
+                                  title="Owner/admin only — creates a sample prior-year policy for demo/testing"
+                                  style={{
+                                    padding: '6px 14px',
+                                    backgroundColor: '#fef3c7',
+                                    color: '#92400e',
+                                    border: '1px dashed #d97706',
+                                    borderRadius: 'var(--radius-md)',
+                                    fontSize: 12,
+                                    fontWeight: 600,
+                                    cursor: seedingPriorFor === p.id ? 'wait' : 'pointer',
+                                    opacity: seedingPriorFor === p.id ? 0.6 : 1,
+                                  }}
+                                >
+                                  {seedingPriorFor === p.id ? 'Seeding...' : '+ Add Prior Year (sample)'}
+                                </button>
+                              )}
+                            </div>
                           </div>
                         )}
                       </div>

@@ -122,15 +122,16 @@ items = compute_discussion_items(
 )
 expect("carrier change fires", any("Carrier changed from prior term" in i for i in items), f"got={items}")
 
-# ──── Policy number isolated change ──────────────────
+# ──── Policy number changes intentionally produce NO discussion item ──
+# (Routine renewal mechanic — see coverage_review_rules.py comment)
 items = compute_discussion_items(
     auto_policy, auto_prior,
     [make_delta("policy_number", "OLD-001", "NEW-001", "changed")],
 )
-expect("isolated policy number change fires",
-       any("Policy number changed without" in i for i in items), f"got={items}")
+expect("isolated policy_number change yields NO items (routine, not noisy)",
+       len(items) == 0, f"got={items}")
 
-# Policy number change WITH others does NOT fire the renewal-rewrite rule
+# Policy number change with a real delta still surfaces the real one
 items = compute_discussion_items(
     auto_policy, auto_prior,
     [
@@ -138,8 +139,9 @@ items = compute_discussion_items(
         make_delta("premium_amount", 1800, 2100, "increased"),
     ],
 )
-expect("policy number + other deltas: rewrite rule does NOT fire",
-       not any("Policy number changed without" in i for i in items), f"got={items}")
+expect("policy_number + premium change: only premium item surfaces",
+       any("Premium increased without" in i for i in items)
+       and not any("Policy number" in i for i in items), f"got={items}")
 
 # ──── Many simultaneous deltas ───────────────────────
 items = compute_discussion_items(

@@ -166,12 +166,10 @@ def compute_discussion_items(
             "periods, and any prior-acts coverage for continuity."
         )
 
-    # ── Universal: policy_number changed but no other tracked deltas ──
-    if policy_number_delta and len(deltas) == 1:
-        items.append(
-            "Policy number changed without other tracked-field deltas. Review form "
-            "and endorsement continuity outside the structured fields."
-        )
+    # Note: policy_number changes are routine renewal mechanics (the carrier
+    # often reissues a new number on every renewal). Intentionally NO discussion
+    # item is emitted for policy_number — it would be noise. Tracked in deltas
+    # for audit purposes only; the UI also filters it from the display.
 
     # ── Universal: many simultaneous changes ───────────
     if len(deltas) >= 4:

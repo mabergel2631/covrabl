@@ -269,17 +269,21 @@ export default function RenewalReviewPage() {
             </div>
           </div>
 
-          {/* Structured changes */}
+          {/* Structured changes — hide policy_number (routine renewal mechanic, not actionable) */}
+          {(() => {
+            const visibleDeltas = data.deltas.filter(d => d.field_key !== 'policy_number');
+            return (
+          <>
           <h2 style={{ fontSize: 16, fontWeight: 600, margin: '0 0 12px', color: 'var(--color-text)' }}>
             Structured changes
           </h2>
-          {data.deltas.length === 0 ? (
+          {visibleDeltas.length === 0 ? (
             <div className="card" style={{ padding: 24, textAlign: 'center', color: 'var(--color-text-muted)', fontSize: 13, marginBottom: 24 }}>
               No tracked fields differ between these two policies.
             </div>
           ) : (
             <div className="card" style={{ padding: 0, marginBottom: 24, overflow: 'hidden' }}>
-              {data.deltas.map((d, i) => {
+              {visibleDeltas.map((d, i) => {
                 const colors = severityColors[d.severity] || severityColors.info;
                 return (
                   <div
@@ -289,7 +293,7 @@ export default function RenewalReviewPage() {
                       gridTemplateColumns: '180px 1fr 1fr 110px',
                       alignItems: 'center',
                       padding: '12px 16px',
-                      borderBottom: i < data.deltas.length - 1 ? '1px solid var(--color-border)' : 'none',
+                      borderBottom: i < visibleDeltas.length - 1 ? '1px solid var(--color-border)' : 'none',
                       gap: 12,
                     }}
                   >
@@ -320,6 +324,9 @@ export default function RenewalReviewPage() {
               })}
             </div>
           )}
+          </>
+            );
+          })()}
 
           {/* Items to Discuss — observational, rule-based */}
           {data.discussion_items && data.discussion_items.length > 0 && (

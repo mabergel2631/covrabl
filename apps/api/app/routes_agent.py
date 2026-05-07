@@ -1711,6 +1711,113 @@ def assign_producer(
     }
 
 
+# ── Demo: seed prior-year sample (admin/owner only) ────
+
+
+@router.post("/clients/{client_id}/policies/{policy_id}/seed-prior-year")
+def seed_prior_year_sample(
+    client_id: int,
+    policy_id: int,
+    agent: User = Depends(require_agent),
+    db: Session = Depends(get_db),
+):
+    """Create a realistic prior-year version of an existing policy and link it
+    as the renewal anchor. Owner/admin only — for demo and testing.
+
+    Generates deterministic adjustments (premium ~10% lower, deductible ~50%
+    lower or equivalent, possibly a different carrier) so the resulting
+    renewal review has meaningful deltas to display.
+    """
+    _check_owner_role(db, agent)
+    _verify_client_access(db, agent, client_id)
+
+    current = db.get(Policy, policy_id)
+    if not current or current.user_id != client_id:
+        raise HTTPException(status_code=404, detail="Policy not found for this client")
+
+    if current.replaces_policy_id:
+        raise HTTPException(status_code=400, detail="Policy already has a prior-year linked")
+
+    from datetime import date as date_type
+    from .routes_deltas import TRACKED_FIELDS, determine_delta_type, calculate_severity
+
+    # Adjust fields for a realistic prior year
+    prior_carrier_map = {
+        "chubb": "Travelers", "travelers": "Liberty Mutual", "state farm": "GEICO",
+        "geico": "Progressive", "progressive": "State Farm", "liberty mutual": "Allstate",
+        "allstate": "Travelers",
+    }
+    prior_carrier = prior_carrier_map.get(
+        (current.carrier or "").lower().strip(),
+        current.carrier or "Prior Carrier",
+    )
+    prior_premium = int((current.premium_amount or 1000) * 0.90)
+    prior_coverage = int((current.coverage_amount or 100000) * 0.85) if current.coverage_amount else None
+    prior_deductible = int((current.deductible or 1000) * 0.5) if current.deductible else None
+    prior_renewal_date = current.renewal_date - timedelta(days=365) if current.renewal_date else (date_type.today() - timedelta(days=200))
+
+    prior = Policy(
+        user_id=current.user_id,
+        exposure_id=current.exposure_id,
+        scope=current.scope,
+        policy_type=current.policy_type,
+        carrier=prior_carrier,
+        policy_number=f"{(current.policy_number or 'POL').rstrip('0123456789-_')}-PRIOR",
+        nickname=current.nickname,
+        coverage_amount=prior_coverage,
+        deductible=prior_deductible,
+        premium_amount=prior_premium,
+        renewal_date=prior_renewal_date,
+        status="expired",
+    )
+    db.add(prior)
+    db.flush()
+
+    # Link current → prior
+    current.replaces_policy_id = prior.id
+
+    # Compute deltas (clear any existing first, in case of re-runs)
+    db.execute(sa_delete(PolicyDelta).where(PolicyDelta.policy_id == current.id))
+    for field in TRACKED_FIELDS:
+        old_v = getattr(prior, field)
+        new_v = getattr(current, field)
+        if old_v == new_v or (not old_v and not new_v):
+            continue
+        old_str = str(old_v) if old_v is not None else None
+        new_str = str(new_v) if new_v is not None else None
+        if old_str == new_str:
+            continue
+        dt = determine_delta_type(field, old_str, new_str)
+        sev = calculate_severity(field, old_str, new_str, dt)
+        db.add(PolicyDelta(
+            policy_id=current.id,
+            field_key=field,
+            old_value=old_str,
+            new_value=new_str,
+            delta_type=dt,
+            severity=sev,
+        ))
+
+    # Create empty RenewalReview for the agent to author against
+    existing_review = db.execute(
+        select(RenewalReview).where(RenewalReview.policy_id == current.id)
+    ).scalar_one_or_none()
+    if not existing_review:
+        db.add(RenewalReview(
+            policy_id=current.id,
+            agent_id=agent.id,
+            agency_id=_agency_id_for(db, agent.id),
+        ))
+
+    db.commit()
+    db.refresh(current)
+    return {
+        "ok": True,
+        "prior_policy_id": prior.id,
+        "current_policy_id": current.id,
+    }
+
+
 # ── Agency: introspection ───────────────────────────────
 
 

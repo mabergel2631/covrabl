@@ -1904,6 +1904,11 @@ export const agentApi = {
       method: "DELETE",
     });
   },
+  seedPriorYear(clientId: number, policyId: number): Promise<{ ok: boolean; prior_policy_id: number; current_policy_id: number }> {
+    return request(`/agent/clients/${clientId}/policies/${policyId}/seed-prior-year`, {
+      method: "POST",
+    });
+  },
   renewalReview(policyId: number): Promise<RenewalReviewData> {
     return request<RenewalReviewData>(`/agent/policies/${policyId}/renewal-review`);
   },

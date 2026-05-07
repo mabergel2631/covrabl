@@ -157,11 +157,15 @@ export default function PublicRenewalReviewPage() {
           </div>
         )}
 
-        {/* Structured changes */}
+        {/* Structured changes — hide policy_number (routine renewal mechanic, not actionable) */}
+        {(() => {
+          const visibleDeltas = data.deltas.filter(d => d.field_key !== 'policy_number');
+          return (
+        <>
         <h2 style={{ fontSize: 16, fontWeight: 600, color: '#0f172a', margin: '0 0 12px' }}>
           What changed
         </h2>
-        {data.deltas.length === 0 ? (
+        {visibleDeltas.length === 0 ? (
           <div style={{
             padding: 24,
             backgroundColor: '#fff',
@@ -183,7 +187,7 @@ export default function PublicRenewalReviewPage() {
             overflow: 'hidden',
             boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
           }}>
-            {data.deltas.map((d, i) => {
+            {visibleDeltas.map((d, i) => {
               const colors = severityColors[d.severity] || severityColors.info;
               return (
                 <div
@@ -193,7 +197,7 @@ export default function PublicRenewalReviewPage() {
                     gridTemplateColumns: '160px 1fr 1fr 100px',
                     alignItems: 'center',
                     padding: '14px 16px',
-                    borderBottom: i < data.deltas.length - 1 ? '1px solid #e2e8f0' : 'none',
+                    borderBottom: i < visibleDeltas.length - 1 ? '1px solid #e2e8f0' : 'none',
                     gap: 12,
                   }}
                 >
@@ -224,6 +228,9 @@ export default function PublicRenewalReviewPage() {
             })}
           </div>
         )}
+        </>
+          );
+        })()}
 
         {/* Items to Discuss — observational prompts */}
         {data.discussion_items && data.discussion_items.length > 0 && (
