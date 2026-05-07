@@ -4,7 +4,7 @@ from datetime import datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
-from sqlalchemy import select, func, distinct, or_
+from sqlalchemy import select, func, distinct, or_, and_
 from sqlalchemy.orm import Session
 
 from .auth import get_current_user
@@ -82,13 +82,82 @@ def _agency_id_for(db: Session, user_id: int) -> int | None:
     ).scalar_one_or_none()
 
 
+def _member_for(db: Session, user_id: int) -> AgencyMember | None:
+    """Like _agency_id_for but returns the full AgencyMember row (for role checks)."""
+    return db.execute(
+        select(AgencyMember)
+        .where(AgencyMember.user_id == user_id)
+        .where(AgencyMember.status == "active")
+        .order_by(AgencyMember.created_at.asc())
+        .limit(1)
+    ).scalar_one_or_none()
+
+
+def _agency_client_filter(db: Session, agent: User):
+    """Return a SQLAlchemy where-clause that scopes AgentClient rows to the
+    caller's agency, falling back to the caller's agent_id if no membership
+    exists yet (transitional safety for any rows pre-dating phase 1).
+
+    Admins are NOT scoped — caller must handle that separately.
+    """
+    aid = _agency_id_for(db, agent.id)
+    if aid is not None:
+        # Belt-and-suspenders: include legacy rows where agent_id matches but
+        # agency_id is somehow NULL (shouldn't happen post-backfill but cheap to keep).
+        return or_(
+            AgentClient.agency_id == aid,
+            and_(AgentClient.agency_id.is_(None), AgentClient.agent_id == agent.id),
+        )
+    return AgentClient.agent_id == agent.id
+
+
+def require_write_role(member: AgencyMember | None) -> AgencyMember:
+    """Require an active membership with a non-Viewer role. Use on write endpoints."""
+    if member is None:
+        raise HTTPException(status_code=403, detail="Agency membership required")
+    if member.role == "viewer":
+        raise HTTPException(status_code=403, detail="Viewer role cannot perform write actions")
+    return member
+
+
+def require_owner_role(member: AgencyMember | None) -> AgencyMember:
+    """Require an active membership with the Owner role. Use on agency-management endpoints."""
+    if member is None:
+        raise HTTPException(status_code=403, detail="Agency membership required")
+    if member.role != "owner":
+        raise HTTPException(status_code=403, detail="Owner role required")
+    return member
+
+
+def _check_write_role(db: Session, agent: User) -> None:
+    """Enforce write-role on the caller. Bypasses for platform admins.
+
+    Agents with no membership (legacy users somehow not backfilled) are allowed
+    through with a warning-equivalent: they retain their previous behavior.
+    Once the backfill is verified everywhere, this fallback can be tightened.
+    """
+    if agent.role == "admin":
+        return
+    member = _member_for(db, agent.id)
+    if member is None:
+        return  # transitional fallback — no membership means no role to enforce
+    require_write_role(member)
+
+
+def _check_owner_role(db: Session, agent: User) -> None:
+    """Enforce owner-role on the caller. Bypasses for platform admins."""
+    if agent.role == "admin":
+        return
+    require_owner_role(_member_for(db, agent.id))
+
+
 def _verify_client_access(db: Session, agent: User, client_id: int) -> User:
-    """Verify agent has active relationship with client, return client User."""
+    """Verify agent has active relationship with client (via their agency), return client User."""
     # Admins can access any client
     if agent.role != "admin":
         rel = db.execute(
             select(AgentClient).where(
-                AgentClient.agent_id == agent.id,
+                _agency_client_filter(db, agent),
                 AgentClient.client_id == client_id,
                 AgentClient.status == "active",
             )
@@ -126,9 +195,10 @@ def _policy_to_dict(p: Policy, contacts: list | None = None, details: list | Non
 
 
 def _get_client_ids(db: Session, agent: User) -> list[int]:
-    """Get distinct client IDs for this agent from AgentClient table.
+    """Get distinct client IDs visible to this agent.
 
-    Admins see all non-admin, non-agent users. Agents see their own clients.
+    Admins see all non-admin, non-agent users.
+    Agents see all clients of their agency (every member sees the same book).
     Also migrates any legacy PolicyShare broker relationships into AgentClient rows.
     """
     # Admins see all regular users as clients
@@ -165,8 +235,8 @@ def _get_client_ids(db: Session, agent: User) -> list[int]:
         db.commit()
 
     rows = db.execute(
-        select(AgentClient.client_id).where(
-            AgentClient.agent_id == agent.id,
+        select(distinct(AgentClient.client_id)).where(
+            _agency_client_filter(db, agent),
             AgentClient.status == "active",
             AgentClient.client_id.isnot(None),
         )
@@ -188,10 +258,18 @@ def _get_visible_policies(db: Session, agent: User, client_id: int) -> list[Poli
     if agent.role == "admin":
         return list(all_policies)
 
-    # Check if any visibility rows exist for this agent+client
+    # Check if any visibility rows exist for this agency+client
+    aid = _agency_id_for(db, agent.id)
+    if aid is not None:
+        access_filter = or_(
+            AgentPolicyAccess.agency_id == aid,
+            and_(AgentPolicyAccess.agency_id.is_(None), AgentPolicyAccess.agent_id == agent.id),
+        )
+    else:
+        access_filter = AgentPolicyAccess.agent_id == agent.id
     access_rows = db.execute(
         select(AgentPolicyAccess).where(
-            AgentPolicyAccess.agent_id == agent.id,
+            access_filter,
             AgentPolicyAccess.client_id == client_id,
         )
     ).scalars().all()
@@ -417,10 +495,10 @@ class ClientUploadFinalize(BaseModel):
 def list_clients(agent: User = Depends(require_agent), db: Session = Depends(get_db)):
     client_ids = _get_client_ids(db, agent)
 
-    # Also include invited and pending clients
+    # Also include invited and pending clients (agency-wide)
     non_active = db.execute(
         select(AgentClient).where(
-            AgentClient.agent_id == agent.id,
+            _agency_client_filter(db, agent),
             AgentClient.status.in_(["invited", "pending"]),
         )
     ).scalars().all()
@@ -486,6 +564,36 @@ def list_clients(agent: User = Depends(require_agent), db: Session = Depends(get
             if profile:
                 c["full_name"] = profile
 
+    # Enrich with producer assignment (agency-scoped)
+    if clients:
+        from .models_profile import UserProfile
+        active_rels = db.execute(
+            select(AgentClient).where(
+                _agency_client_filter(db, agent),
+                AgentClient.status == "active",
+                AgentClient.client_id.in_([c["id"] for c in clients]),
+            )
+        ).scalars().all()
+        producer_by_client = {r.client_id: r.producer_member_id for r in active_rels if r.producer_member_id}
+        # Resolve producer member -> user -> display name
+        producer_names: dict[int, str] = {}
+        if producer_by_client:
+            for member_id in set(producer_by_client.values()):
+                m = db.get(AgencyMember, member_id)
+                if m and m.user_id:
+                    name = db.execute(
+                        select(UserProfile.full_name).where(UserProfile.user_id == m.user_id)
+                    ).scalar()
+                    if not name:
+                        u = db.get(User, m.user_id)
+                        name = u.email if u else None
+                    if name:
+                        producer_names[member_id] = name
+        for c in clients:
+            pmid = producer_by_client.get(c["id"])
+            c["producer_member_id"] = pmid
+            c["producer_name"] = producer_names.get(pmid) if pmid else None
+
     # Add invited and pending clients
     for inv in non_active:
         action = "Awaiting client signup" if inv.status == "invited" else "Awaiting client approval"
@@ -500,6 +608,8 @@ def list_clients(agent: User = Depends(require_agent), db: Session = Depends(get
             "flagged_count": 0,
             "coverage_status": "good",
             "next_action": action,
+            "producer_member_id": None,
+            "producer_name": None,
         })
 
     return clients
@@ -569,6 +679,7 @@ def agent_overview(agent: User = Depends(require_agent), db: Session = Depends(g
 
 @router.post("/clients/invite")
 async def invite_client(payload: InviteRequest, agent: User = Depends(require_agent), db: Session = Depends(get_db)):
+    _check_write_role(db, agent)
     email = payload.email.strip().lower()
     if email == agent.email:
         raise HTTPException(status_code=400, detail="Cannot invite yourself")
@@ -579,7 +690,7 @@ async def invite_client(payload: InviteRequest, agent: User = Depends(require_ag
         # Check if relationship already exists
         existing_rel = db.execute(
             select(AgentClient).where(
-                AgentClient.agent_id == agent.id,
+                _agency_client_filter(db, agent),
                 AgentClient.client_id == existing_user.id,
                 AgentClient.status.in_(["active", "pending", "invited"]),
             )
@@ -753,6 +864,7 @@ def client_documents(client_id: int, agent: User = Depends(require_agent), db: S
 
 @router.post("/clients/{client_id}/documents/init")
 def init_client_upload(client_id: int, payload: ClientUploadInit, agent: User = Depends(require_agent), db: Session = Depends(get_db)):
+    _check_write_role(db, agent)
     _verify_client_access(db, agent, client_id)
 
     p = db.get(Policy, payload.policy_id)
@@ -766,6 +878,7 @@ def init_client_upload(client_id: int, payload: ClientUploadInit, agent: User = 
 
 @router.post("/clients/{client_id}/documents/finalize")
 def finalize_client_upload(client_id: int, payload: ClientUploadFinalize, agent: User = Depends(require_agent), db: Session = Depends(get_db)):
+    _check_write_role(db, agent)
     _verify_client_access(db, agent, client_id)
 
     p = db.get(Policy, payload.policy_id)
@@ -809,18 +922,44 @@ def client_flagged(client_id: int, agent: User = Depends(require_agent), db: Ses
 def list_notes(client_id: int, agent: User = Depends(require_agent), db: Session = Depends(get_db)):
     _verify_client_access(db, agent, client_id)
 
+    aid = _agency_id_for(db, agent.id)
+    if aid is not None:
+        note_filter = or_(
+            AgentNote.agency_id == aid,
+            and_(AgentNote.agency_id.is_(None), AgentNote.agent_id == agent.id),
+        )
+    else:
+        note_filter = AgentNote.agent_id == agent.id
     rows = db.execute(
         select(AgentNote).where(
-            AgentNote.agent_id == agent.id,
+            note_filter,
             AgentNote.client_id == client_id,
         ).order_by(AgentNote.created_at.desc())
     ).scalars().all()
+
+    # Resolve author display names (lightweight — single round trip)
+    author_ids = {n.agent_id for n in rows}
+    author_names: dict[int, str] = {}
+    if author_ids:
+        from .models_profile import UserProfile
+        for uid in author_ids:
+            profile_name = db.execute(
+                select(UserProfile.full_name).where(UserProfile.user_id == uid)
+            ).scalar()
+            if profile_name:
+                author_names[uid] = profile_name
+            else:
+                u = db.get(User, uid)
+                if u:
+                    author_names[uid] = u.email
 
     return [
         {
             "id": n.id,
             "content": n.content,
             "created_at": str(n.created_at) if n.created_at else None,
+            "author_id": n.agent_id,
+            "author_name": author_names.get(n.agent_id),
         }
         for n in rows
     ]
@@ -828,6 +967,7 @@ def list_notes(client_id: int, agent: User = Depends(require_agent), db: Session
 
 @router.post("/clients/{client_id}/notes")
 def add_note(client_id: int, payload: NoteRequest, agent: User = Depends(require_agent), db: Session = Depends(get_db)):
+    _check_write_role(db, agent)
     _verify_client_access(db, agent, client_id)
 
     note = AgentNote(
@@ -845,11 +985,21 @@ def add_note(client_id: int, payload: NoteRequest, agent: User = Depends(require
 
 @router.delete("/clients/{client_id}/notes/{note_id}")
 def delete_note(client_id: int, note_id: int, agent: User = Depends(require_agent), db: Session = Depends(get_db)):
+    _check_write_role(db, agent)
     _verify_client_access(db, agent, client_id)
 
     note = db.get(AgentNote, note_id)
-    if not note or note.agent_id != agent.id or note.client_id != client_id:
+    if not note or note.client_id != client_id:
         raise HTTPException(status_code=404, detail="Note not found")
+    # Author can always delete; Owners can delete any note in their agency
+    member = _member_for(db, agent.id)
+    aid = member.agency_id if member else None
+    is_author = note.agent_id == agent.id
+    is_owner_in_agency = member is not None and member.role == "owner" and (
+        note.agency_id == aid or (note.agency_id is None and note.agent_id == agent.id)
+    )
+    if not (is_author or is_owner_in_agency or agent.role == "admin"):
+        raise HTTPException(status_code=403, detail="Only the author or an Owner can delete this note")
 
     db.delete(note)
     log_action(db, agent.id, "deleted", "agent_note", note_id)
@@ -867,6 +1017,7 @@ def create_policy_for_client(
     agent: User = Depends(require_agent),
     db: Session = Depends(get_db),
 ):
+    _check_write_role(db, agent)
     client = _verify_client_access(db, agent, client_id)
 
     from datetime import date as date_type
@@ -1297,6 +1448,7 @@ def link_renewal(
     renewing policy's tracked fields against the prior policy, and creates
     an empty RenewalReview the agent can author against.
     """
+    _check_write_role(db, agent)
     _verify_client_access(db, agent, client_id)
 
     new_policy = db.get(Policy, policy_id)
@@ -1364,6 +1516,7 @@ def unlink_renewal(
     db: Session = Depends(get_db),
 ):
     """Remove the renewal linkage and clear computed deltas + review row."""
+    _check_write_role(db, agent)
     _verify_client_access(db, agent, client_id)
     new_policy = db.get(Policy, policy_id)
     if not new_policy or new_policy.user_id != client_id:
@@ -1399,6 +1552,7 @@ def update_renewal_review(
     db: Session = Depends(get_db),
 ):
     """Upsert the agent-authored summary on a renewal review."""
+    _check_write_role(db, agent)
     policy = db.get(Policy, policy_id)
     if not policy:
         raise HTTPException(status_code=404, detail="Policy not found")
@@ -1428,6 +1582,7 @@ def share_renewal_review(
     db: Session = Depends(get_db),
 ):
     """Generate (or return existing) share token for the renewal review."""
+    _check_write_role(db, agent)
     policy = db.get(Policy, policy_id)
     if not policy:
         raise HTTPException(status_code=404, detail="Policy not found")
@@ -1455,6 +1610,7 @@ def revoke_renewal_share(
     db: Session = Depends(get_db),
 ):
     """Revoke the public share link."""
+    _check_write_role(db, agent)
     policy = db.get(Policy, policy_id)
     if not policy:
         raise HTTPException(status_code=404, detail="Policy not found")
@@ -1467,3 +1623,50 @@ def revoke_renewal_share(
         review.shared_at = None
         db.commit()
     return {"ok": True}
+
+
+# ── Agency: producer assignment ─────────────────────────
+
+
+class ProducerAssignmentRequest(BaseModel):
+    producer_member_id: int | None  # null = unassign
+
+
+@router.put("/clients/{client_id}/producer")
+def assign_producer(
+    client_id: int,
+    payload: ProducerAssignmentRequest,
+    agent: User = Depends(require_agent),
+    db: Session = Depends(get_db),
+):
+    """Set or clear the producer (agency_member) responsible for this client.
+
+    Owner-only for now; phase 3 may extend to producers managing their own
+    book if requested.
+    """
+    _check_owner_role(db, agent)
+    _verify_client_access(db, agent, client_id)
+
+    aid = _agency_id_for(db, agent.id)
+    rel = db.execute(
+        select(AgentClient).where(
+            _agency_client_filter(db, agent),
+            AgentClient.client_id == client_id,
+            AgentClient.status == "active",
+        )
+    ).scalar_one_or_none()
+    if not rel:
+        raise HTTPException(status_code=404, detail="No active client relationship")
+
+    if payload.producer_member_id is not None:
+        member = db.get(AgencyMember, payload.producer_member_id)
+        if not member or member.agency_id != aid or member.status != "active":
+            raise HTTPException(status_code=400, detail="Producer is not an active member of your agency")
+        rel.producer_member_id = payload.producer_member_id
+    else:
+        rel.producer_member_id = None
+    db.commit()
+    return {
+        "client_id": client_id,
+        "producer_member_id": rel.producer_member_id,
+    }

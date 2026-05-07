@@ -69,28 +69,96 @@ def upgrade() -> None:
         batch_op.create_index(batch_op.f('ix_agency_members_user_id'), ['user_id'], unique=False)
         batch_op.create_index(batch_op.f('ix_agency_members_invite_token'), ['invite_token'], unique=True)
 
-    # 3. Add agency_id (+ producer_member_id) to agent_clients
-    with op.batch_alter_table('agent_clients', schema=None) as batch_op:
-        batch_op.add_column(sa.Column('agency_id', sa.Integer(), nullable=True))
-        batch_op.add_column(sa.Column('producer_member_id', sa.Integer(), nullable=True))
-        batch_op.create_index('ix_agent_clients_agency_id', ['agency_id'], unique=False)
-        batch_op.create_foreign_key('fk_agent_clients_agency', 'agencies', ['agency_id'], ['id'])
-        batch_op.create_foreign_key('fk_agent_clients_producer', 'agency_members', ['producer_member_id'], ['id'])
+    # 3. agent_clients — create-if-missing then ALTER. This table is not in the
+    # alembic baseline (historically created via Base.metadata.create_all). On
+    # fresh installs we create it here with agency_id pre-included; on existing
+    # DBs we add the columns to the existing table.
+    if not insp.has_table('agent_clients'):
+        op.create_table(
+            'agent_clients',
+            sa.Column('id', sa.Integer(), nullable=False),
+            sa.Column('agent_id', sa.Integer(), nullable=False),
+            sa.Column('client_id', sa.Integer(), nullable=True),
+            sa.Column('agency_id', sa.Integer(), nullable=True),
+            sa.Column('producer_member_id', sa.Integer(), nullable=True),
+            sa.Column('status', sa.String(length=20), nullable=False, server_default='invited'),
+            sa.Column('invited_email', sa.String(length=255), nullable=True),
+            sa.Column('invite_token', sa.String(length=100), nullable=True),
+            sa.Column('created_at', sa.DateTime(), server_default=sa.text('(CURRENT_TIMESTAMP)'), nullable=False),
+            sa.ForeignKeyConstraint(['agent_id'], ['users.id']),
+            sa.ForeignKeyConstraint(['client_id'], ['users.id']),
+            sa.ForeignKeyConstraint(['agency_id'], ['agencies.id']),
+            sa.ForeignKeyConstraint(['producer_member_id'], ['agency_members.id']),
+            sa.PrimaryKeyConstraint('id'),
+            sa.UniqueConstraint('agent_id', 'client_id', name='uq_agent_client'),
+        )
+        with op.batch_alter_table('agent_clients', schema=None) as batch_op:
+            batch_op.create_index(batch_op.f('ix_agent_clients_id'), ['id'], unique=False)
+            batch_op.create_index(batch_op.f('ix_agent_clients_agent_id'), ['agent_id'], unique=False)
+            batch_op.create_index(batch_op.f('ix_agent_clients_client_id'), ['client_id'], unique=False)
+            batch_op.create_index(batch_op.f('ix_agent_clients_invite_token'), ['invite_token'], unique=True)
+            batch_op.create_index('ix_agent_clients_agency_id', ['agency_id'], unique=False)
+    else:
+        with op.batch_alter_table('agent_clients', schema=None) as batch_op:
+            batch_op.add_column(sa.Column('agency_id', sa.Integer(), nullable=True))
+            batch_op.add_column(sa.Column('producer_member_id', sa.Integer(), nullable=True))
+            batch_op.create_index('ix_agent_clients_agency_id', ['agency_id'], unique=False)
+            batch_op.create_foreign_key('fk_agent_clients_agency', 'agencies', ['agency_id'], ['id'])
+            batch_op.create_foreign_key('fk_agent_clients_producer', 'agency_members', ['producer_member_id'], ['id'])
 
-    # 4. agent_policy_access — table is created via main.py startup hook, may not exist yet on
-    # fresh installs. Only add column if table exists; main.py CREATE TABLE has been updated to
-    # include agency_id for fresh-install path.
-    if insp.has_table('agent_policy_access'):
+    # 4. agent_policy_access — same pattern: create with agency_id if missing, else ALTER
+    if not insp.has_table('agent_policy_access'):
+        op.create_table(
+            'agent_policy_access',
+            sa.Column('id', sa.Integer(), nullable=False),
+            sa.Column('agent_id', sa.Integer(), nullable=False),
+            sa.Column('client_id', sa.Integer(), nullable=False),
+            sa.Column('policy_id', sa.Integer(), nullable=False),
+            sa.Column('agency_id', sa.Integer(), nullable=True),
+            sa.Column('visible', sa.Boolean(), nullable=False, server_default=sa.text('1')),
+            sa.Column('created_at', sa.DateTime(), server_default=sa.text('(CURRENT_TIMESTAMP)'), nullable=False),
+            sa.ForeignKeyConstraint(['agent_id'], ['users.id']),
+            sa.ForeignKeyConstraint(['client_id'], ['users.id']),
+            sa.ForeignKeyConstraint(['policy_id'], ['policies.id'], ondelete='CASCADE'),
+            sa.ForeignKeyConstraint(['agency_id'], ['agencies.id']),
+            sa.PrimaryKeyConstraint('id'),
+            sa.UniqueConstraint('agent_id', 'policy_id', name='uq_agent_policy'),
+        )
+        with op.batch_alter_table('agent_policy_access', schema=None) as batch_op:
+            batch_op.create_index('ix_agent_policy_access_agent_id', ['agent_id'], unique=False)
+            batch_op.create_index('ix_agent_policy_access_client_id', ['client_id'], unique=False)
+            batch_op.create_index('ix_agent_policy_access_policy_id', ['policy_id'], unique=False)
+            batch_op.create_index('ix_agent_policy_access_agency_id', ['agency_id'], unique=False)
+    else:
         with op.batch_alter_table('agent_policy_access', schema=None) as batch_op:
             batch_op.add_column(sa.Column('agency_id', sa.Integer(), nullable=True))
             batch_op.create_index('ix_agent_policy_access_agency_id', ['agency_id'], unique=False)
             batch_op.create_foreign_key('fk_agent_policy_access_agency', 'agencies', ['agency_id'], ['id'])
 
-    # 5. agent_notes
-    with op.batch_alter_table('agent_notes', schema=None) as batch_op:
-        batch_op.add_column(sa.Column('agency_id', sa.Integer(), nullable=True))
-        batch_op.create_index('ix_agent_notes_agency_id', ['agency_id'], unique=False)
-        batch_op.create_foreign_key('fk_agent_notes_agency', 'agencies', ['agency_id'], ['id'])
+    # 5. agent_notes — same pattern
+    if not insp.has_table('agent_notes'):
+        op.create_table(
+            'agent_notes',
+            sa.Column('id', sa.Integer(), nullable=False),
+            sa.Column('agent_id', sa.Integer(), nullable=False),
+            sa.Column('client_id', sa.Integer(), nullable=False),
+            sa.Column('agency_id', sa.Integer(), nullable=True),
+            sa.Column('content', sa.Text(), nullable=False),
+            sa.Column('created_at', sa.DateTime(), server_default=sa.text('(CURRENT_TIMESTAMP)'), nullable=False),
+            sa.ForeignKeyConstraint(['agent_id'], ['users.id']),
+            sa.ForeignKeyConstraint(['client_id'], ['users.id']),
+            sa.ForeignKeyConstraint(['agency_id'], ['agencies.id']),
+            sa.PrimaryKeyConstraint('id'),
+        )
+        with op.batch_alter_table('agent_notes', schema=None) as batch_op:
+            batch_op.create_index('ix_agent_notes_agent_id', ['agent_id'], unique=False)
+            batch_op.create_index('ix_agent_notes_client_id', ['client_id'], unique=False)
+            batch_op.create_index('ix_agent_notes_agency_id', ['agency_id'], unique=False)
+    else:
+        with op.batch_alter_table('agent_notes', schema=None) as batch_op:
+            batch_op.add_column(sa.Column('agency_id', sa.Integer(), nullable=True))
+            batch_op.create_index('ix_agent_notes_agency_id', ['agency_id'], unique=False)
+            batch_op.create_foreign_key('fk_agent_notes_agency', 'agencies', ['agency_id'], ['id'])
 
     # 6. renewal_reviews
     with op.batch_alter_table('renewal_reviews', schema=None) as batch_op:
