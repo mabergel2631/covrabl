@@ -1815,6 +1815,7 @@ export type RenewalReviewData = {
   summary_text: string | null;
   share_token: string | null;
   shared_at: string | null;
+  discussion_items?: string[];
 };
 
 export type PublicRenewalReviewData = {
@@ -1824,6 +1825,7 @@ export type PublicRenewalReviewData = {
   summary_text: string | null;
   shared_at: string | null;
   agent: { name: string | null; email: string | null };
+  discussion_items?: string[];
 };
 
 export const agentApi = {

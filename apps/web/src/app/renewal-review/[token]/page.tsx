@@ -38,6 +38,18 @@ function formatDelta(d: RenewalDelta): string {
   return 'Changed';
 }
 
+function changeIndicator(d: RenewalDelta): string | null {
+  if (!['coverage_amount', 'deductible', 'premium_amount'].includes(d.field_key)) return null;
+  const oldN = Number(d.old_value);
+  const newN = Number(d.new_value);
+  if (Number.isNaN(oldN) || Number.isNaN(newN) || oldN === 0) return null;
+  const diff = newN - oldN;
+  const pct = (diff / oldN) * 100;
+  const sign = diff >= 0 ? '+' : '';
+  if (Math.abs(pct) >= 1.0) return `${sign}${pct.toFixed(pct >= 100 ? 0 : 1)}%`;
+  return `${sign}$${Math.abs(diff).toLocaleString()}`;
+}
+
 export default function PublicRenewalReviewPage() {
   const params = useParams();
   const token = String(params.token || '');
@@ -192,7 +204,12 @@ export default function PublicRenewalReviewPage() {
                     {formatValue(d.field_key, d.old_value)}
                   </div>
                   <div style={{ fontSize: 13, fontWeight: 600, color: '#0f172a' }}>
-                    {formatValue(d.field_key, d.new_value)}
+                    <div>{formatValue(d.field_key, d.new_value)}</div>
+                    {changeIndicator(d) && (
+                      <div style={{ fontSize: 11, color: '#64748b', fontWeight: 500, marginTop: 2 }}>
+                        {changeIndicator(d)}
+                      </div>
+                    )}
                   </div>
                   <div style={{ textAlign: 'right' }}>
                     <span style={{
@@ -206,6 +223,38 @@ export default function PublicRenewalReviewPage() {
               );
             })}
           </div>
+        )}
+
+        {/* Items to Discuss — observational prompts */}
+        {data.discussion_items && data.discussion_items.length > 0 && (
+          <>
+            <h2 style={{ fontSize: 16, fontWeight: 600, color: '#0f172a', margin: '24px 0 12px' }}>
+              Items to discuss with your agent
+            </h2>
+            <div style={{
+              backgroundColor: '#fff',
+              border: '1px solid #e2e8f0',
+              borderRadius: 12,
+              marginBottom: 24,
+              overflow: 'hidden',
+              boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+            }}>
+              {data.discussion_items.map((item, i) => (
+                <div
+                  key={i}
+                  style={{
+                    padding: '14px 18px',
+                    borderBottom: i < (data.discussion_items?.length ?? 0) - 1 ? '1px solid #e2e8f0' : 'none',
+                    fontSize: 14,
+                    lineHeight: 1.6,
+                    color: '#0f172a',
+                  }}
+                >
+                  {item}
+                </div>
+              ))}
+            </div>
+          </>
         )}
 
         {/* Disclaimer */}

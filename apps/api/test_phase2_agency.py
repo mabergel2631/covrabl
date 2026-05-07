@@ -382,6 +382,27 @@ ok = (
 )
 expect("link-renewal computes deltas", ok, f"status={r.status_code} deltas={len(body.get('deltas', []))}")
 
+# Test 25b: response includes observational discussion_items based on the deltas
+items = body.get("discussion_items") or []
+ok = (
+    isinstance(items, list)
+    and len(items) > 0
+    # Expected to fire: carrier change (universal), >=4 deltas (multi-change), liability +50% (auto)
+    and any("Carrier changed" in i for i in items)
+    and any("Multiple changes" in i for i in items)
+)
+expect("link-renewal returns discussion_items", ok, f"items={items}")
+
+# Banned-token spot-check on the live response (in case rules drift in production)
+from app.coverage_review_rules import assert_no_banned_tokens
+banned_failures = []
+for s in items:
+    try:
+        assert_no_banned_tokens(s)
+    except AssertionError as e:
+        banned_failures.append(str(e))
+expect("discussion_items pass banned-token guard", not banned_failures, "; ".join(banned_failures) or "ok")
+
 # Test 26: Producer (cross-member) can view the renewal review
 r = client.get(f"/agent/policies/{RENEWING_POLICY_ID}/renewal-review", headers=hdr(producer_token))
 ok = r.status_code == 200 and len(r.json().get("deltas", [])) > 0

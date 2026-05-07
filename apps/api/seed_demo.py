@@ -38,11 +38,24 @@ DEMO_CLIENTS = [
             {"carrier": "Chubb", "policy_type": "homeowners", "scope": "personal",
              "policy_number": "CHB-2024-88431", "coverage_amount": 650000,
              "deductible": 2500, "premium_amount": 3200,
-             "renewal_date": date.today() + timedelta(days=180), "status": "active"},
+             "renewal_date": date.today() + timedelta(days=180), "status": "active",
+             # Realistic prior-year version → renewal review demo flow works out-of-box
+             "prior_year": {
+                 "carrier": "Travelers", "policy_type": "homeowners", "scope": "personal",
+                 "policy_number": "TRV-HO-2023-77231", "coverage_amount": 575000,
+                 "deductible": 2500, "premium_amount": 2750,
+                 "renewal_date": date.today() - timedelta(days=185), "status": "expired",
+             }},
             {"carrier": "State Farm", "policy_type": "auto", "scope": "personal",
              "policy_number": "SF-AUTO-55219", "coverage_amount": 300000,
              "deductible": 1000, "premium_amount": 1800,
-             "renewal_date": date.today() + timedelta(days=90), "status": "active"},
+             "renewal_date": date.today() + timedelta(days=90), "status": "active",
+             "prior_year": {
+                 "carrier": "State Farm", "policy_type": "auto", "scope": "personal",
+                 "policy_number": "SF-AUTO-2023-55219", "coverage_amount": 250000,
+                 "deductible": 500, "premium_amount": 1500,
+                 "renewal_date": date.today() - timedelta(days=275), "status": "expired",
+             }},
             {"carrier": "Northwestern Mutual", "policy_type": "life", "scope": "personal",
              "policy_number": "NWM-LIFE-10022", "coverage_amount": 1000000,
              "deductible": 0, "premium_amount": 2400,
@@ -201,15 +214,57 @@ def seed():
                 db.flush()
                 exposure_map[exp_data["name"]] = exp.id
 
-            # Create policies
+            # Create policies (with optional prior_year version for renewal-review demos)
             first_exposure_id = list(exposure_map.values())[0] if exposure_map else None
             for pol_data in client_data["policies"]:
+                # Strip prior_year for the current Policy row
+                prior_year_data = pol_data.pop("prior_year", None)
+
+                # If prior year exists, create it first so we can wire replaces_policy_id
+                prior_policy_id: int | None = None
+                if prior_year_data:
+                    prior_pol = Policy(
+                        user_id=user.id,
+                        exposure_id=first_exposure_id,
+                        **prior_year_data,
+                    )
+                    db.add(prior_pol)
+                    db.flush()
+                    prior_policy_id = prior_pol.id
+
                 pol = Policy(
                     user_id=user.id,
                     exposure_id=first_exposure_id,
+                    replaces_policy_id=prior_policy_id,
                     **pol_data,
                 )
                 db.add(pol)
+                db.flush()
+
+                # Compute and insert PolicyDelta rows so the renewal-review picker has
+                # something to render immediately (no need to manually click Link Renewal).
+                if prior_policy_id is not None:
+                    from app.models_features import PolicyDelta
+                    from app.routes_deltas import TRACKED_FIELDS, determine_delta_type, calculate_severity
+                    for field in TRACKED_FIELDS:
+                        old_v = prior_year_data.get(field)
+                        new_v = pol_data.get(field)
+                        if old_v == new_v or (not old_v and not new_v):
+                            continue
+                        old_str = str(old_v) if old_v is not None else None
+                        new_str = str(new_v) if new_v is not None else None
+                        if old_str == new_str:
+                            continue
+                        dt = determine_delta_type(field, old_str, new_str)
+                        sev = calculate_severity(field, old_str, new_str, dt)
+                        db.add(PolicyDelta(
+                            policy_id=pol.id,
+                            field_key=field,
+                            old_value=old_str,
+                            new_value=new_str,
+                            delta_type=dt,
+                            severity=sev,
+                        ))
 
             # Create coverage score
             score = CoverageScore(

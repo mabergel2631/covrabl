@@ -59,21 +59,31 @@ def public_renewal_review(token: str, db: Session = Depends(get_db)):
             select(UserProfile.full_name).where(UserProfile.user_id == agent.id)
         ).scalar()
 
+    delta_list = [
+        {
+            "field_key": d.field_key,
+            "old_value": d.old_value,
+            "new_value": d.new_value,
+            "delta_type": d.delta_type,
+            "severity": d.severity,
+        }
+        for d in deltas
+    ]
+
+    # Reuse the same observational rule engine so the public page surfaces
+    # the same "items to discuss" the agent saw before sharing.
+    from .coverage_review_rules import compute_discussion_items
+    policy_brief = _serialize_policy_brief(policy)
+    previous_brief = _serialize_policy_brief(previous_policy)
+    discussion_items = compute_discussion_items(policy_brief, previous_brief, delta_list)
+
     return {
-        "policy": _serialize_policy_brief(policy),
-        "previous_policy": _serialize_policy_brief(previous_policy),
-        "deltas": [
-            {
-                "field_key": d.field_key,
-                "old_value": d.old_value,
-                "new_value": d.new_value,
-                "delta_type": d.delta_type,
-                "severity": d.severity,
-            }
-            for d in deltas
-        ],
+        "policy": policy_brief,
+        "previous_policy": previous_brief,
+        "deltas": delta_list,
         "summary_text": review.summary_text,
         "shared_at": review.shared_at.isoformat() if review.shared_at else None,
+        "discussion_items": discussion_items,
         "agent": {
             "name": agent_profile or (agent.email if agent else None),
             "email": agent.email if agent else None,

@@ -824,7 +824,9 @@ export default function ClientDetailPage() {
                           })()
                         ) : renewalPickerFor === p.id ? (
                           (() => {
-                            const candidates = data.policies.filter(pp => pp.id !== p.id && (pp.policy_type === p.policy_type || (pp.scope === p.scope && pp.exposure_id === p.exposure_id)));
+                            // Strict same-policy-type matching, case-insensitive — prevents Auto vs Homeowners cross-comparisons
+                            const targetType = (p.policy_type || '').toLowerCase().trim();
+                            const candidates = data.policies.filter(pp => pp.id !== p.id && (pp.policy_type || '').toLowerCase().trim() === targetType);
                             return (
                               <div onClick={e => e.stopPropagation()}>
                                 <div style={{ fontSize: 12, color: 'var(--color-text-muted)', marginBottom: 6 }}>

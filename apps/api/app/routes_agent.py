@@ -1434,29 +1434,42 @@ def _renewal_review_payload(db: Session, policy: Policy) -> dict:
         .order_by(PolicyDelta.created_at.asc())
     ).scalars().all()
 
-    previous_policy: dict | None = None
+    previous_policy_brief: dict | None = None
+    previous_policy_obj: Policy | None = None
     if policy.replaces_policy_id:
         prev = db.get(Policy, policy.replaces_policy_id)
         if prev:
-            previous_policy = _serialize_policy_brief(prev)
+            previous_policy_obj = prev
+            previous_policy_brief = _serialize_policy_brief(prev)
+
+    delta_list = [
+        {
+            "id": d.id,
+            "field_key": d.field_key,
+            "old_value": d.old_value,
+            "new_value": d.new_value,
+            "delta_type": d.delta_type,
+            "severity": d.severity,
+        }
+        for d in deltas
+    ]
+
+    # Compute observational "Items to Discuss" from the delta pattern
+    from .coverage_review_rules import compute_discussion_items
+    discussion_items = compute_discussion_items(
+        _serialize_policy_brief(policy),
+        previous_policy_brief,
+        delta_list,
+    )
 
     return {
         "policy": _serialize_policy_brief(policy),
-        "previous_policy": previous_policy,
-        "deltas": [
-            {
-                "id": d.id,
-                "field_key": d.field_key,
-                "old_value": d.old_value,
-                "new_value": d.new_value,
-                "delta_type": d.delta_type,
-                "severity": d.severity,
-            }
-            for d in deltas
-        ],
+        "previous_policy": previous_policy_brief,
+        "deltas": delta_list,
         "summary_text": review.summary_text if review else None,
         "share_token": review.share_token if review else None,
         "shared_at": review.shared_at.isoformat() if (review and review.shared_at) else None,
+        "discussion_items": discussion_items,
     }
 
 

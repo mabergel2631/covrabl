@@ -41,6 +41,20 @@ function formatDelta(d: RenewalDelta): string {
   return 'Changed';
 }
 
+function changeIndicator(d: RenewalDelta): string | null {
+  // Only meaningful for numeric fields. Returns "+11.7%" or "-$500".
+  if (!['coverage_amount', 'deductible', 'premium_amount'].includes(d.field_key)) return null;
+  const oldN = Number(d.old_value);
+  const newN = Number(d.new_value);
+  if (Number.isNaN(oldN) || Number.isNaN(newN) || oldN === 0) return null;
+  const diff = newN - oldN;
+  const pct = (diff / oldN) * 100;
+  const sign = diff >= 0 ? '+' : '';
+  // Show % when the absolute change is small relative to base; show $ when large.
+  if (Math.abs(pct) >= 1.0) return `${sign}${pct.toFixed(pct >= 100 ? 0 : 1)}%`;
+  return `${sign}$${Math.abs(diff).toLocaleString()}`;
+}
+
 export default function RenewalReviewPage() {
   const { token, role } = useAuth();
   const router = useRouter();
@@ -286,7 +300,12 @@ export default function RenewalReviewPage() {
                       {formatValue(d.field_key, d.old_value)}
                     </div>
                     <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-text)' }}>
-                      {formatValue(d.field_key, d.new_value)}
+                      <div>{formatValue(d.field_key, d.new_value)}</div>
+                      {changeIndicator(d) && (
+                        <div style={{ fontSize: 11, color: 'var(--color-text-muted)', fontWeight: 500, marginTop: 2 }}>
+                          {changeIndicator(d)}
+                        </div>
+                      )}
                     </div>
                     <div style={{ textAlign: 'right' }}>
                       <span style={{
@@ -300,6 +319,34 @@ export default function RenewalReviewPage() {
                 );
               })}
             </div>
+          )}
+
+          {/* Items to Discuss — observational, rule-based */}
+          {data.discussion_items && data.discussion_items.length > 0 && (
+            <>
+              <h2 style={{ fontSize: 16, fontWeight: 600, margin: '0 0 4px', color: 'var(--color-text)' }}>
+                Items to discuss
+              </h2>
+              <p style={{ fontSize: 12, color: 'var(--color-text-muted)', margin: '0 0 12px' }}>
+                Observational prompts based on the changes above. The agent stays the authority — these are review starters, not recommendations.
+              </p>
+              <div className="card" style={{ padding: 0, marginBottom: 24, overflow: 'hidden' }}>
+                {data.discussion_items.map((item, i) => (
+                  <div
+                    key={i}
+                    style={{
+                      padding: '12px 16px',
+                      borderBottom: i < (data.discussion_items?.length ?? 0) - 1 ? '1px solid var(--color-border)' : 'none',
+                      fontSize: 13,
+                      lineHeight: 1.55,
+                      color: 'var(--color-text)',
+                    }}
+                  >
+                    {item}
+                  </div>
+                ))}
+              </div>
+            </>
           )}
 
           {/* Agent summary */}
