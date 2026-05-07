@@ -227,13 +227,16 @@ def on_startup():
             conn.execute(text("CREATE INDEX IF NOT EXISTS ix_agent_notes_agency_id ON agent_notes(agency_id)"))
             logging.info("Self-heal: added agency_id to agent_notes")
 
-    # 4. renewal_reviews new column
+    # 4. renewal_reviews new columns
     rr_cols = [c["name"] for c in insp.get_columns("renewal_reviews")] if "renewal_reviews" in existing_tables else []
     with engine.begin() as conn:
         if "renewal_reviews" in existing_tables and "agency_id" not in rr_cols:
             conn.execute(text("ALTER TABLE renewal_reviews ADD COLUMN agency_id INTEGER REFERENCES agencies(id)"))
             conn.execute(text("CREATE INDEX IF NOT EXISTS ix_renewal_reviews_agency_id ON renewal_reviews(agency_id)"))
             logging.info("Self-heal: added agency_id to renewal_reviews")
+        if "renewal_reviews" in existing_tables and "dismissed_items_json" not in rr_cols:
+            conn.execute(text("ALTER TABLE renewal_reviews ADD COLUMN dismissed_items_json TEXT"))
+            logging.info("Self-heal: added dismissed_items_json to renewal_reviews")
 
     # 5. Agency-of-One backfill — idempotent. For every User with role='agent'
     # who has no AgencyMember row, create their agency and Owner membership,

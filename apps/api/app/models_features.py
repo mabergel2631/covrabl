@@ -144,6 +144,8 @@ class RenewalReview(Base):
     summary_text: Mapped[str | None] = mapped_column(Text, nullable=True)
     share_token: Mapped[str | None] = mapped_column(String(60), nullable=True, unique=True, index=True)
     shared_at: Mapped[DateTime | None] = mapped_column(DateTime, nullable=True)
+    # JSON array of item hashes the agent has dismissed (won't be shown on the public share page).
+    dismissed_items_json: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[DateTime] = mapped_column(DateTime, server_default=func.now())
     updated_at: Mapped[DateTime] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now())
 

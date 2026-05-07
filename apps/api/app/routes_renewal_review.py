@@ -71,11 +71,30 @@ def public_renewal_review(token: str, db: Session = Depends(get_db)):
     ]
 
     # Reuse the same observational rule engine so the public page surfaces
-    # the same "items to discuss" the agent saw before sharing.
+    # the same "items to discuss" the agent saw before sharing — but filter
+    # out anything the agent dismissed before generating the share link.
+    import json as _json
     from .coverage_review_rules import compute_discussion_items
     policy_brief = _serialize_policy_brief(policy)
     previous_brief = _serialize_policy_brief(previous_policy)
-    discussion_items = compute_discussion_items(policy_brief, previous_brief, delta_list)
+    raw_items = compute_discussion_items(policy_brief, previous_brief, delta_list)
+
+    dismissed_set: set[str] = set()
+    if review.dismissed_items_json:
+        try:
+            parsed = _json.loads(review.dismissed_items_json)
+            if isinstance(parsed, list):
+                dismissed_set = {str(h) for h in parsed}
+        except Exception:
+            dismissed_set = set()
+
+    import hashlib
+    public_items: list[dict] = []
+    for text in raw_items:
+        h = hashlib.sha256(text.encode("utf-8")).hexdigest()[:16]
+        if h in dismissed_set:
+            continue
+        public_items.append({"text": text, "hash": h, "dismissed": False})
 
     return {
         "policy": policy_brief,
@@ -83,7 +102,7 @@ def public_renewal_review(token: str, db: Session = Depends(get_db)):
         "deltas": delta_list,
         "summary_text": review.summary_text,
         "shared_at": review.shared_at.isoformat() if review.shared_at else None,
-        "discussion_items": discussion_items,
+        "discussion_items": public_items,
         "agent": {
             "name": agent_profile or (agent.email if agent else None),
             "email": agent.email if agent else None,

@@ -43,6 +43,11 @@ with engine.begin() as conn:
     doc_cols = [c["name"] for c in insp.get_columns("documents")]
     if "uploaded_by_user_id" not in doc_cols:
         conn.execute(text("ALTER TABLE documents ADD COLUMN uploaded_by_user_id INTEGER"))
+    # Mirror main.py self-heal for any newly-added columns the alembic baseline
+    # doesn't yet include (so the smoke test stays in sync with prod boot path)
+    rr_cols = [c["name"] for c in insp.get_columns("renewal_reviews")]
+    if "dismissed_items_json" not in rr_cols:
+        conn.execute(text("ALTER TABLE renewal_reviews ADD COLUMN dismissed_items_json TEXT"))
 print("[setup] create_all + idempotent column fills done")
 
 db = SessionLocal()
@@ -382,26 +387,103 @@ ok = (
 )
 expect("link-renewal computes deltas", ok, f"status={r.status_code} deltas={len(body.get('deltas', []))}")
 
-# Test 25b: response includes observational discussion_items based on the deltas
+# Test 25b: discussion_items now returned as objects {text, hash, dismissed}
 items = body.get("discussion_items") or []
+texts = [i.get("text") if isinstance(i, dict) else i for i in items]
 ok = (
     isinstance(items, list)
     and len(items) > 0
-    # Expected to fire: carrier change (universal), >=4 deltas (multi-change), liability +50% (auto)
-    and any("Carrier changed" in i for i in items)
-    and any("Multiple changes" in i for i in items)
+    and all(isinstance(i, dict) and "text" in i and "hash" in i and "dismissed" in i for i in items)
+    and any("Carrier changed" in (t or "") for t in texts)
+    and any("Multiple changes" in (t or "") for t in texts)
 )
-expect("link-renewal returns discussion_items", ok, f"items={items}")
+expect("link-renewal returns shaped discussion_items {text,hash,dismissed}", ok, f"items={items}")
 
-# Banned-token spot-check on the live response (in case rules drift in production)
+# Banned-token spot-check on the live response
 from app.coverage_review_rules import assert_no_banned_tokens
 banned_failures = []
-for s in items:
+for t in texts:
     try:
-        assert_no_banned_tokens(s)
+        assert_no_banned_tokens(t)
     except AssertionError as e:
         banned_failures.append(str(e))
 expect("discussion_items pass banned-token guard", not banned_failures, "; ".join(banned_failures) or "ok")
+
+# Test 25c: dismissing one item filters it from the public share but keeps it on agent surface
+target_hash = items[0]["hash"]
+target_text = items[0]["text"]
+r = client.put(
+    f"/agent/policies/{RENEWING_POLICY_ID}/renewal-review/dismiss-item",
+    headers=hdr(owner_token),
+    json={"hash": target_hash, "dismissed": True},
+)
+ok = r.status_code == 200
+expect("owner can dismiss a discussion item", ok, f"status={r.status_code}")
+
+# Verify the dismissed item still appears on agent surface but with dismissed=true
+r = client.get(f"/agent/policies/{RENEWING_POLICY_ID}/renewal-review", headers=hdr(owner_token))
+agent_items = r.json().get("discussion_items") or []
+ok = any(i.get("hash") == target_hash and i.get("dismissed") is True for i in agent_items)
+expect("dismissed item still visible to agent (struck-through render)", ok, f"items={agent_items}")
+
+# Generate a share token and verify the public surface FILTERS OUT the dismissed item
+r = client.post(f"/agent/policies/{RENEWING_POLICY_ID}/renewal-review/share", headers=hdr(owner_token))
+SHARE_TOKEN_DISMISS = r.json().get("share_token")
+r = client.get(f"/renewal-review/public/{SHARE_TOKEN_DISMISS}")
+public_items = r.json().get("discussion_items") or []
+public_hashes = [i.get("hash") for i in public_items if isinstance(i, dict)]
+ok = (
+    r.status_code == 200
+    and target_hash not in public_hashes
+    and len(public_items) == len(agent_items) - 1
+)
+expect("dismissed item filtered from public share", ok,
+       f"agent_count={len(agent_items)} public_count={len(public_items)} target_hash={target_hash}")
+
+# Restore the item — public should show it again
+r = client.put(
+    f"/agent/policies/{RENEWING_POLICY_ID}/renewal-review/dismiss-item",
+    headers=hdr(owner_token),
+    json={"hash": target_hash, "dismissed": False},
+)
+expect("owner can restore a dismissed item", r.status_code == 200, f"status={r.status_code}")
+
+r = client.get(f"/renewal-review/public/{SHARE_TOKEN_DISMISS}")
+public_items_after = r.json().get("discussion_items") or []
+public_hashes_after = [i.get("hash") for i in public_items_after if isinstance(i, dict)]
+expect("restored item reappears on public share",
+       target_hash in public_hashes_after, f"hashes={public_hashes_after}")
+
+# Clean up share token before the rest of the test continues
+client.delete(f"/agent/policies/{RENEWING_POLICY_ID}/renewal-review/share", headers=hdr(owner_token))
+
+# Test 25d: PolicyDetail comparison — verify detail-level deltas appear when
+# both policies have matching field_name/field_value rows that differ.
+# Use the seed-prior-year endpoint on a fresh policy; it auto-populates
+# realistic auto/home details and computes deltas.
+prior_payload2 = {
+    "scope": "personal", "policy_type": "Auto", "carrier": "Travelers",
+    "policy_number": "TR-DETAIL-TEST", "coverage_amount": 100000,
+    "deductible": 1000, "premium_amount": 1500,
+    "renewal_date": "2026-08-01",
+}
+r = client.post(f"/agent/clients/{CLIENT_ID}/policies", headers=hdr(owner_token), json=prior_payload2)
+detail_test_pid = r.json().get("policy_id")
+expect("created auto policy for detail-comparison test", r.status_code == 200 and detail_test_pid is not None, f"status={r.status_code}")
+
+r = client.post(f"/agent/clients/{CLIENT_ID}/policies/{detail_test_pid}/seed-prior-year", headers=hdr(owner_token))
+expect("seed-prior-year succeeds on auto policy", r.status_code == 200, f"status={r.status_code}")
+
+r = client.get(f"/agent/policies/{detail_test_pid}/renewal-review", headers=hdr(owner_token))
+detail_deltas = r.json().get("deltas") or []
+detail_field_keys = [d.get("field_key") for d in detail_deltas]
+ok = (
+    r.status_code == 200
+    and any("Bodily Injury" in (k or "") for k in detail_field_keys)
+    and any("Property Damage" in (k or "") for k in detail_field_keys)
+)
+expect("auto seed-prior-year produces PolicyDetail deltas (BI, Property Damage, etc.)",
+       ok, f"keys_seen={detail_field_keys}")
 
 # Test 26: Producer (cross-member) can view the renewal review
 r = client.get(f"/agent/policies/{RENEWING_POLICY_ID}/renewal-review", headers=hdr(producer_token))

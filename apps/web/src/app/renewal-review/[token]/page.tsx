@@ -232,7 +232,7 @@ export default function PublicRenewalReviewPage() {
           );
         })()}
 
-        {/* Items to Discuss — observational prompts */}
+        {/* Items to Discuss — observational prompts (dismissed items already filtered server-side) */}
         {data.discussion_items && data.discussion_items.length > 0 && (
           <>
             <h2 style={{ fontSize: 16, fontWeight: 600, color: '#0f172a', margin: '24px 0 12px' }}>
@@ -248,7 +248,7 @@ export default function PublicRenewalReviewPage() {
             }}>
               {data.discussion_items.map((item, i) => (
                 <div
-                  key={i}
+                  key={item.hash}
                   style={{
                     padding: '14px 18px',
                     borderBottom: i < (data.discussion_items?.length ?? 0) - 1 ? '1px solid #e2e8f0' : 'none',
@@ -257,7 +257,7 @@ export default function PublicRenewalReviewPage() {
                     color: '#0f172a',
                   }}
                 >
-                  {item}
+                  {item.text}
                 </div>
               ))}
             </div>

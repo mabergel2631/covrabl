@@ -1808,6 +1808,12 @@ export type RenewalReviewPolicyBrief = {
   deductible: number | null;
 };
 
+export type DiscussionItem = {
+  text: string;
+  hash: string;
+  dismissed: boolean;
+};
+
 export type RenewalReviewData = {
   policy: RenewalReviewPolicyBrief;
   previous_policy: RenewalReviewPolicyBrief | null;
@@ -1815,7 +1821,7 @@ export type RenewalReviewData = {
   summary_text: string | null;
   share_token: string | null;
   shared_at: string | null;
-  discussion_items?: string[];
+  discussion_items?: DiscussionItem[];
 };
 
 export type PublicRenewalReviewData = {
@@ -1825,7 +1831,7 @@ export type PublicRenewalReviewData = {
   summary_text: string | null;
   shared_at: string | null;
   agent: { name: string | null; email: string | null };
-  discussion_items?: string[];
+  discussion_items?: DiscussionItem[];
 };
 
 export const agentApi = {
@@ -1927,6 +1933,13 @@ export const agentApi = {
   revokeRenewalShare(policyId: number): Promise<{ ok: boolean }> {
     return request<{ ok: boolean }>(`/agent/policies/${policyId}/renewal-review/share`, {
       method: "DELETE",
+    });
+  },
+  dismissDiscussionItem(policyId: number, hash: string, dismissed: boolean): Promise<RenewalReviewData> {
+    return request<RenewalReviewData>(`/agent/policies/${policyId}/renewal-review/dismiss-item`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ hash, dismissed }),
     });
   },
   publicRenewalReview(token: string): Promise<PublicRenewalReviewData> {

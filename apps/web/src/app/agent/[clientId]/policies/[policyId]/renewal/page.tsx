@@ -328,28 +328,64 @@ export default function RenewalReviewPage() {
             );
           })()}
 
-          {/* Items to Discuss — observational, rule-based */}
+          {/* Items to Discuss — observational, rule-based, agent-curatable */}
           {data.discussion_items && data.discussion_items.length > 0 && (
             <>
               <h2 style={{ fontSize: 16, fontWeight: 600, margin: '0 0 4px', color: 'var(--color-text)' }}>
                 Items to discuss
               </h2>
               <p style={{ fontSize: 12, color: 'var(--color-text-muted)', margin: '0 0 12px' }}>
-                Observational prompts based on the changes above. The agent stays the authority — these are review starters, not recommendations.
+                Observational prompts based on the changes above. Click <span style={{ fontWeight: 600 }}>×</span> on any item to exclude it from the client-facing share page — it stays here struck-through so you can restore it.
               </p>
               <div className="card" style={{ padding: 0, marginBottom: 24, overflow: 'hidden' }}>
                 {data.discussion_items.map((item, i) => (
                   <div
-                    key={i}
+                    key={item.hash}
                     style={{
+                      display: 'flex',
+                      alignItems: 'flex-start',
+                      gap: 12,
                       padding: '12px 16px',
                       borderBottom: i < (data.discussion_items?.length ?? 0) - 1 ? '1px solid var(--color-border)' : 'none',
-                      fontSize: 13,
-                      lineHeight: 1.55,
-                      color: 'var(--color-text)',
+                      backgroundColor: item.dismissed ? '#fafafa' : 'transparent',
                     }}
                   >
-                    {item}
+                    <div
+                      style={{
+                        flex: 1,
+                        fontSize: 13,
+                        lineHeight: 1.55,
+                        color: item.dismissed ? 'var(--color-text-muted)' : 'var(--color-text)',
+                        textDecoration: item.dismissed ? 'line-through' : 'none',
+                      }}
+                    >
+                      {item.text}
+                    </div>
+                    <button
+                      onClick={async () => {
+                        try {
+                          trackClick('agent_renewal_dismiss_item', { policy_id: policyId, hash: item.hash, dismiss: !item.dismissed });
+                          const updated = await agentApi.dismissDiscussionItem(policyId, item.hash, !item.dismissed);
+                          setData(updated);
+                        } catch (err: any) {
+                          alert(err?.message || 'Failed to update item');
+                        }
+                      }}
+                      title={item.dismissed ? 'Restore this item to the client share' : 'Hide this item from the client share'}
+                      style={{
+                        padding: '2px 10px',
+                        fontSize: 11,
+                        fontWeight: 600,
+                        backgroundColor: item.dismissed ? 'var(--color-surface)' : 'transparent',
+                        color: item.dismissed ? 'var(--color-primary)' : 'var(--color-text-muted)',
+                        border: '1px solid var(--color-border)',
+                        borderRadius: 'var(--radius-sm)',
+                        cursor: 'pointer',
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      {item.dismissed ? 'Restore' : '× Hide'}
+                    </button>
                   </div>
                 ))}
               </div>

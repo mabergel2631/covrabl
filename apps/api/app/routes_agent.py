@@ -1443,8 +1443,159 @@ def _serialize_policy_brief(p: Policy) -> dict:
     }
 
 
-def _renewal_review_payload(db: Session, policy: Policy) -> dict:
-    """Build the renewal-review response payload for a renewing policy."""
+def _compute_detail_deltas(
+    db: Session, prior_policy_id: int, new_policy_id: int,
+) -> list[dict]:
+    """Compare PolicyDetail rows between two policies and return delta dicts
+    ready to be inserted as PolicyDelta rows (keyed on field_name).
+
+    Returns list of {field_key, old_value, new_value, delta_type, severity}.
+    """
+    from .routes_deltas import determine_delta_type, calculate_severity
+    prior_details = db.execute(
+        select(PolicyDetail).where(PolicyDetail.policy_id == prior_policy_id)
+    ).scalars().all()
+    new_details = db.execute(
+        select(PolicyDetail).where(PolicyDetail.policy_id == new_policy_id)
+    ).scalars().all()
+
+    prior_by_name = {d.field_name: d.field_value for d in prior_details}
+    new_by_name = {d.field_name: d.field_value for d in new_details}
+
+    out: list[dict] = []
+    all_keys = set(prior_by_name.keys()) | set(new_by_name.keys())
+    for k in sorted(all_keys):
+        old_v = prior_by_name.get(k)
+        new_v = new_by_name.get(k)
+        if old_v == new_v or (not old_v and not new_v):
+            continue
+        old_str = str(old_v) if old_v is not None else None
+        new_str = str(new_v) if new_v is not None else None
+        if old_str == new_str:
+            continue
+        dt = determine_delta_type(k, old_str, new_str)
+        sev = calculate_severity(k, old_str, new_str, dt)
+        out.append({
+            "field_key": k,
+            "old_value": old_str,
+            "new_value": new_str,
+            "delta_type": dt,
+            "severity": sev,
+        })
+    return out
+
+
+def _seed_realistic_details(db: Session, current_policy: Policy, prior_policy: Policy) -> None:
+    """For demo/testing: ensure both policies have a realistic set of
+    PolicyDetail rows so the renewal review shows substantive deltas.
+    Only populates rows for known auto/home types and only if the policy
+    has zero existing details (so we never overwrite real client data).
+    """
+    ptype = (current_policy.policy_type or "").lower()
+    is_auto = "auto" in ptype
+    is_home = "home" in ptype or "renter" in ptype or "dwell" in ptype
+
+    if not (is_auto or is_home):
+        return
+
+    existing_current = db.execute(
+        select(PolicyDetail).where(PolicyDetail.policy_id == current_policy.id)
+    ).first()
+    existing_prior = db.execute(
+        select(PolicyDetail).where(PolicyDetail.policy_id == prior_policy.id)
+    ).first()
+    if existing_current is not None or existing_prior is not None:
+        return  # don't touch real data
+
+    if is_auto:
+        details = [
+            ("Bodily Injury Per Person",     "$250,000", "$100,000"),
+            ("Bodily Injury Per Occurrence", "$500,000", "$300,000"),
+            ("Property Damage",              "$100,000", "$50,000"),
+            ("Uninsured Motorist Per Person", "$100,000", "$25,000"),
+            ("Comprehensive Deductible",     "$500",     "$1,000"),
+            ("Collision Deductible",         "$500",     "$1,000"),
+            ("Medical Payments",             "$5,000",   "$1,000"),
+        ]
+    else:  # home
+        details = [
+            ("Other Structures",      "$65,000",            "$50,000"),
+            ("Personal Property",     "$325,000",           "$250,000"),
+            ("Loss of Use",           "$130,000",           "$100,000"),
+            ("Personal Liability",    "$500,000",           "$300,000"),
+            ("Medical Payments",      "$5,000",             "$1,000"),
+            ("Wind/Hail Deductible",  "2%",                 "1%"),
+            ("Water Backup",          "$25,000",            "$10,000"),
+            ("Replacement Cost",      "Replacement Cost",   "Actual Cash Value"),
+        ]
+
+    for field_name, current_value, prior_value in details:
+        db.add(PolicyDetail(policy_id=current_policy.id, field_name=field_name, field_value=current_value))
+        db.add(PolicyDetail(policy_id=prior_policy.id, field_name=field_name, field_value=prior_value))
+
+
+def _hash_item(text: str) -> str:
+    """Stable short hash of a discussion-item text — used as the dismiss key.
+
+    SHA-256 first 16 hex chars. Survives whitespace consistency since the
+    rule engine returns deterministic strings; if rule wording changes,
+    previously-dismissed hashes become orphaned (acceptable trade-off).
+    """
+    import hashlib
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()[:16]
+
+
+def _build_discussion_items(
+    policy: Policy,
+    previous_policy_brief: dict | None,
+    delta_list: list[dict],
+    review: RenewalReview | None,
+    *,
+    public: bool = False,
+) -> list[dict] | list[str]:
+    """Compute the observational items, attach hash + dismissed flag, and
+    optionally filter dismissed items for public surfaces.
+
+    Returns:
+      - For agent surface (public=False): list of {text, hash, dismissed}
+      - For public surface (public=True): list of {text, hash, dismissed:false}
+        with dismissed entries removed entirely.
+    """
+    import json as _json
+    from .coverage_review_rules import compute_discussion_items
+    raw_items = compute_discussion_items(
+        _serialize_policy_brief(policy),
+        previous_policy_brief,
+        delta_list,
+    )
+
+    dismissed_set: set[str] = set()
+    if review and review.dismissed_items_json:
+        try:
+            parsed = _json.loads(review.dismissed_items_json)
+            if isinstance(parsed, list):
+                dismissed_set = {str(h) for h in parsed}
+        except Exception:
+            dismissed_set = set()
+
+    items_with_meta: list[dict] = []
+    for text in raw_items:
+        h = _hash_item(text)
+        if public and h in dismissed_set:
+            continue
+        items_with_meta.append({
+            "text": text,
+            "hash": h,
+            "dismissed": h in dismissed_set,
+        })
+    return items_with_meta
+
+
+def _renewal_review_payload(db: Session, policy: Policy, *, public: bool = False) -> dict:
+    """Build the renewal-review response payload for a renewing policy.
+
+    `public=True` filters dismissed discussion items out entirely.
+    """
     review = db.execute(
         select(RenewalReview).where(RenewalReview.policy_id == policy.id)
     ).scalar_one_or_none()
@@ -1456,11 +1607,9 @@ def _renewal_review_payload(db: Session, policy: Policy) -> dict:
     ).scalars().all()
 
     previous_policy_brief: dict | None = None
-    previous_policy_obj: Policy | None = None
     if policy.replaces_policy_id:
         prev = db.get(Policy, policy.replaces_policy_id)
         if prev:
-            previous_policy_obj = prev
             previous_policy_brief = _serialize_policy_brief(prev)
 
     delta_list = [
@@ -1475,12 +1624,8 @@ def _renewal_review_payload(db: Session, policy: Policy) -> dict:
         for d in deltas
     ]
 
-    # Compute observational "Items to Discuss" from the delta pattern
-    from .coverage_review_rules import compute_discussion_items
-    discussion_items = compute_discussion_items(
-        _serialize_policy_brief(policy),
-        previous_policy_brief,
-        delta_list,
+    discussion_items = _build_discussion_items(
+        policy, previous_policy_brief, delta_list, review, public=public,
     )
 
     return {
@@ -1546,6 +1691,18 @@ def link_renewal(
             new_value=new_str,
             delta_type=delta_type,
             severity=severity,
+        ))
+
+    # Also compare PolicyDetail rows (BI limits, deductibles by type, etc.)
+    detail_deltas = _compute_detail_deltas(db, old_policy.id, new_policy.id)
+    for d in detail_deltas:
+        db.add(PolicyDelta(
+            policy_id=new_policy.id,
+            field_key=d["field_key"],
+            old_value=d["old_value"],
+            new_value=d["new_value"],
+            delta_type=d["delta_type"],
+            severity=d["severity"],
         ))
 
     review = db.execute(
@@ -1630,6 +1787,57 @@ def update_renewal_review(
         db.add(review)
 
     review.summary_text = (payload.summary_text or "").strip() or None
+    db.commit()
+    db.refresh(policy)
+    return _renewal_review_payload(db, policy)
+
+
+class DismissItemRequest(BaseModel):
+    hash: str
+    dismissed: bool
+
+
+@router.put("/policies/{policy_id}/renewal-review/dismiss-item")
+def dismiss_review_item(
+    policy_id: int,
+    payload: DismissItemRequest,
+    agent: User = Depends(require_agent),
+    db: Session = Depends(get_db),
+):
+    """Mark a specific Items-to-Discuss entry as dismissed (or restore it).
+
+    Dismissed items are filtered out of the public client-facing share page.
+    On the agent surface they remain visible but rendered struck-through with
+    a Restore action.
+    """
+    _check_write_role(db, agent)
+    policy = db.get(Policy, policy_id)
+    if not policy:
+        raise HTTPException(status_code=404, detail="Policy not found")
+    _verify_client_access(db, agent, policy.user_id)
+
+    review = db.execute(
+        select(RenewalReview).where(RenewalReview.policy_id == policy_id)
+    ).scalar_one_or_none()
+    if not review:
+        raise HTTPException(status_code=404, detail="No renewal review yet")
+
+    import json as _json
+    try:
+        existing = set(_json.loads(review.dismissed_items_json or "[]"))
+    except Exception:
+        existing = set()
+
+    item_hash = (payload.hash or "").strip()
+    if not item_hash:
+        raise HTTPException(status_code=400, detail="Missing item hash")
+
+    if payload.dismissed:
+        existing.add(item_hash)
+    else:
+        existing.discard(item_hash)
+
+    review.dismissed_items_json = _json.dumps(sorted(existing))
     db.commit()
     db.refresh(policy)
     return _renewal_review_payload(db, policy)
@@ -1797,6 +2005,11 @@ def seed_prior_year_sample(
     # Link current → prior
     current.replaces_policy_id = prior.id
 
+    # Populate realistic PolicyDetail rows on both policies (auto/home only,
+    # only if neither side has any details yet — never overwrites real data).
+    _seed_realistic_details(db, current, prior)
+    db.flush()
+
     # Compute deltas (clear any existing first, in case of re-runs)
     db.execute(sa_delete(PolicyDelta).where(PolicyDelta.policy_id == current.id))
     for field in TRACKED_FIELDS:
@@ -1817,6 +2030,16 @@ def seed_prior_year_sample(
             new_value=new_str,
             delta_type=dt,
             severity=sev,
+        ))
+    # Detail-level deltas (BI limits, deductibles by type, wind/hail, etc.)
+    for d in _compute_detail_deltas(db, prior.id, current.id):
+        db.add(PolicyDelta(
+            policy_id=current.id,
+            field_key=d["field_key"],
+            old_value=d["old_value"],
+            new_value=d["new_value"],
+            delta_type=d["delta_type"],
+            severity=d["severity"],
         ))
 
     # Create empty RenewalReview for the agent to author against
