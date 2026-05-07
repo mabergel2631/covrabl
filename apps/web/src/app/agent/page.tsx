@@ -8,9 +8,9 @@ import { trackClick, trackFeatureUse } from '../../../lib/track';
 import BackButton from '../components/BackButton';
 
 const statusConfig = {
-  gaps: { label: 'Gaps Detected', icon: '\u2757', color: 'var(--color-danger)', bg: '#fef2f2' },
+  gaps: { label: 'Items to Review', icon: '\u2757', color: 'var(--color-danger)', bg: '#fef2f2' },
   review: { label: 'Review Recommended', icon: '\u26A0\uFE0F', color: '#92400e', bg: '#fef3c7' },
-  good: { label: 'Good', icon: '\u2705', color: 'var(--color-success)', bg: '#dcfce7' },
+  good: { label: 'On Track', icon: '\u2705', color: 'var(--color-success)', bg: '#dcfce7' },
 } as const;
 
 function CoverageStatusBadge({ status }: { status: 'good' | 'review' | 'gaps' }) {
@@ -43,7 +43,10 @@ export default function AdvisorDashboard() {
 
   // Invite state
   const [showInvite, setShowInvite] = useState(false);
+  const [inviteMode, setInviteMode] = useState<'single' | 'bulk'>('single');
   const [inviteEmail, setInviteEmail] = useState('');
+  const [bulkEmails, setBulkEmails] = useState('');
+  const [bulkResults, setBulkResults] = useState<{ email: string; ok: boolean; message: string }[] | null>(null);
   const [inviting, setInviting] = useState(false);
   const [inviteMsg, setInviteMsg] = useState('');
 
@@ -95,6 +98,58 @@ export default function AdvisorDashboard() {
     }
   };
 
+  const handleBulkInvite = async () => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    const raw = bulkEmails.split(/[\s,;]+/).map(e => e.trim()).filter(Boolean);
+    const seen = new Set<string>();
+    const unique = raw.filter(e => {
+      const lower = e.toLowerCase();
+      if (seen.has(lower)) return false;
+      seen.add(lower);
+      return true;
+    });
+    if (unique.length === 0) {
+      setInviteMsg('Paste at least one email address.');
+      return;
+    }
+    setInviting(true);
+    setInviteMsg('');
+    setBulkResults(null);
+    trackClick('agent_bulk_invite_submit', { count: unique.length });
+
+    const results: { email: string; ok: boolean; message: string }[] = [];
+    for (const email of unique) {
+      if (!emailRegex.test(email)) {
+        results.push({ email, ok: false, message: 'Invalid email format' });
+        continue;
+      }
+      try {
+        const r = await agentApi.inviteClient(email);
+        results.push({
+          email,
+          ok: true,
+          message: r.status === 'active' ? 'Added' : 'Invite sent',
+        });
+      } catch (err: any) {
+        results.push({ email, ok: false, message: err.message || 'Failed' });
+      }
+    }
+    setBulkResults(results);
+    const okCount = results.filter(r => r.ok).length;
+    trackFeatureUse('agent_bulk_invite_done', { total: results.length, ok: okCount });
+
+    // Refresh client list
+    try {
+      const [ov, cl] = await Promise.all([agentApi.overview(), agentApi.clients()]);
+      setOverview(ov);
+      setClients(cl);
+    } catch {
+      // ignore refresh failures; results are still shown
+    }
+    setBulkEmails('');
+    setInviting(false);
+  };
+
   if (!token || loading) {
     return (
       <div style={{ padding: 40, textAlign: 'center', color: 'var(--color-text-muted)' }}>
@@ -111,12 +166,13 @@ export default function AdvisorDashboard() {
     );
   }
 
+  const itemsNeedingReview = clients.filter(c => c.status === 'active' && c.coverage_status !== 'good').length;
   const statCards = [
-    { label: 'Total Clients', value: overview?.total_clients ?? 0 },
-    { label: 'Total Policies', value: overview?.total_policies ?? 0 },
-    { label: 'Avg Protection Score', value: overview?.avg_protection_score ?? '--' },
+    { label: 'Active Clients', value: overview?.total_clients ?? 0 },
+    { label: 'Policies Uploaded', value: overview?.total_policies ?? 0 },
     { label: 'Upcoming Renewals', value: overview?.upcoming_renewals ?? 0 },
-    { label: 'Flagged Items', value: overview?.flagged_count ?? 0, color: (overview?.flagged_count ?? 0) > 0 ? 'var(--color-danger)' : undefined },
+    { label: 'Items Needing Review', value: itemsNeedingReview, color: itemsNeedingReview > 0 ? 'var(--color-danger)' : undefined },
+    { label: 'Avg Coverage Readiness', value: overview?.avg_protection_score ?? '--' },
   ];
 
   const statusOrder = { gaps: 0, review: 1, good: 2 };
@@ -161,8 +217,20 @@ export default function AdvisorDashboard() {
         </button>
       </div>
       <p style={{ fontSize: 14, color: 'var(--color-text-secondary)', margin: '0 0 16px' }}>
-        See which clients need attention right now.
+        See which clients have items to review right now.
       </p>
+      <div style={{
+        padding: '10px 14px',
+        marginBottom: 16,
+        backgroundColor: '#f0f9ff',
+        border: '1px solid #bae6fd',
+        borderRadius: 'var(--radius-md)',
+        fontSize: 12,
+        lineHeight: 1.5,
+        color: '#0c4a6e',
+      }}>
+        <strong>AI-generated insights.</strong> Coverage readiness, status, and suggested next actions are generated from uploaded documents and should be reviewed with the client&rsquo;s agent and confirmed against the actual policy.
+      </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: 'var(--color-text-muted)', marginBottom: 24 }}>
         <span style={{ fontSize: 14 }}>&#128274;</span>
         <span>Bank-level encryption &middot; Your data is private and never sold</span>
@@ -171,46 +239,153 @@ export default function AdvisorDashboard() {
       {/* Invite form */}
       {showInvite && (
         <div className="card" style={{ padding: 20, marginBottom: 24 }}>
-          <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 12, color: 'var(--color-text)' }}>Invite a Client</div>
-          <div style={{ display: 'flex', gap: 8 }}>
-            <input
-              type="email"
-              placeholder="client@email.com"
-              value={inviteEmail}
-              onChange={e => setInviteEmail(e.target.value)}
-              onKeyDown={e => { if (e.key === 'Enter') handleInvite(); }}
-              style={{
-                flex: 1,
-                padding: '10px 14px',
-                border: '1px solid var(--color-border)',
-                borderRadius: 'var(--radius-md)',
-                fontSize: 14,
-                outline: 'none',
-                backgroundColor: 'var(--color-surface)',
-                color: 'var(--color-text)',
-              }}
-            />
-            <button
-              onClick={handleInvite}
-              disabled={inviting || !inviteEmail.trim()}
-              style={{
-                padding: '10px 24px',
-                backgroundColor: 'var(--color-primary)',
-                color: '#fff',
-                border: 'none',
-                borderRadius: 'var(--radius-md)',
-                fontSize: 14,
-                fontWeight: 600,
-                cursor: inviting ? 'wait' : 'pointer',
-                opacity: inviting || !inviteEmail.trim() ? 0.6 : 1,
-              }}
-            >
-              {inviting ? 'Sending...' : 'Send Invite'}
-            </button>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12, gap: 12, flexWrap: 'wrap' }}>
+            <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--color-text)' }}>
+              {inviteMode === 'single' ? 'Invite a Client' : 'Bulk Invite Clients'}
+            </div>
+            <div style={{ display: 'flex', gap: 0, border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', overflow: 'hidden' }}>
+              <button
+                onClick={() => { setInviteMode('single'); setBulkResults(null); setInviteMsg(''); trackClick('agent_invite_mode_single'); }}
+                style={{
+                  padding: '6px 14px',
+                  fontSize: 12,
+                  fontWeight: 600,
+                  border: 'none',
+                  cursor: 'pointer',
+                  backgroundColor: inviteMode === 'single' ? 'var(--color-primary)' : 'transparent',
+                  color: inviteMode === 'single' ? '#fff' : 'var(--color-text-secondary)',
+                }}
+              >
+                Single
+              </button>
+              <button
+                onClick={() => { setInviteMode('bulk'); setInviteMsg(''); trackClick('agent_invite_mode_bulk'); }}
+                style={{
+                  padding: '6px 14px',
+                  fontSize: 12,
+                  fontWeight: 600,
+                  border: 'none',
+                  cursor: 'pointer',
+                  backgroundColor: inviteMode === 'bulk' ? 'var(--color-primary)' : 'transparent',
+                  color: inviteMode === 'bulk' ? '#fff' : 'var(--color-text-secondary)',
+                }}
+              >
+                Bulk
+              </button>
+            </div>
           </div>
+
+          {inviteMode === 'single' ? (
+            <div style={{ display: 'flex', gap: 8 }}>
+              <input
+                type="email"
+                placeholder="client@email.com"
+                value={inviteEmail}
+                onChange={e => setInviteEmail(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') handleInvite(); }}
+                style={{
+                  flex: 1,
+                  padding: '10px 14px',
+                  border: '1px solid var(--color-border)',
+                  borderRadius: 'var(--radius-md)',
+                  fontSize: 14,
+                  outline: 'none',
+                  backgroundColor: 'var(--color-surface)',
+                  color: 'var(--color-text)',
+                }}
+              />
+              <button
+                onClick={handleInvite}
+                disabled={inviting || !inviteEmail.trim()}
+                style={{
+                  padding: '10px 24px',
+                  backgroundColor: 'var(--color-primary)',
+                  color: '#fff',
+                  border: 'none',
+                  borderRadius: 'var(--radius-md)',
+                  fontSize: 14,
+                  fontWeight: 600,
+                  cursor: inviting ? 'wait' : 'pointer',
+                  opacity: inviting || !inviteEmail.trim() ? 0.6 : 1,
+                }}
+              >
+                {inviting ? 'Sending...' : 'Send Invite'}
+              </button>
+            </div>
+          ) : (
+            <div>
+              <div style={{ fontSize: 12, color: 'var(--color-text-muted)', marginBottom: 6 }}>
+                Paste one email per line or separated by commas. Duplicates and invalid addresses are skipped.
+              </div>
+              <textarea
+                placeholder={'client1@email.com\nclient2@email.com\nclient3@email.com'}
+                value={bulkEmails}
+                onChange={e => setBulkEmails(e.target.value)}
+                rows={6}
+                style={{
+                  width: '100%',
+                  padding: '10px 14px',
+                  border: '1px solid var(--color-border)',
+                  borderRadius: 'var(--radius-md)',
+                  fontSize: 14,
+                  outline: 'none',
+                  backgroundColor: 'var(--color-surface)',
+                  color: 'var(--color-text)',
+                  resize: 'vertical',
+                  fontFamily: 'inherit',
+                }}
+              />
+              <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 8 }}>
+                <button
+                  onClick={handleBulkInvite}
+                  disabled={inviting || !bulkEmails.trim()}
+                  style={{
+                    padding: '10px 24px',
+                    backgroundColor: 'var(--color-primary)',
+                    color: '#fff',
+                    border: 'none',
+                    borderRadius: 'var(--radius-md)',
+                    fontSize: 14,
+                    fontWeight: 600,
+                    cursor: inviting ? 'wait' : 'pointer',
+                    opacity: inviting || !bulkEmails.trim() ? 0.6 : 1,
+                  }}
+                >
+                  {inviting ? 'Sending...' : 'Send Invites'}
+                </button>
+              </div>
+            </div>
+          )}
+
           {inviteMsg && (
-            <div style={{ marginTop: 8, fontSize: 13, color: inviteMsg.includes('Failed') || inviteMsg.includes('Already') ? 'var(--color-danger)' : 'var(--color-success)' }}>
+            <div style={{ marginTop: 8, fontSize: 13, color: inviteMsg.includes('Failed') || inviteMsg.includes('Already') || inviteMsg.includes('Paste') ? 'var(--color-danger)' : 'var(--color-success)' }}>
               {inviteMsg}
+            </div>
+          )}
+
+          {bulkResults && bulkResults.length > 0 && (
+            <div style={{ marginTop: 12, borderTop: '1px solid var(--color-border)', paddingTop: 12 }}>
+              <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8, color: 'var(--color-text)' }}>
+                Results: {bulkResults.filter(r => r.ok).length} of {bulkResults.length} succeeded
+              </div>
+              <div style={{ maxHeight: 180, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 4 }}>
+                {bulkResults.map((r, i) => (
+                  <div key={i} style={{
+                    fontSize: 12,
+                    padding: '4px 8px',
+                    backgroundColor: r.ok ? '#f0fdf4' : '#fef2f2',
+                    borderRadius: 4,
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    gap: 8,
+                  }}>
+                    <span style={{ color: 'var(--color-text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.email}</span>
+                    <span style={{ color: r.ok ? 'var(--color-success)' : 'var(--color-danger)', fontWeight: 600, flexShrink: 0 }}>
+                      {r.message}
+                    </span>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
         </div>
@@ -223,7 +398,7 @@ export default function AdvisorDashboard() {
         return (
           <div style={{ marginBottom: 32 }}>
             <h2 style={{ fontSize: 16, fontWeight: 600, margin: '0 0 12px', color: 'var(--color-text)' }}>
-              Needs Attention
+              Clients to Review
             </h2>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
               {needsAttention.map(client => (
@@ -254,6 +429,83 @@ export default function AdvisorDashboard() {
                   </div>
                 </div>
               ))}
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* Renewal Review Pipeline */}
+      {(() => {
+        const today = new Date();
+        const upcoming = activeClients
+          .filter(c => c.next_renewal)
+          .map(c => {
+            const renewal = new Date(c.next_renewal as string);
+            const days = Math.ceil((renewal.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+            return { client: c, renewal, days };
+          })
+          .filter(r => r.days >= -7)
+          .sort((a, b) => a.days - b.days)
+          .slice(0, 5);
+        if (upcoming.length === 0) return null;
+        const formatDays = (d: number) => {
+          if (d < 0) return `${Math.abs(d)}d overdue`;
+          if (d === 0) return 'Today';
+          if (d === 1) return 'Tomorrow';
+          return `in ${d}d`;
+        };
+        return (
+          <div style={{ marginBottom: 32 }}>
+            <h2 style={{ fontSize: 16, fontWeight: 600, margin: '0 0 4px', color: 'var(--color-text)' }}>
+              Renewal Review Pipeline
+            </h2>
+            <p style={{ fontSize: 12, color: 'var(--color-text-muted)', margin: '0 0 12px' }}>
+              Next 5 clients with upcoming renewal dates &mdash; review with each client before renewal.
+            </p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {upcoming.map(({ client, renewal, days }) => {
+                const urgent = days <= 14;
+                return (
+                  <div
+                    key={`renewal-${client.id}`}
+                    className="card mobile-col"
+                    onClick={() => { trackClick('agent_renewal_pipeline_row', { client_id: client.id, days }); router.push(`/agent/${client.id}`); }}
+                    style={{
+                      padding: '12px 16px',
+                      cursor: 'pointer',
+                      display: 'grid',
+                      gridTemplateColumns: '90px 1fr auto auto',
+                      alignItems: 'center',
+                      gap: 12,
+                      transition: 'box-shadow 0.15s',
+                      borderLeft: urgent ? '3px solid var(--color-danger)' : '3px solid var(--color-border)',
+                    }}
+                    onMouseEnter={e => { (e.currentTarget as HTMLElement).style.boxShadow = '0 2px 8px rgba(0,0,0,0.08)'; }}
+                    onMouseLeave={e => { (e.currentTarget as HTMLElement).style.boxShadow = ''; }}
+                  >
+                    <div>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: urgent ? 'var(--color-danger)' : 'var(--color-text)' }}>
+                        {formatDays(days)}
+                      </div>
+                      <div style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>
+                        {renewal.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                      </div>
+                    </div>
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--color-text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {client.full_name || client.email}
+                      </div>
+                      <div style={{ fontSize: 12, color: 'var(--color-text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {client.next_action}
+                      </div>
+                    </div>
+                    <CoverageStatusBadge status={client.coverage_status} />
+                    <div style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>
+                      {client.policy_count} {client.policy_count === 1 ? 'policy' : 'policies'}
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </div>
         );
@@ -350,7 +602,7 @@ export default function AdvisorDashboard() {
                 <CoverageStatusBadge status={client.coverage_status} />
               </div>
               <div>
-                <div style={{ fontSize: 12, color: 'var(--color-text-muted)', marginBottom: 2 }}>Next Action</div>
+                <div style={{ fontSize: 12, color: 'var(--color-text-muted)', marginBottom: 2 }}>Suggested Next Step</div>
                 <div style={{
                   fontSize: 13,
                   fontWeight: 600,

@@ -418,8 +418,8 @@ function ChatPageInner() {
                 {msg.role === 'assistant' ? (
                   <>
                     <div className="chat-markdown"><ReactMarkdown>{msg.content}</ReactMarkdown></div>
-                    <div style={{ fontSize: 10, color: 'var(--color-text-muted)', marginTop: 8, opacity: 0.7 }}>
-                      Based on your uploaded policy documents
+                    <div style={{ fontSize: 11, color: 'var(--color-text-muted)', marginTop: 10, opacity: 0.85, lineHeight: 1.4, fontStyle: 'italic' }}>
+                      This is a summary based on your uploaded policy. It may miss exclusions, endorsements, or recent changes — confirm details with your insurance agent or carrier before relying on it.
                     </div>
                   </>
                 ) : msg.content}
@@ -454,13 +454,6 @@ function ChatPageInner() {
           )}
 
           <div ref={messagesEndRef} />
-        </div>
-
-        {/* Source-bound trust line */}
-        <div style={{ padding: '4px 20px', textAlign: 'center', flexShrink: 0 }}>
-          <span style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>
-            Insights are extracted from your uploaded policy documents. Review against your original documents before making decisions.
-          </span>
         </div>
 
         {/* Mic permission error */}

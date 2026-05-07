@@ -200,24 +200,24 @@ def _compute_next_action(flagged_items: list[dict], gaps: list[dict]) -> str:
     """
     expired = [f for f in flagged_items if f.get("category") == "expired_policy"]
     if expired:
-        return f"Renew {expired[0]['title'].replace(' expired', '')} policy"
+        return f"Renewal review needed: {expired[0]['title'].replace(' expired', '')} policy"
 
     compliance = [f for f in flagged_items if f.get("category") == "compliance_fail"]
     if compliance:
-        return f"Address {compliance[0]['detail']}"
+        return f"Discuss with broker: {compliance[0]['detail']}"
 
     urgent_renewals = [f for f in flagged_items if f.get("category") == "upcoming_renewal" and f.get("severity") == "high"]
     if urgent_renewals:
-        return f"Review {urgent_renewals[0]['title']}"
+        return f"Renewal review: {urgent_renewals[0]['title']}"
 
     if gaps:
-        return f"Review {gaps[0].get('name', 'coverage gap')}"
+        return f"Review with broker: {gaps[0].get('name', 'coverage item')}"
 
     other_renewals = [f for f in flagged_items if f.get("category") == "upcoming_renewal"]
     if other_renewals:
-        return f"Review {other_renewals[0]['title']}"
+        return f"Renewal review: {other_renewals[0]['title']}"
 
-    return "No action needed"
+    return "On track — no review items at this time"
 
 
 def _compute_what_to_do(flagged_items: list[dict], gaps: list[dict]) -> list[str]:
@@ -226,14 +226,14 @@ def _compute_what_to_do(flagged_items: list[dict], gaps: list[dict]) -> list[str
 
     for f in flagged_items:
         if f.get("category") == "expired_policy":
-            actions.append(f"Renew {f['title'].replace(' expired', '')} policy")
+            actions.append(f"Renewal review needed: {f['title'].replace(' expired', '')} policy")
         elif f.get("category") == "compliance_fail":
-            actions.append(f"Address {f['detail']}")
+            actions.append(f"Discuss with broker: {f['detail']}")
         elif f.get("category") == "upcoming_renewal":
-            actions.append(f"Review {f['title']}")
+            actions.append(f"Renewal review: {f['title']}")
 
     for g in gaps:
-        rec = g.get("recommendation", g.get("name", "coverage gap"))
+        rec = g.get("recommendation", g.get("name", "coverage item"))
         actions.append(rec)
 
     # Deduplicate while preserving order, cap at 4
@@ -246,7 +246,7 @@ def _compute_what_to_do(flagged_items: list[dict], gaps: list[dict]) -> list[str
         if len(unique) >= 4:
             break
 
-    return unique if unique else ["No action needed"]
+    return unique if unique else ["On track — no review items at this time"]
 
 
 def _flagged_items_for_client(db: Session, client_id: int, policies: list[Policy]) -> list[dict]:
