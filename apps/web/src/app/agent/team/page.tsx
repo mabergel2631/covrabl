@@ -137,13 +137,39 @@ export default function TeamPage() {
     }
   }
 
+  async function handleCreateAgency() {
+    const name = prompt('Name your agency (you can rename it later):', '') || '';
+    if (!name.trim()) return;
+    try {
+      await agentApi.createAgency(name.trim());
+      trackFeatureUse('team_agency_created');
+      await load();
+    } catch (err: any) {
+      alert(err.message || 'Failed to create agency');
+    }
+  }
+
   if (loading) return <div style={{ padding: 32 }}>Loading…</div>;
   if (error) return <div style={{ padding: 32, color: 'var(--color-danger)' }}>{error}</div>;
   if (!agency || !agency.agency_id) {
     return (
       <div style={{ padding: 32, maxWidth: 600, margin: '0 auto' }}>
         <BackButton href="/agent" label="Team" parentLabel="My Clients" />
-        <p style={{ color: 'var(--color-text-secondary)' }}>You aren't a member of any agency yet.</p>
+        <h1 style={{ fontSize: 22, fontWeight: 700, color: 'var(--color-text)', margin: '8px 0 12px' }}>Set up your agency</h1>
+        <p style={{ fontSize: 14, color: 'var(--color-text-secondary)', lineHeight: 1.6, marginBottom: 16 }}>
+          Covrabl works as an agency platform — even solo agents are an "agency of one." Setting one up lets you:
+        </p>
+        <ul style={{ fontSize: 14, color: 'var(--color-text-secondary)', lineHeight: 1.7, paddingLeft: 20, marginBottom: 24 }}>
+          <li>Invite producers, CSRs, and viewers as your team grows</li>
+          <li>Assign producers to specific clients</li>
+          <li>Brand the client-facing pages your clients see (later)</li>
+        </ul>
+        <button
+          onClick={handleCreateAgency}
+          style={{ padding: '10px 22px', backgroundColor: 'var(--color-primary)', color: '#fff', border: 'none', borderRadius: 'var(--radius-md)', fontSize: 14, fontWeight: 600, cursor: 'pointer' }}
+        >
+          + Set up my agency
+        </button>
       </div>
     );
   }

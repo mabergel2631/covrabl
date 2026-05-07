@@ -1877,6 +1877,13 @@ export const agentApi = {
       body: JSON.stringify(payload),
     });
   },
+  createAgency(name?: string): Promise<{ agency_id: number; agency_name: string | null; role: string; created: boolean }> {
+    return request("/agent/agency", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: name || null }),
+    });
+  },
   clientSummary(clientId: number): Promise<AgentClientSummary> {
     return request<AgentClientSummary>(`/agent/clients/${clientId}/summary`);
   },

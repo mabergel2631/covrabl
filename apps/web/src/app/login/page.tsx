@@ -15,15 +15,23 @@ export default function LoginPage() {
   const [sessionExpired, setSessionExpired] = useState(false);
   const [mode, setMode] = useState<'login' | 'register'>('login');
   const [teamInviteToken, setTeamInviteToken] = useState<string | null>(null);
+  const [clientInvitePresent, setClientInvitePresent] = useState(false);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const params = new URLSearchParams(window.location.search);
     if (params.get('expired') === '1') setSessionExpired(true);
-    const tok = params.get('team_invite');
-    if (tok) {
-      setTeamInviteToken(tok);
-      setMode('register'); // default to register; user can switch if they already have an account
+    const teamTok = params.get('team_invite');
+    if (teamTok) {
+      setTeamInviteToken(teamTok);
+      setMode('register');
+    }
+    if (params.get('invite')) {
+      // Client-side invite from an agent — backend auto-claims the
+      // AgentClient row by email match on /auth/register, so we just
+      // need to land them on the register form.
+      setClientInvitePresent(true);
+      setMode('register');
     }
   }, []);
   const [email, setEmail] = useState('');
@@ -120,6 +128,15 @@ export default function LoginPage() {
               borderRadius: 'var(--radius-md)', color: '#1e3a8a',
             }}>
               You've been invited to join a team. {mode === 'register' ? 'Create your account' : 'Sign in'} to accept the invitation.
+            </div>
+          )}
+          {clientInvitePresent && !teamInviteToken && (
+            <div style={{
+              marginBottom: 20, padding: '10px 14px', fontSize: 13,
+              backgroundColor: '#eff6ff', border: '1px solid #bfdbfe',
+              borderRadius: 'var(--radius-md)', color: '#1e3a8a',
+            }}>
+              Your insurance advisor invited you to Covrabl. {mode === 'register' ? 'Create your account' : 'Sign in'} to get started — your advisor's access will connect automatically.
             </div>
           )}
           {sessionExpired && !error && (

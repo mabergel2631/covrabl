@@ -732,7 +732,7 @@ async def invite_client(payload: InviteRequest, agent: User = Depends(require_ag
         # Send invite email
         _raw_url = settings.app_url.rstrip("/")
         app_url = _raw_url if "localhost" not in _raw_url and "127.0.0.1" not in _raw_url else "https://covrabl.vercel.app"
-        invite_url = f"{app_url}/register?invite={invite_token}"
+        invite_url = f"{app_url}/login?invite={invite_token}"
 
         try:
             from .email import send_agent_invite_email
@@ -1997,6 +1997,88 @@ def accept_team_invite(
         "agency_id": member.agency_id,
         "agency_name": agency.name if agency else None,
         "role": member.role,
+    }
+
+
+class CreateAgencyRequest(BaseModel):
+    name: str | None = None  # defaults to email if omitted
+
+
+@router.post("/agency")
+def create_agency(
+    payload: CreateAgencyRequest,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Create an Agency-of-One for the calling user and make them Owner.
+
+    Idempotent: if the user is already a member of any agency, returns that
+    agency's context instead of creating a new one. Lets any registered user
+    self-serve into the agency model — useful for users (incl. admins) whose
+    accounts pre-dated the agency-model migration.
+    """
+    existing = _member_for(db, user.id)
+    if existing is not None:
+        from .models_agency import Agency
+        agency = db.get(Agency, existing.agency_id)
+        return {
+            "agency_id": existing.agency_id,
+            "agency_name": agency.name if agency else None,
+            "role": existing.role,
+            "created": False,
+        }
+
+    name = (payload.name or "").strip() or (user.email or f"Agency {user.id}")
+    slug_base = f"agency-{user.id}"
+    # Ensure slug uniqueness (defensive — should already be unique by user_id)
+    from .models_agency import Agency
+    slug = slug_base
+    counter = 1
+    while db.execute(select(Agency).where(Agency.slug == slug)).scalar_one_or_none():
+        counter += 1
+        slug = f"{slug_base}-{counter}"
+
+    agency = Agency(name=name, slug=slug)
+    db.add(agency)
+    db.flush()
+    member = AgencyMember(
+        agency_id=agency.id,
+        user_id=user.id,
+        role="owner",
+        status="active",
+    )
+    db.add(member)
+
+    # Stamp existing agent-side rows so the user's previously-collected
+    # clients/notes/reviews fall under the new agency
+    db.execute(
+        AgentClient.__table__.update()
+        .where(AgentClient.agent_id == user.id)
+        .where(AgentClient.agency_id.is_(None))
+        .values(agency_id=agency.id)
+    )
+    db.execute(
+        AgentNote.__table__.update()
+        .where(AgentNote.agent_id == user.id)
+        .where(AgentNote.agency_id.is_(None))
+        .values(agency_id=agency.id)
+    )
+    db.execute(
+        RenewalReview.__table__.update()
+        .where(RenewalReview.agent_id == user.id)
+        .where(RenewalReview.agency_id.is_(None))
+        .values(agency_id=agency.id)
+    )
+    # Also promote User.role to "agent" if they were "individual"
+    if user.role == "individual":
+        user.role = "agent"
+    db.commit()
+
+    return {
+        "agency_id": agency.id,
+        "agency_name": agency.name,
+        "role": "owner",
+        "created": True,
     }
 
 
