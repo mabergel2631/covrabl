@@ -1713,6 +1713,7 @@ export type AgentClientPolicy = {
   exposure_name?: string | null;
   status?: string;
   scope?: string;
+  replaces_policy_id?: number | null;
 };
 
 export type AgentFlaggedItem = {
@@ -1767,6 +1768,44 @@ export type AgentClientActivity = {
   total: number;
 };
 
+export type RenewalDelta = {
+  id?: number;
+  field_key: string;
+  old_value: string | null;
+  new_value: string | null;
+  delta_type: string;
+  severity: string;
+};
+
+export type RenewalReviewPolicyBrief = {
+  id?: number;
+  carrier: string;
+  policy_type: string;
+  policy_number: string;
+  renewal_date: string | null;
+  premium_amount: number | null;
+  coverage_amount: number | null;
+  deductible: number | null;
+};
+
+export type RenewalReviewData = {
+  policy: RenewalReviewPolicyBrief;
+  previous_policy: RenewalReviewPolicyBrief | null;
+  deltas: RenewalDelta[];
+  summary_text: string | null;
+  share_token: string | null;
+  shared_at: string | null;
+};
+
+export type PublicRenewalReviewData = {
+  policy: Omit<RenewalReviewPolicyBrief, 'id'>;
+  previous_policy: Omit<RenewalReviewPolicyBrief, 'id'> | null;
+  deltas: RenewalDelta[];
+  summary_text: string | null;
+  shared_at: string | null;
+  agent: { name: string | null; email: string | null };
+};
+
 export const agentApi = {
   clients(): Promise<AgentClient[]> {
     return request<AgentClient[]>("/agent/clients");
@@ -1779,6 +1818,49 @@ export const agentApi = {
   },
   clientActivity(clientId: number): Promise<AgentClientActivity> {
     return request<AgentClientActivity>(`/agent/clients/${clientId}/activity`);
+  },
+  linkRenewal(clientId: number, policyId: number, previousPolicyId: number): Promise<RenewalReviewData> {
+    return request<RenewalReviewData>(`/agent/clients/${clientId}/policies/${policyId}/link-renewal`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ previous_policy_id: previousPolicyId }),
+    });
+  },
+  unlinkRenewal(clientId: number, policyId: number): Promise<{ ok: boolean }> {
+    return request<{ ok: boolean }>(`/agent/clients/${clientId}/policies/${policyId}/link-renewal`, {
+      method: "DELETE",
+    });
+  },
+  renewalReview(policyId: number): Promise<RenewalReviewData> {
+    return request<RenewalReviewData>(`/agent/policies/${policyId}/renewal-review`);
+  },
+  updateRenewalReview(policyId: number, summaryText: string): Promise<RenewalReviewData> {
+    return request<RenewalReviewData>(`/agent/policies/${policyId}/renewal-review`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ summary_text: summaryText }),
+    });
+  },
+  shareRenewalReview(policyId: number): Promise<{ share_token: string; shared_at: string | null }> {
+    return request<{ share_token: string; shared_at: string | null }>(`/agent/policies/${policyId}/renewal-review/share`, {
+      method: "POST",
+    });
+  },
+  revokeRenewalShare(policyId: number): Promise<{ ok: boolean }> {
+    return request<{ ok: boolean }>(`/agent/policies/${policyId}/renewal-review/share`, {
+      method: "DELETE",
+    });
+  },
+  publicRenewalReview(token: string): Promise<PublicRenewalReviewData> {
+    // No auth — uses the share token embedded in the URL.
+    return fetch(`${API_BASE}/renewal-review/public/${encodeURIComponent(token)}`).then(async (r) => {
+      if (!r.ok) {
+        const err: any = new Error(`Renewal review not found (${r.status})`);
+        err.status = r.status;
+        throw err;
+      }
+      return r.json() as Promise<PublicRenewalReviewData>;
+    });
   },
   inviteClient(email: string): Promise<{ ok: boolean; status: string; client_id?: number; invite_token?: string }> {
     return request("/agent/clients/invite", {

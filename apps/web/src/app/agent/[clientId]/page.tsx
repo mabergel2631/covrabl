@@ -45,6 +45,11 @@ export default function ClientDetailPage() {
   // Expanded policy
   const [expandedPolicy, setExpandedPolicy] = useState<number | null>(null);
 
+  // Renewal linkage picker (which policy currently has the picker open)
+  const [renewalPickerFor, setRenewalPickerFor] = useState<number | null>(null);
+  const [renewalPickerSelection, setRenewalPickerSelection] = useState<number | null>(null);
+  const [linkingRenewal, setLinkingRenewal] = useState(false);
+
   // Add Policy
   const [showAddPolicy, setShowAddPolicy] = useState(false);
   const [addPolicyData, setAddPolicyData] = useState({ scope: 'personal', policy_type: '', carrier: '', policy_number: '', coverage_amount: '', deductible: '', premium_amount: '', renewal_date: '', business_name: '' });
@@ -172,6 +177,25 @@ export default function ClientDetailPage() {
       setAddPolicyMsg(err.message || 'Failed to add policy');
     } finally {
       setAddingPolicy(false);
+    }
+  };
+
+  const handleLinkRenewal = async (newPolicyId: number, previousPolicyId: number) => {
+    setLinkingRenewal(true);
+    trackClick('agent_link_renewal_submit', { client_id: clientId, policy_id: newPolicyId, previous_policy_id: previousPolicyId });
+    try {
+      await agentApi.linkRenewal(clientId, newPolicyId, previousPolicyId);
+      trackFeatureUse('agent_renewal_linked', { policy_id: newPolicyId, previous_policy_id: previousPolicyId });
+      // Refresh client summary so the policy now shows replaces_policy_id
+      const summary = await agentApi.clientSummary(clientId);
+      setData(summary);
+      setRenewalPickerFor(null);
+      setRenewalPickerSelection(null);
+      router.push(`/agent/${clientId}/policies/${newPolicyId}/renewal`);
+    } catch (err: any) {
+      alert(err?.message || 'Failed to link renewal');
+    } finally {
+      setLinkingRenewal(false);
     }
   };
 
@@ -651,6 +675,121 @@ export default function ClientDetailPage() {
                         <div><span style={{ color: 'var(--color-text-muted)' }}>Scope:</span> <strong style={{ textTransform: 'capitalize' }}>{p.scope || '--'}</strong></div>
                         {p.nickname && <div><span style={{ color: 'var(--color-text-muted)' }}>Nickname:</span> <strong>{p.nickname}</strong></div>}
                       </div>
+
+                      {/* Renewal review action */}
+                      <div style={{ padding: '8px 0 12px', borderTop: '1px solid var(--color-border)' }}>
+                        {p.replaces_policy_id ? (
+                          (() => {
+                            const prev = data.policies.find(pp => pp.id === p.replaces_policy_id);
+                            return (
+                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+                                <div style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>
+                                  Linked as renewal of {prev ? `${prev.carrier} ${prev.policy_type}` : `policy #${p.replaces_policy_id}`}
+                                </div>
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); trackClick('agent_open_renewal_review', { policy_id: p.id, client_id: clientId }); router.push(`/agent/${clientId}/policies/${p.id}/renewal`); }}
+                                  style={{
+                                    padding: '6px 14px',
+                                    backgroundColor: 'var(--color-primary)',
+                                    color: '#fff',
+                                    border: 'none',
+                                    borderRadius: 'var(--radius-md)',
+                                    fontSize: 12,
+                                    fontWeight: 600,
+                                    cursor: 'pointer',
+                                  }}
+                                >
+                                  Open Renewal Review →
+                                </button>
+                              </div>
+                            );
+                          })()
+                        ) : renewalPickerFor === p.id ? (
+                          (() => {
+                            const candidates = data.policies.filter(pp => pp.id !== p.id && (pp.policy_type === p.policy_type || (pp.scope === p.scope && pp.exposure_id === p.exposure_id)));
+                            return (
+                              <div onClick={e => e.stopPropagation()}>
+                                <div style={{ fontSize: 12, color: 'var(--color-text-muted)', marginBottom: 6 }}>
+                                  Which previous policy is this a renewal of?
+                                </div>
+                                {candidates.length === 0 ? (
+                                  <div style={{ fontSize: 13, color: 'var(--color-text-muted)', fontStyle: 'italic' }}>
+                                    No matching previous policy on this client.
+                                  </div>
+                                ) : (
+                                  <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                                    <select
+                                      value={renewalPickerSelection ?? ''}
+                                      onChange={(e) => setRenewalPickerSelection(e.target.value ? Number(e.target.value) : null)}
+                                      style={{ padding: '8px 12px', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', fontSize: 13, backgroundColor: 'var(--color-surface)', color: 'var(--color-text)', minWidth: 240 }}
+                                    >
+                                      <option value="">Select previous policy...</option>
+                                      {candidates.map(c => (
+                                        <option key={c.id} value={c.id}>
+                                          {c.carrier} {c.policy_type}{c.policy_number ? ` · ${c.policy_number}` : ''}{c.renewal_date ? ` · renewed ${c.renewal_date}` : ''}
+                                        </option>
+                                      ))}
+                                    </select>
+                                    <button
+                                      onClick={() => renewalPickerSelection && handleLinkRenewal(p.id, renewalPickerSelection)}
+                                      disabled={!renewalPickerSelection || linkingRenewal}
+                                      style={{
+                                        padding: '8px 16px',
+                                        backgroundColor: 'var(--color-primary)',
+                                        color: '#fff',
+                                        border: 'none',
+                                        borderRadius: 'var(--radius-md)',
+                                        fontSize: 13,
+                                        fontWeight: 600,
+                                        cursor: linkingRenewal ? 'wait' : 'pointer',
+                                        opacity: (!renewalPickerSelection || linkingRenewal) ? 0.6 : 1,
+                                      }}
+                                    >
+                                      {linkingRenewal ? 'Linking...' : 'Link as renewal'}
+                                    </button>
+                                    <button
+                                      onClick={() => { setRenewalPickerFor(null); setRenewalPickerSelection(null); }}
+                                      style={{
+                                        padding: '8px 12px',
+                                        backgroundColor: 'transparent',
+                                        color: 'var(--color-text-muted)',
+                                        border: '1px solid var(--color-border)',
+                                        borderRadius: 'var(--radius-md)',
+                                        fontSize: 13,
+                                        cursor: 'pointer',
+                                      }}
+                                    >
+                                      Cancel
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })()
+                        ) : (
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+                            <div style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>
+                              Renewal review &mdash; link this policy to the prior term to see year-over-year changes.
+                            </div>
+                            <button
+                              onClick={(e) => { e.stopPropagation(); trackClick('agent_renewal_picker_open', { policy_id: p.id, client_id: clientId }); setRenewalPickerFor(p.id); setRenewalPickerSelection(null); }}
+                              style={{
+                                padding: '6px 14px',
+                                backgroundColor: 'var(--color-surface)',
+                                color: 'var(--color-text)',
+                                border: '1px solid var(--color-border)',
+                                borderRadius: 'var(--radius-md)',
+                                fontSize: 12,
+                                fontWeight: 600,
+                                cursor: 'pointer',
+                              }}
+                            >
+                              Mark as renewal of...
+                            </button>
+                          </div>
+                        )}
+                      </div>
+
                       {policyDocs.length > 0 ? (
                         <>
                           <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-text)', marginBottom: 8 }}>Documents</div>

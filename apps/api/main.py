@@ -37,6 +37,7 @@ from app.routes_deltas import router as deltas_router
 from app.routes_scores import router as scores_router
 from app.routes_inbound import router as inbound_router
 from app.routes_agent import router as agent_router
+from app.routes_renewal_review import router as renewal_review_router
 from app.routes_admin import router as admin_router, public_router as announcements_router
 from app.routes_exposures import router as exposures_router
 from app.routes_certificates import router as certificates_router
@@ -87,7 +88,7 @@ async def global_exception_handler(request: Request, exc: Exception):
 @app.get("/health")
 def health_check():
     from app.config import settings
-    return {"status": "ok", "app_url": settings.app_url, "version": "2026-05-07-client-detail-fixes"}
+    return {"status": "ok", "app_url": settings.app_url, "version": "2026-05-07-renewal-review"}
 
 
 @app.on_event("startup")
@@ -182,6 +183,7 @@ app.include_router(deltas_router)
 app.include_router(scores_router)
 app.include_router(inbound_router)
 app.include_router(agent_router)
+app.include_router(renewal_review_router)
 app.include_router(admin_router)
 app.include_router(announcements_router)
 app.include_router(exposures_router)

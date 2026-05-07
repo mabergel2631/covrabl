@@ -128,6 +128,25 @@ class DeltaExplanation(Base):
     created_at: Mapped[DateTime] = mapped_column(DateTime, server_default=func.now())
 
 
+class RenewalReview(Base):
+    """Agent-authored renewal review attached to the renewing policy.
+
+    The renewing (newer) policy is the anchor. PolicyDelta rows for that
+    policy provide the structured change list; the agent provides a
+    summary they can share with the client.
+    """
+    __tablename__ = "renewal_reviews"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    policy_id: Mapped[int] = mapped_column(Integer, ForeignKey("policies.id", ondelete="CASCADE"), unique=True, index=True)
+    agent_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), index=True)
+    summary_text: Mapped[str | None] = mapped_column(Text, nullable=True)
+    share_token: Mapped[str | None] = mapped_column(String(60), nullable=True, unique=True, index=True)
+    shared_at: Mapped[DateTime | None] = mapped_column(DateTime, nullable=True)
+    created_at: Mapped[DateTime] = mapped_column(DateTime, server_default=func.now())
+    updated_at: Mapped[DateTime] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now())
+
+
 class CoverageScore(Base):
     """User coverage score by category."""
     __tablename__ = "coverage_scores"

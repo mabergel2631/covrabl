@@ -14,7 +14,8 @@ from .db import get_db
 from .models import User, Policy, Contact, PolicyDetail, Exposure
 from .models_agent import AgentClient, AgentNote, AgentPolicyAccess
 from .models_documents import Document
-from .models_features import PolicyShare, CoverageScore, ComplianceCheck, LeaseRequirement, AuditLog, UserEvent
+from .models_features import PolicyShare, CoverageScore, ComplianceCheck, LeaseRequirement, AuditLog, UserEvent, PolicyDelta, RenewalReview
+from .routes_deltas import determine_delta_type, calculate_severity, TRACKED_FIELDS
 from .storage import presign_put_url
 from .audit_helper import log_action
 
@@ -640,6 +641,7 @@ def client_summary(client_id: int, agent: User = Depends(require_agent), db: Ses
             "exposure_name": exposure_name,
             "status": p.status or "active",
             "scope": p.scope,
+            "replaces_policy_id": p.replaces_policy_id,
         })
 
     score_row = db.execute(
@@ -1184,3 +1186,246 @@ def client_activity(
         "last_seen": last_seen,
         "total": len(items),
     }
+
+
+# ── Renewal review ─────────────────────────────────────
+
+
+class LinkRenewalRequest(BaseModel):
+    previous_policy_id: int
+
+
+class RenewalReviewUpdate(BaseModel):
+    summary_text: str | None = None
+
+
+def _serialize_policy_brief(p: Policy) -> dict:
+    return {
+        "id": p.id,
+        "carrier": p.carrier,
+        "policy_type": p.policy_type,
+        "policy_number": p.policy_number,
+        "renewal_date": str(p.renewal_date) if p.renewal_date else None,
+        "premium_amount": p.premium_amount,
+        "coverage_amount": p.coverage_amount,
+        "deductible": p.deductible,
+    }
+
+
+def _renewal_review_payload(db: Session, policy: Policy) -> dict:
+    """Build the renewal-review response payload for a renewing policy."""
+    review = db.execute(
+        select(RenewalReview).where(RenewalReview.policy_id == policy.id)
+    ).scalar_one_or_none()
+
+    deltas = db.execute(
+        select(PolicyDelta)
+        .where(PolicyDelta.policy_id == policy.id)
+        .order_by(PolicyDelta.created_at.asc())
+    ).scalars().all()
+
+    previous_policy: dict | None = None
+    if policy.replaces_policy_id:
+        prev = db.get(Policy, policy.replaces_policy_id)
+        if prev:
+            previous_policy = _serialize_policy_brief(prev)
+
+    return {
+        "policy": _serialize_policy_brief(policy),
+        "previous_policy": previous_policy,
+        "deltas": [
+            {
+                "id": d.id,
+                "field_key": d.field_key,
+                "old_value": d.old_value,
+                "new_value": d.new_value,
+                "delta_type": d.delta_type,
+                "severity": d.severity,
+            }
+            for d in deltas
+        ],
+        "summary_text": review.summary_text if review else None,
+        "share_token": review.share_token if review else None,
+        "shared_at": review.shared_at.isoformat() if (review and review.shared_at) else None,
+    }
+
+
+@router.post("/clients/{client_id}/policies/{policy_id}/link-renewal")
+def link_renewal(
+    client_id: int,
+    policy_id: int,
+    payload: LinkRenewalRequest,
+    agent: User = Depends(require_agent),
+    db: Session = Depends(get_db),
+):
+    """Mark policy_id as a renewal of payload.previous_policy_id.
+
+    Sets Policy.replaces_policy_id, computes PolicyDelta rows comparing the
+    renewing policy's tracked fields against the prior policy, and creates
+    an empty RenewalReview the agent can author against.
+    """
+    _verify_client_access(db, agent, client_id)
+
+    new_policy = db.get(Policy, policy_id)
+    if not new_policy or new_policy.user_id != client_id:
+        raise HTTPException(status_code=404, detail="Policy not found for this client")
+    old_policy = db.get(Policy, payload.previous_policy_id)
+    if not old_policy or old_policy.user_id != client_id:
+        raise HTTPException(status_code=404, detail="Previous policy not found for this client")
+    if old_policy.id == new_policy.id:
+        raise HTTPException(status_code=400, detail="Cannot link a policy to itself")
+
+    new_policy.replaces_policy_id = old_policy.id
+
+    # Replace any existing renewal-deltas for the new policy so re-linking
+    # gives a clean diff and we don't accumulate stale comparisons.
+    db.execute(
+        sa_delete(PolicyDelta).where(PolicyDelta.policy_id == new_policy.id)
+    )
+
+    for field in TRACKED_FIELDS:
+        old_value = getattr(old_policy, field, None)
+        new_value = getattr(new_policy, field, None)
+        if old_value is None and new_value is None:
+            continue
+        old_str = str(old_value) if old_value is not None else None
+        new_str = str(new_value) if new_value is not None else None
+        if old_str == new_str:
+            continue
+        delta_type = determine_delta_type(field, old_str, new_str)
+        severity = calculate_severity(field, old_str, new_str, delta_type)
+        db.add(PolicyDelta(
+            policy_id=new_policy.id,
+            field_key=field,
+            old_value=old_str,
+            new_value=new_str,
+            delta_type=delta_type,
+            severity=severity,
+        ))
+
+    review = db.execute(
+        select(RenewalReview).where(RenewalReview.policy_id == new_policy.id)
+    ).scalar_one_or_none()
+    if not review:
+        db.add(RenewalReview(
+            policy_id=new_policy.id,
+            agent_id=agent.id,
+            summary_text=None,
+        ))
+
+    log_action(
+        db, client_id, "linked_renewal", "policy", new_policy.id,
+        f"Linked as renewal of policy {old_policy.id} by agent {agent.id}",
+    )
+    db.commit()
+    db.refresh(new_policy)
+    return _renewal_review_payload(db, new_policy)
+
+
+@router.delete("/clients/{client_id}/policies/{policy_id}/link-renewal")
+def unlink_renewal(
+    client_id: int,
+    policy_id: int,
+    agent: User = Depends(require_agent),
+    db: Session = Depends(get_db),
+):
+    """Remove the renewal linkage and clear computed deltas + review row."""
+    _verify_client_access(db, agent, client_id)
+    new_policy = db.get(Policy, policy_id)
+    if not new_policy or new_policy.user_id != client_id:
+        raise HTTPException(status_code=404, detail="Policy not found for this client")
+
+    new_policy.replaces_policy_id = None
+    db.execute(sa_delete(PolicyDelta).where(PolicyDelta.policy_id == policy_id))
+    db.execute(sa_delete(RenewalReview).where(RenewalReview.policy_id == policy_id))
+    log_action(db, client_id, "unlinked_renewal", "policy", policy_id, f"By agent {agent.id}")
+    db.commit()
+    return {"ok": True}
+
+
+@router.get("/policies/{policy_id}/renewal-review")
+def get_renewal_review(
+    policy_id: int,
+    agent: User = Depends(require_agent),
+    db: Session = Depends(get_db),
+):
+    """Get the renewal review for a policy: deltas + agent summary + share state."""
+    policy = db.get(Policy, policy_id)
+    if not policy:
+        raise HTTPException(status_code=404, detail="Policy not found")
+    _verify_client_access(db, agent, policy.user_id)
+    return _renewal_review_payload(db, policy)
+
+
+@router.put("/policies/{policy_id}/renewal-review")
+def update_renewal_review(
+    policy_id: int,
+    payload: RenewalReviewUpdate,
+    agent: User = Depends(require_agent),
+    db: Session = Depends(get_db),
+):
+    """Upsert the agent-authored summary on a renewal review."""
+    policy = db.get(Policy, policy_id)
+    if not policy:
+        raise HTTPException(status_code=404, detail="Policy not found")
+    _verify_client_access(db, agent, policy.user_id)
+
+    review = db.execute(
+        select(RenewalReview).where(RenewalReview.policy_id == policy_id)
+    ).scalar_one_or_none()
+    if not review:
+        review = RenewalReview(policy_id=policy_id, agent_id=agent.id)
+        db.add(review)
+
+    review.summary_text = (payload.summary_text or "").strip() or None
+    db.commit()
+    db.refresh(policy)
+    return _renewal_review_payload(db, policy)
+
+
+@router.post("/policies/{policy_id}/renewal-review/share")
+def share_renewal_review(
+    policy_id: int,
+    agent: User = Depends(require_agent),
+    db: Session = Depends(get_db),
+):
+    """Generate (or return existing) share token for the renewal review."""
+    policy = db.get(Policy, policy_id)
+    if not policy:
+        raise HTTPException(status_code=404, detail="Policy not found")
+    _verify_client_access(db, agent, policy.user_id)
+
+    review = db.execute(
+        select(RenewalReview).where(RenewalReview.policy_id == policy_id)
+    ).scalar_one_or_none()
+    if not review:
+        raise HTTPException(status_code=404, detail="No renewal review yet")
+    if not review.share_token:
+        review.share_token = secrets.token_urlsafe(24)
+        review.shared_at = datetime.now()
+    db.commit()
+    return {
+        "share_token": review.share_token,
+        "shared_at": review.shared_at.isoformat() if review.shared_at else None,
+    }
+
+
+@router.delete("/policies/{policy_id}/renewal-review/share")
+def revoke_renewal_share(
+    policy_id: int,
+    agent: User = Depends(require_agent),
+    db: Session = Depends(get_db),
+):
+    """Revoke the public share link."""
+    policy = db.get(Policy, policy_id)
+    if not policy:
+        raise HTTPException(status_code=404, detail="Policy not found")
+    _verify_client_access(db, agent, policy.user_id)
+    review = db.execute(
+        select(RenewalReview).where(RenewalReview.policy_id == policy_id)
+    ).scalar_one_or_none()
+    if review:
+        review.share_token = None
+        review.shared_at = None
+        db.commit()
+    return {"ok": True}
