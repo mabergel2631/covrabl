@@ -342,6 +342,86 @@ r = client.put(
 ok = r.status_code == 404  # Member exists but is in a different agency, so 404 from agency-scoped lookup
 expect("cross-tenant member edits return 404", ok, f"status={r.status_code} target={other_member_id}")
 
+# ── Renewal Review verification (post-agency-model) ───
+# This block exercises the renewal-review write paths to confirm the
+# phase-2 agency-scoping changes didn't break them.
+
+# Setup: Owner creates two policies for the client — a prior year and a renewing year
+prior_payload = {
+    "scope": "personal", "policy_type": "Auto", "carrier": "Travelers",
+    "policy_number": "TR-001-2024", "coverage_amount": 100000,
+    "deductible": 1000, "premium_amount": 1800,
+    "renewal_date": "2025-06-01",
+}
+r = client.post(f"/agent/clients/{CLIENT_ID}/policies", headers=hdr(owner_token), json=prior_payload)
+PRIOR_POLICY_ID = r.json().get("policy_id") if r.status_code == 200 else None
+expect("create prior-year policy", r.status_code == 200 and PRIOR_POLICY_ID is not None, f"status={r.status_code}")
+
+renewing_payload = {
+    "scope": "personal", "policy_type": "Auto", "carrier": "Chubb",
+    "policy_number": "CH-001-2025", "coverage_amount": 150000,
+    "deductible": 1500, "premium_amount": 2100,
+    "renewal_date": "2026-06-01",
+}
+r = client.post(f"/agent/clients/{CLIENT_ID}/policies", headers=hdr(owner_token), json=renewing_payload)
+RENEWING_POLICY_ID = r.json().get("policy_id") if r.status_code == 200 else None
+expect("create renewing policy", r.status_code == 200 and RENEWING_POLICY_ID is not None, f"status={r.status_code}")
+
+# Test 25: Link renewal — Owner links the new policy as renewal of the prior
+r = client.post(
+    f"/agent/clients/{CLIENT_ID}/policies/{RENEWING_POLICY_ID}/link-renewal",
+    headers=hdr(owner_token),
+    json={"previous_policy_id": PRIOR_POLICY_ID},
+)
+body = r.json() if r.status_code == 200 else {}
+ok = (
+    r.status_code == 200
+    and body.get("policy", {}).get("id") == RENEWING_POLICY_ID
+    and body.get("previous_policy", {}).get("id") == PRIOR_POLICY_ID
+    and len(body.get("deltas", [])) > 0  # should detect carrier, coverage, deductible, premium changes
+)
+expect("link-renewal computes deltas", ok, f"status={r.status_code} deltas={len(body.get('deltas', []))}")
+
+# Test 26: Producer (cross-member) can view the renewal review
+r = client.get(f"/agent/policies/{RENEWING_POLICY_ID}/renewal-review", headers=hdr(producer_token))
+ok = r.status_code == 200 and len(r.json().get("deltas", [])) > 0
+expect("producer reads renewal-review (cross-member)", ok, f"status={r.status_code}")
+
+# Test 27: Producer can update summary text (write role allows producer)
+r = client.put(
+    f"/agent/policies/{RENEWING_POLICY_ID}/renewal-review",
+    headers=hdr(producer_token),
+    json={"summary_text": "Premium up 17%; carrier change; deductible up $500. Discuss with client."},
+)
+ok = r.status_code == 200 and "Premium up" in (r.json().get("summary_text") or "")
+expect("producer updates renewal-review summary", ok, f"status={r.status_code}")
+
+# Test 28: Owner generates share token
+r = client.post(f"/agent/policies/{RENEWING_POLICY_ID}/renewal-review/share", headers=hdr(owner_token))
+SHARE_TOKEN = r.json().get("share_token") if r.status_code == 200 else None
+ok = r.status_code == 200 and SHARE_TOKEN and len(SHARE_TOKEN) >= 16
+expect("owner generates share token", ok, f"status={r.status_code} token_len={len(SHARE_TOKEN or '')}")
+
+# Test 29: Public renewal-review endpoint resolves the token (no auth)
+r = client.get(f"/renewal-review/public/{SHARE_TOKEN}")
+body = r.json() if r.status_code == 200 else {}
+ok = (
+    r.status_code == 200
+    and body.get("summary_text", "").startswith("Premium up")
+    and len(body.get("deltas", [])) > 0
+)
+expect("public share token works (read-only)", ok, f"status={r.status_code}")
+
+# Test 30: Owner revokes share token
+r = client.delete(f"/agent/policies/{RENEWING_POLICY_ID}/renewal-review/share", headers=hdr(owner_token))
+ok = r.status_code == 200
+expect("owner revokes share token", ok, f"status={r.status_code}")
+
+# Test 31: Public endpoint with revoked token returns 404
+r = client.get(f"/renewal-review/public/{SHARE_TOKEN}")
+ok = r.status_code == 404
+expect("revoked token returns 404", ok, f"status={r.status_code}")
+
 
 # Summary
 print()

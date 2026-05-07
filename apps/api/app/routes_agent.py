@@ -4,7 +4,7 @@ from datetime import datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
-from sqlalchemy import select, func, distinct, or_, and_
+from sqlalchemy import select, func, distinct, or_, and_, delete as sa_delete
 from sqlalchemy.orm import Session
 
 from .auth import get_current_user
