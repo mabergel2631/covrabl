@@ -89,7 +89,7 @@ async def global_exception_handler(request: Request, exc: Exception):
 @app.get("/health")
 def health_check():
     from app.config import settings
-    return {"status": "ok", "app_url": settings.app_url, "version": "2026-05-07-renewal-review"}
+    return {"status": "ok", "app_url": settings.app_url, "version": "2026-05-07-agency-selfheal"}
 
 
 @app.on_event("startup")
@@ -165,6 +165,129 @@ def on_startup():
         with engine.begin() as conn:
             conn.execute(text("ALTER TABLE compliance_checks ADD COLUMN report_text TEXT"))
             logging.info("Added report_text column to compliance_checks")
+
+    # ─── Agency model self-heal (covers cases where the alembic migration
+    # didn't fully apply ALTERs on Postgres) ───────────────────────────
+    insp = inspect(engine)  # refresh
+    existing_tables = set(insp.get_table_names())
+
+    # 1. agencies + agency_members tables
+    if "agencies" not in existing_tables:
+        with engine.begin() as conn:
+            conn.execute(text("""
+                CREATE TABLE agencies (
+                    id SERIAL PRIMARY KEY,
+                    name VARCHAR(200) NOT NULL,
+                    slug VARCHAR(80) NOT NULL UNIQUE,
+                    brand_logo_url VARCHAR(500),
+                    brand_color VARCHAR(20),
+                    created_at TIMESTAMP DEFAULT NOW()
+                )
+            """))
+            conn.execute(text("CREATE INDEX ix_agencies_id ON agencies(id)"))
+            logging.info("Self-heal: created agencies table")
+
+    if "agency_members" not in existing_tables:
+        with engine.begin() as conn:
+            conn.execute(text("""
+                CREATE TABLE agency_members (
+                    id SERIAL PRIMARY KEY,
+                    agency_id INTEGER NOT NULL REFERENCES agencies(id) ON DELETE CASCADE,
+                    user_id INTEGER REFERENCES users(id),
+                    role VARCHAR(20) NOT NULL,
+                    status VARCHAR(20) NOT NULL DEFAULT 'active',
+                    invited_email VARCHAR(255),
+                    invite_token VARCHAR(100) UNIQUE,
+                    created_at TIMESTAMP DEFAULT NOW(),
+                    removed_at TIMESTAMP,
+                    CONSTRAINT uq_agency_member_user UNIQUE (agency_id, user_id)
+                )
+            """))
+            conn.execute(text("CREATE INDEX ix_agency_members_agency_id ON agency_members(agency_id)"))
+            conn.execute(text("CREATE INDEX ix_agency_members_user_id ON agency_members(user_id)"))
+            logging.info("Self-heal: created agency_members table")
+
+    # 2. agent_clients new columns
+    ac_cols = [c["name"] for c in insp.get_columns("agent_clients")] if "agent_clients" in existing_tables else []
+    with engine.begin() as conn:
+        if "agent_clients" in existing_tables:
+            if "agency_id" not in ac_cols:
+                conn.execute(text("ALTER TABLE agent_clients ADD COLUMN agency_id INTEGER REFERENCES agencies(id)"))
+                conn.execute(text("CREATE INDEX IF NOT EXISTS ix_agent_clients_agency_id ON agent_clients(agency_id)"))
+                logging.info("Self-heal: added agency_id to agent_clients")
+            if "producer_member_id" not in ac_cols:
+                conn.execute(text("ALTER TABLE agent_clients ADD COLUMN producer_member_id INTEGER REFERENCES agency_members(id)"))
+                logging.info("Self-heal: added producer_member_id to agent_clients")
+
+    # 3. agent_notes new column
+    an_cols = [c["name"] for c in insp.get_columns("agent_notes")] if "agent_notes" in existing_tables else []
+    with engine.begin() as conn:
+        if "agent_notes" in existing_tables and "agency_id" not in an_cols:
+            conn.execute(text("ALTER TABLE agent_notes ADD COLUMN agency_id INTEGER REFERENCES agencies(id)"))
+            conn.execute(text("CREATE INDEX IF NOT EXISTS ix_agent_notes_agency_id ON agent_notes(agency_id)"))
+            logging.info("Self-heal: added agency_id to agent_notes")
+
+    # 4. renewal_reviews new column
+    rr_cols = [c["name"] for c in insp.get_columns("renewal_reviews")] if "renewal_reviews" in existing_tables else []
+    with engine.begin() as conn:
+        if "renewal_reviews" in existing_tables and "agency_id" not in rr_cols:
+            conn.execute(text("ALTER TABLE renewal_reviews ADD COLUMN agency_id INTEGER REFERENCES agencies(id)"))
+            conn.execute(text("CREATE INDEX IF NOT EXISTS ix_renewal_reviews_agency_id ON renewal_reviews(agency_id)"))
+            logging.info("Self-heal: added agency_id to renewal_reviews")
+
+    # 5. Agency-of-One backfill — idempotent. For every User with role='agent'
+    # who has no AgencyMember row, create their agency and Owner membership,
+    # then stamp agency_id on their agent_clients / agent_notes / renewal_reviews.
+    with engine.begin() as conn:
+        result = conn.execute(text("""
+            SELECT u.id, u.email FROM users u
+            WHERE u.role = 'agent'
+              AND NOT EXISTS (
+                SELECT 1 FROM agency_members am WHERE am.user_id = u.id AND am.status = 'active'
+              )
+        """))
+        agentless = list(result)
+        for row in agentless:
+            uid, email = row[0], row[1]
+            # Create agency
+            aresult = conn.execute(
+                text("""
+                    INSERT INTO agencies (name, slug, created_at)
+                    VALUES (:name, :slug, NOW())
+                    RETURNING id
+                """),
+                {"name": email or f"Agency {uid}", "slug": f"agency-{uid}"},
+            )
+            aid = aresult.scalar()
+            # Create Owner membership
+            conn.execute(
+                text("""
+                    INSERT INTO agency_members (agency_id, user_id, role, status, created_at)
+                    VALUES (:aid, :uid, 'owner', 'active', NOW())
+                """),
+                {"aid": aid, "uid": uid},
+            )
+            # Stamp existing agent-side rows
+            conn.execute(
+                text("UPDATE agent_clients SET agency_id = :aid WHERE agent_id = :uid AND agency_id IS NULL"),
+                {"aid": aid, "uid": uid},
+            )
+            conn.execute(
+                text("UPDATE agent_notes SET agency_id = :aid WHERE agent_id = :uid AND agency_id IS NULL"),
+                {"aid": aid, "uid": uid},
+            )
+            conn.execute(
+                text("UPDATE renewal_reviews SET agency_id = :aid WHERE agent_id = :uid AND agency_id IS NULL"),
+                {"aid": aid, "uid": uid},
+            )
+            try:
+                conn.execute(
+                    text("UPDATE agent_policy_access SET agency_id = :aid WHERE agent_id = :uid AND agency_id IS NULL"),
+                    {"aid": aid, "uid": uid},
+                )
+            except Exception:
+                pass  # table or column may not exist yet on a stripped-down install
+            logging.info("Self-heal: created Agency-of-One for user %s (%s)", uid, email)
 
     # Idempotent data normalization
     with engine.begin() as conn:
