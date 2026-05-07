@@ -1915,6 +1915,29 @@ export const agentApi = {
       method: "POST",
     });
   },
+  updatePolicyForClient(clientId: number, policyId: number, payload: Partial<{
+    scope: 'personal' | 'business';
+    policy_type: string;
+    carrier: string;
+    policy_number: string;
+    coverage_amount: number | null;
+    deductible: number | null;
+    premium_amount: number | null;
+    renewal_date: string | null;
+    business_name: string | null;
+    status: 'active' | 'expired' | 'archived';
+  }>): Promise<{ ok: boolean; policy_id: number; scope: string; policy_type: string; carrier: string; policy_number: string }> {
+    return request(`/agent/clients/${clientId}/policies/${policyId}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+  },
+  deletePolicyForClient(clientId: number, policyId: number): Promise<{ ok: boolean }> {
+    return request(`/agent/clients/${clientId}/policies/${policyId}`, {
+      method: "DELETE",
+    });
+  },
   renewalReview(policyId: number): Promise<RenewalReviewData> {
     return request<RenewalReviewData>(`/agent/policies/${policyId}/renewal-review`);
   },

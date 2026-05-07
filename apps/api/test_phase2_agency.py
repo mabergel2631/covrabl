@@ -457,6 +457,77 @@ expect("restored item reappears on public share",
 # Clean up share token before the rest of the test continues
 client.delete(f"/agent/policies/{RENEWING_POLICY_ID}/renewal-review/share", headers=hdr(owner_token))
 
+# ── Agent edit + delete on a client's policy ──────────
+
+# Test ED1: Owner can edit a policy (change type, coverage, premium, etc.)
+edit_payload = {
+    "scope": "personal", "policy_type": "Auto", "carrier": "Geico",
+    "policy_number": "ED-EDIT-100", "coverage_amount": 200000,
+    "deductible": 750, "premium_amount": 1700,
+    "renewal_date": "2026-09-15",
+}
+r = client.post(f"/agent/clients/{CLIENT_ID}/policies", headers=hdr(owner_token), json=edit_payload)
+ED_PID = r.json().get("policy_id")
+expect("create policy for edit-test", r.status_code == 200 and ED_PID is not None, f"status={r.status_code}")
+
+# Update it: bump premium, change carrier, change scope to business
+r = client.put(
+    f"/agent/clients/{CLIENT_ID}/policies/{ED_PID}",
+    headers=hdr(owner_token),
+    json={"carrier": "Liberty Mutual", "premium_amount": 2050, "scope": "business"},
+)
+body = r.json() if r.status_code == 200 else {}
+ok = (
+    r.status_code == 200
+    and body.get("carrier") == "Liberty Mutual"
+    and body.get("premium_amount") == 2050
+    and body.get("scope") == "business"
+)
+expect("agent updates policy fields (carrier, premium, scope)", ok, f"status={r.status_code} body={body}")
+
+# Test ED2: Viewer cannot edit (write role required)
+r = client.put(
+    f"/agent/clients/{CLIENT_ID}/policies/{ED_PID}",
+    headers=hdr(viewer_token),
+    json={"carrier": "Should Not Save"},
+)
+expect("viewer cannot edit policy (write-role enforced)", r.status_code == 403, f"status={r.status_code}")
+
+# Test ED3: Cross-tenant agents cannot edit. Use the Agency 2 owner token from prior
+# tests (other_owner) — they should see the policy as not found (agency-scoped check).
+# We skipped tracking other_owner_token earlier; re-create one for this test.
+db = SessionLocal()
+from app.models import User as _U
+xx = db.execute(select(_U).where(_U.email == "other-owner@other.test")).scalar_one_or_none()
+xx_id = xx.id if xx else None
+db.close()
+if xx_id:
+    other_token = create_access_token(xx_id)
+    r = client.put(
+        f"/agent/clients/{CLIENT_ID}/policies/{ED_PID}",
+        headers=hdr(other_token),
+        json={"carrier": "Cross-tenant attack"},
+    )
+    expect("cross-tenant agent cannot edit (403 from _verify_client_access)",
+           r.status_code in (403, 404), f"status={r.status_code}")
+
+# Test ED4: Owner deletes the policy. Confirm it's gone from the client list.
+r = client.delete(f"/agent/clients/{CLIENT_ID}/policies/{ED_PID}", headers=hdr(owner_token))
+expect("agent deletes policy (cascade)", r.status_code == 200 and r.json().get("ok") is True, f"status={r.status_code}")
+
+r = client.get(f"/agent/clients/{CLIENT_ID}/summary", headers=hdr(owner_token))
+remaining_ids = [p.get("id") for p in r.json().get("policies", [])]
+expect("deleted policy no longer in client summary", ED_PID not in remaining_ids, f"remaining={remaining_ids}")
+
+# Test ED5: Viewer cannot delete
+# Create another to attempt deletion
+r = client.post(f"/agent/clients/{CLIENT_ID}/policies", headers=hdr(owner_token), json=edit_payload)
+ED_PID2 = r.json().get("policy_id")
+r = client.delete(f"/agent/clients/{CLIENT_ID}/policies/{ED_PID2}", headers=hdr(viewer_token))
+expect("viewer cannot delete (write-role enforced)", r.status_code == 403, f"status={r.status_code}")
+# Cleanup
+client.delete(f"/agent/clients/{CLIENT_ID}/policies/{ED_PID2}", headers=hdr(owner_token))
+
 # Test 25d: PolicyDetail comparison — verify detail-level deltas appear when
 # both policies have matching field_name/field_value rows that differ.
 # Use the seed-prior-year endpoint on a fresh policy; it auto-populates

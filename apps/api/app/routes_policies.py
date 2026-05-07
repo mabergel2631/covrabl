@@ -45,6 +45,20 @@ def _delete_policy_cascade(db: Session, policy_id: int):
         for row in db.execute(select(Model).where(Model.policy_id == policy_id)).scalars().all():
             db.delete(row)
 
+    # Agent-side rows that reference the policy. Without this, deleting a
+    # policy and re-creating one for the same client would hit the
+    # uq_agent_policy unique constraint on stale agent_policy_access rows.
+    from .models_agent import AgentPolicyAccess
+    from .models_features import RenewalReview
+    for Model in (AgentPolicyAccess, RenewalReview):
+        for row in db.execute(select(Model).where(Model.policy_id == policy_id)).scalars().all():
+            db.delete(row)
+
+    # Policies that pointed at this one as their prior (replaces_policy_id)
+    # need to be unlinked so we don't leave dangling FKs.
+    for orphan in db.execute(select(Policy).where(Policy.replaces_policy_id == policy_id)).scalars().all():
+        orphan.replaces_policy_id = None
+
     policy = db.get(Policy, policy_id)
     if policy:
         db.delete(policy)

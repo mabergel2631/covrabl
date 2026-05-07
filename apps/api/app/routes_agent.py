@@ -1940,6 +1940,78 @@ def assign_producer(
     }
 
 
+# ── Agent edits/deletes a client's policy ──────────────
+
+
+from .schemas import PolicyUpdate as _PolicyUpdate
+
+
+@router.put("/clients/{client_id}/policies/{policy_id}")
+def update_client_policy(
+    client_id: int,
+    policy_id: int,
+    payload: _PolicyUpdate,
+    agent: User = Depends(require_agent),
+    db: Session = Depends(get_db),
+):
+    """Edit basic fields on a client's policy (scope, type, carrier, premiums, etc.).
+
+    Same permission shape as creating: agent must have client access AND
+    write role. Doesn't allow changing user_id (a policy belongs to one client).
+    """
+    _check_write_role(db, agent)
+    _verify_client_access(db, agent, client_id)
+
+    policy = db.get(Policy, policy_id)
+    if not policy or policy.user_id != client_id:
+        raise HTTPException(status_code=404, detail="Policy not found for this client")
+
+    for field, value in payload.model_dump(exclude_unset=True).items():
+        setattr(policy, field, value)
+
+    log_action(db, agent.id, "updated", "policy", policy.id, f"Agent updated policy for client {client_id}")
+    db.commit()
+    db.refresh(policy)
+    return {
+        "ok": True,
+        "policy_id": policy.id,
+        "scope": policy.scope,
+        "policy_type": policy.policy_type,
+        "carrier": policy.carrier,
+        "policy_number": policy.policy_number,
+        "coverage_amount": policy.coverage_amount,
+        "deductible": policy.deductible,
+        "premium_amount": policy.premium_amount,
+        "renewal_date": str(policy.renewal_date) if policy.renewal_date else None,
+        "status": policy.status,
+    }
+
+
+@router.delete("/clients/{client_id}/policies/{policy_id}")
+def delete_client_policy(
+    client_id: int,
+    policy_id: int,
+    agent: User = Depends(require_agent),
+    db: Session = Depends(get_db),
+):
+    """Delete a client's policy. Cascades to deltas, contacts, details, etc.
+
+    Reuses the consumer-side cascade helper for parity.
+    """
+    _check_write_role(db, agent)
+    _verify_client_access(db, agent, client_id)
+
+    policy = db.get(Policy, policy_id)
+    if not policy or policy.user_id != client_id:
+        raise HTTPException(status_code=404, detail="Policy not found for this client")
+
+    log_action(db, agent.id, "deleted", "policy", policy.id, f"Agent deleted policy for client {client_id}")
+    from .routes_policies import _delete_policy_cascade
+    _delete_policy_cascade(db, policy.id)
+    db.commit()
+    return {"ok": True, "policy_id": policy_id}
+
+
 # ── Demo: seed prior-year sample (admin/owner only) ────
 
 

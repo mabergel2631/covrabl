@@ -6,6 +6,7 @@ import { useAuth } from '../../../../lib/auth';
 import {
   agentApi, AgentClientSummary, AgentFlaggedItem, AgentNote, AgentClientDocument,
   AgentClientActivity, AgencyContext, AgencyMember, CoverageGap, API_BASE,
+  documentsApi,
 } from '../../../../lib/api';
 import { trackClick, trackFeatureUse } from '../../../../lib/track';
 import BackButton from '../../components/BackButton';
@@ -69,6 +70,30 @@ export default function ClientDetailPage() {
   const [members, setMembers] = useState<AgencyMember[]>([]);
   const [producerPickerOpen, setProducerPickerOpen] = useState(false);
   const [savingProducer, setSavingProducer] = useState(false);
+
+  // Scope filter for the policies list (Personal / Business / All)
+  const [policyScopeTab, setPolicyScopeTab] = useState<'all' | 'personal' | 'business'>('all');
+
+  // Per-policy edit + delete state
+  const [editingPolicyId, setEditingPolicyId] = useState<number | null>(null);
+  const [editPolicyData, setEditPolicyData] = useState<{
+    scope: string;
+    policy_type: string;
+    carrier: string;
+    policy_number: string;
+    coverage_amount: string;
+    deductible: string;
+    premium_amount: string;
+    renewal_date: string;
+  }>({
+    scope: 'personal', policy_type: '', carrier: '', policy_number: '',
+    coverage_amount: '', deductible: '', premium_amount: '', renewal_date: '',
+  });
+  const [savingEdit, setSavingEdit] = useState(false);
+  const [deletingPolicyId, setDeletingPolicyId] = useState<number | null>(null);
+
+  // Add Policy wizard step (0=scope, 1=type, 2=details)
+  const [addPolicyStep, setAddPolicyStep] = useState<0 | 1 | 2>(0);
 
   useEffect(() => {
     if (!token) { router.replace('/login'); return; }
@@ -225,6 +250,59 @@ export default function ClientDetailPage() {
     }
   };
 
+  const startEditPolicy = (p: { id: number; scope?: string | null; policy_type?: string | null; carrier?: string | null; policy_number?: string | null; coverage_amount?: number | null; deductible?: number | null; premium_amount?: number | null; renewal_date?: string | null }) => {
+    setEditingPolicyId(p.id);
+    setEditPolicyData({
+      scope: p.scope || 'personal',
+      policy_type: p.policy_type || '',
+      carrier: p.carrier || '',
+      policy_number: p.policy_number || '',
+      coverage_amount: p.coverage_amount?.toString() || '',
+      deductible: p.deductible?.toString() || '',
+      premium_amount: p.premium_amount?.toString() || '',
+      renewal_date: p.renewal_date || '',
+    });
+  };
+
+  const handleSaveEdit = async (policyId: number) => {
+    setSavingEdit(true);
+    trackClick('agent_edit_policy_save', { policy_id: policyId, client_id: clientId });
+    try {
+      await agentApi.updatePolicyForClient(clientId, policyId, {
+        scope: editPolicyData.scope as 'personal' | 'business',
+        policy_type: editPolicyData.policy_type,
+        carrier: editPolicyData.carrier,
+        policy_number: editPolicyData.policy_number || '',
+        coverage_amount: editPolicyData.coverage_amount ? parseInt(editPolicyData.coverage_amount) : null,
+        deductible: editPolicyData.deductible ? parseInt(editPolicyData.deductible) : null,
+        premium_amount: editPolicyData.premium_amount ? parseInt(editPolicyData.premium_amount) : null,
+        renewal_date: editPolicyData.renewal_date || null,
+      });
+      const summary = await agentApi.clientSummary(clientId);
+      setData(summary);
+      setEditingPolicyId(null);
+    } catch (err: any) {
+      alert(err?.message || 'Failed to update policy');
+    } finally {
+      setSavingEdit(false);
+    }
+  };
+
+  const handleDeletePolicy = async (policyId: number) => {
+    if (!confirm('Delete this policy? Documents, deltas, contacts, and any renewal review tied to it will be removed.')) return;
+    setDeletingPolicyId(policyId);
+    trackClick('agent_delete_policy', { policy_id: policyId, client_id: clientId });
+    try {
+      await agentApi.deletePolicyForClient(clientId, policyId);
+      const summary = await agentApi.clientSummary(clientId);
+      setData(summary);
+    } catch (err: any) {
+      alert(err?.message || 'Failed to delete policy');
+    } finally {
+      setDeletingPolicyId(null);
+    }
+  };
+
   const [seedingPriorFor, setSeedingPriorFor] = useState<number | null>(null);
   const handleSeedPriorYear = async (policyId: number) => {
     if (!confirm('Generate a sample prior-year version of this policy? This is for testing/demo — it creates a realistic prior policy with adjusted fields and links them.')) return;
@@ -259,7 +337,7 @@ export default function ClientDetailPage() {
         body: file,
       });
 
-      await agentApi.finalizeClientUpload(clientId, {
+      const finalized = await agentApi.finalizeClientUpload(clientId, {
         policy_id: uploadPolicyId,
         filename: file.name,
         content_type: file.type || 'application/pdf',
@@ -267,11 +345,30 @@ export default function ClientDetailPage() {
         doc_type: uploadDocType,
       });
 
-      setUploadMsg('Uploaded!');
+      setUploadMsg('Uploaded — extracting…');
       trackFeatureUse('agent_document_uploaded', { client_id: clientId });
-      const docs = await agentApi.clientDocuments(clientId);
+
+      // Kick off extraction so policy fields auto-populate (agent can edit
+      // afterward via the per-policy Edit button). Non-fatal on failure —
+      // agent still sees the document attached and can run extract manually.
+      try {
+        await documentsApi.extract(finalized.document_id);
+        setUploadMsg('Uploaded and extracted.');
+      } catch (extractErr: any) {
+        // Don't block the upload UX — surface the extraction status as failed
+        // so the agent can retry from the document list.
+        setUploadMsg(`Uploaded, but extraction did not complete: ${extractErr?.message || 'unknown error'}`);
+      }
+
+      // Refresh both documents and policy summary (extracted fields may have
+      // updated coverage_amount / deductible / premium / renewal_date).
+      const [docs, summary] = await Promise.all([
+        agentApi.clientDocuments(clientId),
+        agentApi.clientSummary(clientId),
+      ]);
       setDocuments(docs);
-      setTimeout(() => { setShowUpload(false); setUploadMsg(''); }, 1500);
+      setData(summary);
+      setTimeout(() => { setShowUpload(false); setUploadMsg(''); }, 2000);
     } catch (err: any) {
       setUploadMsg(err.message || 'Upload failed');
     } finally {
@@ -514,69 +611,166 @@ export default function ClientDetailPage() {
         ))}
       </div>
 
-      {/* Add Policy Form */}
-      {showAddPolicy && (
-        <div className="card" style={{ padding: 20, marginBottom: 16 }}>
-          <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 12, color: 'var(--color-text)' }}>Add Policy for Client</div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-            <div>
-              <label style={{ fontSize: 12, color: 'var(--color-text-muted)', display: 'block', marginBottom: 4 }}>Carrier *</label>
-              <input value={addPolicyData.carrier} onChange={e => setAddPolicyData(d => ({ ...d, carrier: e.target.value }))} placeholder="e.g. State Farm" style={{ width: '100%', padding: '8px 12px', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', fontSize: 13, backgroundColor: 'var(--color-surface)', color: 'var(--color-text)', boxSizing: 'border-box' }} />
+      {/* Add Policy Wizard — stepped: Scope → Type → Details */}
+      {showAddPolicy && (() => {
+        const personalTypes = [
+          { value: 'auto', label: 'Auto' },
+          { value: 'homeowners', label: 'Homeowners' },
+          { value: 'renters', label: 'Renters' },
+          { value: 'umbrella', label: 'Umbrella' },
+          { value: 'life', label: 'Life' },
+          { value: 'health', label: 'Health' },
+          { value: 'disability', label: 'Disability' },
+          { value: 'pet', label: 'Pet' },
+          { value: 'other', label: 'Other' },
+        ];
+        const businessTypes = [
+          { value: 'general_liability', label: 'General Liability' },
+          { value: 'commercial_auto', label: 'Commercial Auto' },
+          { value: 'workers_comp', label: 'Workers Comp' },
+          { value: 'professional_liability', label: 'Professional Liability' },
+          { value: 'property', label: 'Commercial Property' },
+          { value: 'cyber', label: 'Cyber' },
+          { value: 'employment_practices', label: 'Employment Practices' },
+          { value: 'umbrella', label: 'Umbrella' },
+          { value: 'other', label: 'Other' },
+        ];
+        const types = addPolicyData.scope === 'business' ? businessTypes : personalTypes;
+        const closeWizard = () => { setShowAddPolicy(false); setAddPolicyStep(0); setAddPolicyMsg(''); };
+        return (
+          <div className="card" style={{ padding: 20, marginBottom: 16 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+              <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--color-text)' }}>
+                Add Policy for Client
+                <span style={{ fontSize: 12, fontWeight: 400, color: 'var(--color-text-muted)', marginLeft: 8 }}>
+                  Step {addPolicyStep + 1} of 3
+                </span>
+              </div>
+              <button onClick={closeWizard} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 18, color: 'var(--color-text-muted)' }}>×</button>
             </div>
-            <div>
-              <label style={{ fontSize: 12, color: 'var(--color-text-muted)', display: 'block', marginBottom: 4 }}>Policy Type *</label>
-              <select value={addPolicyData.policy_type} onChange={e => setAddPolicyData(d => ({ ...d, policy_type: e.target.value }))} style={{ width: '100%', padding: '8px 12px', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', fontSize: 13, backgroundColor: 'var(--color-surface)', color: 'var(--color-text)' }}>
-                <option value="">Select type...</option>
-                <option value="auto">Auto</option>
-                <option value="homeowners">Homeowners</option>
-                <option value="renters">Renters</option>
-                <option value="umbrella">Umbrella</option>
-                <option value="life">Life</option>
-                <option value="health">Health</option>
-                <option value="general_liability">General Liability</option>
-                <option value="property">Property</option>
-                <option value="professional_liability">Professional Liability</option>
-                <option value="workers_comp">Workers Comp</option>
-                <option value="other">Other</option>
-              </select>
-            </div>
-            <div>
-              <label style={{ fontSize: 12, color: 'var(--color-text-muted)', display: 'block', marginBottom: 4 }}>Scope</label>
-              <select value={addPolicyData.scope} onChange={e => setAddPolicyData(d => ({ ...d, scope: e.target.value }))} style={{ width: '100%', padding: '8px 12px', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', fontSize: 13, backgroundColor: 'var(--color-surface)', color: 'var(--color-text)' }}>
-                <option value="personal">Personal</option>
-                <option value="business">Business</option>
-              </select>
-            </div>
-            <div>
-              <label style={{ fontSize: 12, color: 'var(--color-text-muted)', display: 'block', marginBottom: 4 }}>Policy Number</label>
-              <input value={addPolicyData.policy_number} onChange={e => setAddPolicyData(d => ({ ...d, policy_number: e.target.value }))} placeholder="Optional" style={{ width: '100%', padding: '8px 12px', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', fontSize: 13, backgroundColor: 'var(--color-surface)', color: 'var(--color-text)', boxSizing: 'border-box' }} />
-            </div>
-            <div>
-              <label style={{ fontSize: 12, color: 'var(--color-text-muted)', display: 'block', marginBottom: 4 }}>Coverage Amount</label>
-              <input type="number" value={addPolicyData.coverage_amount} onChange={e => setAddPolicyData(d => ({ ...d, coverage_amount: e.target.value }))} placeholder="e.g. 500000" style={{ width: '100%', padding: '8px 12px', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', fontSize: 13, backgroundColor: 'var(--color-surface)', color: 'var(--color-text)', boxSizing: 'border-box' }} />
-            </div>
-            <div>
-              <label style={{ fontSize: 12, color: 'var(--color-text-muted)', display: 'block', marginBottom: 4 }}>Deductible</label>
-              <input type="number" value={addPolicyData.deductible} onChange={e => setAddPolicyData(d => ({ ...d, deductible: e.target.value }))} placeholder="e.g. 1000" style={{ width: '100%', padding: '8px 12px', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', fontSize: 13, backgroundColor: 'var(--color-surface)', color: 'var(--color-text)', boxSizing: 'border-box' }} />
-            </div>
-            <div>
-              <label style={{ fontSize: 12, color: 'var(--color-text-muted)', display: 'block', marginBottom: 4 }}>Premium</label>
-              <input type="number" value={addPolicyData.premium_amount} onChange={e => setAddPolicyData(d => ({ ...d, premium_amount: e.target.value }))} placeholder="e.g. 2400" style={{ width: '100%', padding: '8px 12px', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', fontSize: 13, backgroundColor: 'var(--color-surface)', color: 'var(--color-text)', boxSizing: 'border-box' }} />
-            </div>
-            <div>
-              <label style={{ fontSize: 12, color: 'var(--color-text-muted)', display: 'block', marginBottom: 4 }}>Renewal Date</label>
-              <input type="date" value={addPolicyData.renewal_date} onChange={e => setAddPolicyData(d => ({ ...d, renewal_date: e.target.value }))} style={{ width: '100%', padding: '8px 12px', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', fontSize: 13, backgroundColor: 'var(--color-surface)', color: 'var(--color-text)', boxSizing: 'border-box' }} />
-            </div>
+
+            {/* Step 0: Scope picker */}
+            {addPolicyStep === 0 && (
+              <div>
+                <p style={{ fontSize: 13, color: 'var(--color-text-secondary)', margin: '0 0 16px' }}>
+                  Is this a personal policy or a business policy?
+                </p>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                  {[
+                    { value: 'personal', label: 'Personal', desc: 'Auto, home, life, umbrella, health, etc.' },
+                    { value: 'business', label: 'Business', desc: 'General liability, workers comp, cyber, commercial auto, etc.' },
+                  ].map(opt => (
+                    <button
+                      key={opt.value}
+                      onClick={() => { setAddPolicyData(d => ({ ...d, scope: opt.value, policy_type: '' })); setAddPolicyStep(1); }}
+                      style={{
+                        padding: '20px 18px',
+                        textAlign: 'left',
+                        backgroundColor: addPolicyData.scope === opt.value ? '#eff6ff' : 'var(--color-surface)',
+                        border: addPolicyData.scope === opt.value ? '2px solid var(--color-primary)' : '1px solid var(--color-border)',
+                        borderRadius: 'var(--radius-md)',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--color-text)', marginBottom: 4 }}>{opt.label}</div>
+                      <div style={{ fontSize: 12, color: 'var(--color-text-muted)', lineHeight: 1.4 }}>{opt.desc}</div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Step 1: Type picker */}
+            {addPolicyStep === 1 && (
+              <div>
+                <p style={{ fontSize: 13, color: 'var(--color-text-secondary)', margin: '0 0 16px' }}>
+                  What type of {addPolicyData.scope === 'business' ? 'business' : 'personal'} policy?
+                </p>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: 8 }}>
+                  {types.map(t => (
+                    <button
+                      key={t.value}
+                      onClick={() => { setAddPolicyData(d => ({ ...d, policy_type: t.value })); setAddPolicyStep(2); }}
+                      style={{
+                        padding: '14px 12px',
+                        textAlign: 'center',
+                        backgroundColor: addPolicyData.policy_type === t.value ? '#eff6ff' : 'var(--color-surface)',
+                        border: addPolicyData.policy_type === t.value ? '2px solid var(--color-primary)' : '1px solid var(--color-border)',
+                        borderRadius: 'var(--radius-md)',
+                        fontSize: 13,
+                        fontWeight: 600,
+                        color: 'var(--color-text)',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      {t.label}
+                    </button>
+                  ))}
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'flex-start', marginTop: 16 }}>
+                  <button onClick={() => setAddPolicyStep(0)} style={{ padding: '6px 14px', fontSize: 13, background: 'transparent', color: 'var(--color-text-muted)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', cursor: 'pointer' }}>← Back</button>
+                </div>
+              </div>
+            )}
+
+            {/* Step 2: Details */}
+            {addPolicyStep === 2 && (
+              <div>
+                <p style={{ fontSize: 13, color: 'var(--color-text-secondary)', margin: '0 0 16px' }}>
+                  Enter the basics for this {types.find(t => t.value === addPolicyData.policy_type)?.label || addPolicyData.policy_type} policy.
+                  You can edit any of this later or attach a document so AI extraction fills in coverage amounts and other details.
+                </p>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                  <div>
+                    <label style={{ fontSize: 12, color: 'var(--color-text-muted)', display: 'block', marginBottom: 4 }}>Carrier *</label>
+                    <input value={addPolicyData.carrier} onChange={e => setAddPolicyData(d => ({ ...d, carrier: e.target.value }))} placeholder="e.g. State Farm" style={{ width: '100%', padding: '8px 12px', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', fontSize: 13, backgroundColor: 'var(--color-surface)', color: 'var(--color-text)', boxSizing: 'border-box' }} />
+                  </div>
+                  <div>
+                    <label style={{ fontSize: 12, color: 'var(--color-text-muted)', display: 'block', marginBottom: 4 }}>Policy Number</label>
+                    <input value={addPolicyData.policy_number} onChange={e => setAddPolicyData(d => ({ ...d, policy_number: e.target.value }))} placeholder="Optional" style={{ width: '100%', padding: '8px 12px', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', fontSize: 13, backgroundColor: 'var(--color-surface)', color: 'var(--color-text)', boxSizing: 'border-box' }} />
+                  </div>
+                  {addPolicyData.scope === 'business' && (
+                    <div style={{ gridColumn: '1 / -1' }}>
+                      <label style={{ fontSize: 12, color: 'var(--color-text-muted)', display: 'block', marginBottom: 4 }}>Business Name</label>
+                      <input value={addPolicyData.business_name} onChange={e => setAddPolicyData(d => ({ ...d, business_name: e.target.value }))} placeholder="e.g. Acme Holdings LLC" style={{ width: '100%', padding: '8px 12px', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', fontSize: 13, backgroundColor: 'var(--color-surface)', color: 'var(--color-text)', boxSizing: 'border-box' }} />
+                    </div>
+                  )}
+                  <div>
+                    <label style={{ fontSize: 12, color: 'var(--color-text-muted)', display: 'block', marginBottom: 4 }}>Coverage Amount</label>
+                    <input type="number" value={addPolicyData.coverage_amount} onChange={e => setAddPolicyData(d => ({ ...d, coverage_amount: e.target.value }))} placeholder="e.g. 500000" style={{ width: '100%', padding: '8px 12px', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', fontSize: 13, backgroundColor: 'var(--color-surface)', color: 'var(--color-text)', boxSizing: 'border-box' }} />
+                  </div>
+                  <div>
+                    <label style={{ fontSize: 12, color: 'var(--color-text-muted)', display: 'block', marginBottom: 4 }}>Deductible</label>
+                    <input type="number" value={addPolicyData.deductible} onChange={e => setAddPolicyData(d => ({ ...d, deductible: e.target.value }))} placeholder="e.g. 1000" style={{ width: '100%', padding: '8px 12px', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', fontSize: 13, backgroundColor: 'var(--color-surface)', color: 'var(--color-text)', boxSizing: 'border-box' }} />
+                  </div>
+                  <div>
+                    <label style={{ fontSize: 12, color: 'var(--color-text-muted)', display: 'block', marginBottom: 4 }}>Premium</label>
+                    <input type="number" value={addPolicyData.premium_amount} onChange={e => setAddPolicyData(d => ({ ...d, premium_amount: e.target.value }))} placeholder="e.g. 2400" style={{ width: '100%', padding: '8px 12px', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', fontSize: 13, backgroundColor: 'var(--color-surface)', color: 'var(--color-text)', boxSizing: 'border-box' }} />
+                  </div>
+                  <div>
+                    <label style={{ fontSize: 12, color: 'var(--color-text-muted)', display: 'block', marginBottom: 4 }}>Renewal Date</label>
+                    <input type="date" value={addPolicyData.renewal_date} onChange={e => setAddPolicyData(d => ({ ...d, renewal_date: e.target.value }))} style={{ width: '100%', padding: '8px 12px', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', fontSize: 13, backgroundColor: 'var(--color-surface)', color: 'var(--color-text)', boxSizing: 'border-box' }} />
+                  </div>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, marginTop: 16 }}>
+                  <button onClick={() => setAddPolicyStep(1)} style={{ padding: '8px 14px', fontSize: 13, background: 'transparent', color: 'var(--color-text-muted)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', cursor: 'pointer' }}>← Back</button>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <button onClick={closeWizard} style={{ padding: '8px 16px', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', background: 'var(--color-surface)', color: 'var(--color-text)', fontSize: 13, cursor: 'pointer' }}>Cancel</button>
+                    <button
+                      onClick={async () => { await handleAddPolicy(); if (!addPolicyMsg) setAddPolicyStep(0); }}
+                      disabled={addingPolicy || !addPolicyData.carrier || !addPolicyData.policy_type}
+                      style={{ padding: '8px 20px', backgroundColor: 'var(--color-primary)', color: '#fff', border: 'none', borderRadius: 'var(--radius-md)', fontSize: 13, fontWeight: 600, cursor: addingPolicy ? 'wait' : 'pointer', opacity: addingPolicy || !addPolicyData.carrier || !addPolicyData.policy_type ? 0.6 : 1 }}
+                    >
+                      {addingPolicy ? 'Adding...' : 'Add Policy'}
+                    </button>
+                  </div>
+                </div>
+                {addPolicyMsg && <div style={{ marginTop: 8, fontSize: 13, color: addPolicyMsg.toLowerCase().includes('fail') || addPolicyMsg.toLowerCase().includes('error') ? 'var(--color-danger)' : 'var(--color-success)' }}>{addPolicyMsg}</div>}
+              </div>
+            )}
           </div>
-          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 12 }}>
-            <button onClick={() => setShowAddPolicy(false)} style={{ padding: '8px 16px', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', background: 'var(--color-surface)', color: 'var(--color-text)', fontSize: 13, cursor: 'pointer' }}>Cancel</button>
-            <button onClick={handleAddPolicy} disabled={addingPolicy || !addPolicyData.carrier || !addPolicyData.policy_type} style={{ padding: '8px 20px', backgroundColor: 'var(--color-primary)', color: '#fff', border: 'none', borderRadius: 'var(--radius-md)', fontSize: 13, fontWeight: 600, cursor: addingPolicy ? 'wait' : 'pointer', opacity: addingPolicy || !addPolicyData.carrier || !addPolicyData.policy_type ? 0.6 : 1 }}>
-              {addingPolicy ? 'Adding...' : 'Add Policy'}
-            </button>
-          </div>
-          {addPolicyMsg && <div style={{ marginTop: 8, fontSize: 13, color: addPolicyMsg === 'Policy added!' ? 'var(--color-success)' : 'var(--color-danger)' }}>{addPolicyMsg}</div>}
-        </div>
-      )}
+        );
+      })()}
 
       {/* ─── Overview Tab ─── */}
       {activeTab === 'overview' && (
@@ -813,11 +1007,82 @@ export default function ClientDetailPage() {
                   </div>
                   {isExpanded && (
                     <div style={{ padding: '0 20px 16px', borderTop: '1px solid var(--color-border)' }}>
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, padding: '12px 0', fontSize: 13 }}>
-                        <div><span style={{ color: 'var(--color-text-muted)' }}>Premium:</span> <strong>{formatCurrency(p.premium_amount)}</strong></div>
-                        <div><span style={{ color: 'var(--color-text-muted)' }}>Scope:</span> <strong style={{ textTransform: 'capitalize' }}>{p.scope || '--'}</strong></div>
-                        {p.nickname && <div><span style={{ color: 'var(--color-text-muted)' }}>Nickname:</span> <strong>{p.nickname}</strong></div>}
-                      </div>
+                      {editingPolicyId === p.id ? (
+                        <div style={{ padding: '12px 0' }}>
+                          <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-text)', marginBottom: 10 }}>Edit policy</div>
+                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                            <div>
+                              <label style={{ fontSize: 11, color: 'var(--color-text-muted)', display: 'block', marginBottom: 3 }}>Carrier</label>
+                              <input value={editPolicyData.carrier} onChange={e => setEditPolicyData(d => ({ ...d, carrier: e.target.value }))} onClick={e => e.stopPropagation()} style={{ width: '100%', padding: '6px 10px', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)', fontSize: 13, backgroundColor: 'var(--color-surface)', color: 'var(--color-text)', boxSizing: 'border-box' }} />
+                            </div>
+                            <div>
+                              <label style={{ fontSize: 11, color: 'var(--color-text-muted)', display: 'block', marginBottom: 3 }}>Policy Type</label>
+                              <select value={editPolicyData.policy_type} onChange={e => setEditPolicyData(d => ({ ...d, policy_type: e.target.value }))} onClick={e => e.stopPropagation()} style={{ width: '100%', padding: '6px 10px', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)', fontSize: 13, backgroundColor: 'var(--color-surface)', color: 'var(--color-text)' }}>
+                                {(editPolicyData.scope === 'business'
+                                  ? [['general_liability','General Liability'],['commercial_auto','Commercial Auto'],['workers_comp','Workers Comp'],['professional_liability','Professional Liability'],['property','Commercial Property'],['cyber','Cyber'],['employment_practices','Employment Practices'],['umbrella','Umbrella'],['other','Other']]
+                                  : [['auto','Auto'],['homeowners','Homeowners'],['renters','Renters'],['umbrella','Umbrella'],['life','Life'],['health','Health'],['disability','Disability'],['pet','Pet'],['other','Other']]
+                                ).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+                              </select>
+                            </div>
+                            <div>
+                              <label style={{ fontSize: 11, color: 'var(--color-text-muted)', display: 'block', marginBottom: 3 }}>Scope</label>
+                              <select value={editPolicyData.scope} onChange={e => setEditPolicyData(d => ({ ...d, scope: e.target.value }))} onClick={e => e.stopPropagation()} style={{ width: '100%', padding: '6px 10px', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)', fontSize: 13, backgroundColor: 'var(--color-surface)', color: 'var(--color-text)' }}>
+                                <option value="personal">Personal</option>
+                                <option value="business">Business</option>
+                              </select>
+                            </div>
+                            <div>
+                              <label style={{ fontSize: 11, color: 'var(--color-text-muted)', display: 'block', marginBottom: 3 }}>Policy Number</label>
+                              <input value={editPolicyData.policy_number} onChange={e => setEditPolicyData(d => ({ ...d, policy_number: e.target.value }))} onClick={e => e.stopPropagation()} style={{ width: '100%', padding: '6px 10px', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)', fontSize: 13, backgroundColor: 'var(--color-surface)', color: 'var(--color-text)', boxSizing: 'border-box' }} />
+                            </div>
+                            <div>
+                              <label style={{ fontSize: 11, color: 'var(--color-text-muted)', display: 'block', marginBottom: 3 }}>Coverage</label>
+                              <input type="number" value={editPolicyData.coverage_amount} onChange={e => setEditPolicyData(d => ({ ...d, coverage_amount: e.target.value }))} onClick={e => e.stopPropagation()} style={{ width: '100%', padding: '6px 10px', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)', fontSize: 13, backgroundColor: 'var(--color-surface)', color: 'var(--color-text)', boxSizing: 'border-box' }} />
+                            </div>
+                            <div>
+                              <label style={{ fontSize: 11, color: 'var(--color-text-muted)', display: 'block', marginBottom: 3 }}>Deductible</label>
+                              <input type="number" value={editPolicyData.deductible} onChange={e => setEditPolicyData(d => ({ ...d, deductible: e.target.value }))} onClick={e => e.stopPropagation()} style={{ width: '100%', padding: '6px 10px', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)', fontSize: 13, backgroundColor: 'var(--color-surface)', color: 'var(--color-text)', boxSizing: 'border-box' }} />
+                            </div>
+                            <div>
+                              <label style={{ fontSize: 11, color: 'var(--color-text-muted)', display: 'block', marginBottom: 3 }}>Premium</label>
+                              <input type="number" value={editPolicyData.premium_amount} onChange={e => setEditPolicyData(d => ({ ...d, premium_amount: e.target.value }))} onClick={e => e.stopPropagation()} style={{ width: '100%', padding: '6px 10px', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)', fontSize: 13, backgroundColor: 'var(--color-surface)', color: 'var(--color-text)', boxSizing: 'border-box' }} />
+                            </div>
+                            <div>
+                              <label style={{ fontSize: 11, color: 'var(--color-text-muted)', display: 'block', marginBottom: 3 }}>Renewal Date</label>
+                              <input type="date" value={editPolicyData.renewal_date} onChange={e => setEditPolicyData(d => ({ ...d, renewal_date: e.target.value }))} onClick={e => e.stopPropagation()} style={{ width: '100%', padding: '6px 10px', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)', fontSize: 13, backgroundColor: 'var(--color-surface)', color: 'var(--color-text)', boxSizing: 'border-box' }} />
+                            </div>
+                          </div>
+                          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 12 }}>
+                            <button onClick={(e) => { e.stopPropagation(); setEditingPolicyId(null); }} style={{ padding: '6px 14px', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', background: 'var(--color-surface)', color: 'var(--color-text)', fontSize: 12, cursor: 'pointer' }}>Cancel</button>
+                            <button onClick={(e) => { e.stopPropagation(); handleSaveEdit(p.id); }} disabled={savingEdit} style={{ padding: '6px 16px', backgroundColor: 'var(--color-primary)', color: '#fff', border: 'none', borderRadius: 'var(--radius-md)', fontSize: 12, fontWeight: 600, cursor: savingEdit ? 'wait' : 'pointer', opacity: savingEdit ? 0.6 : 1 }}>{savingEdit ? 'Saving...' : 'Save changes'}</button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, padding: '12px 0', fontSize: 13 }}>
+                          <div><span style={{ color: 'var(--color-text-muted)' }}>Premium:</span> <strong>{formatCurrency(p.premium_amount)}</strong></div>
+                          <div><span style={{ color: 'var(--color-text-muted)' }}>Scope:</span> <strong style={{ textTransform: 'capitalize' }}>{p.scope || '--'}</strong></div>
+                          {p.nickname && <div><span style={{ color: 'var(--color-text-muted)' }}>Nickname:</span> <strong>{p.nickname}</strong></div>}
+                        </div>
+                      )}
+
+                      {/* Edit + Delete actions (admin/agent only — backend re-checks role) */}
+                      {(role === 'admin' || role === 'agent') && editingPolicyId !== p.id && (
+                        <div style={{ display: 'flex', gap: 8, padding: '8px 0', borderTop: '1px solid var(--color-border)', flexWrap: 'wrap' }}>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); startEditPolicy(p); }}
+                            style={{ padding: '4px 12px', fontSize: 12, backgroundColor: 'var(--color-surface)', color: 'var(--color-text)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)', cursor: 'pointer' }}
+                          >
+                            Edit policy
+                          </button>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); handleDeletePolicy(p.id); }}
+                            disabled={deletingPolicyId === p.id}
+                            style={{ padding: '4px 12px', fontSize: 12, backgroundColor: 'transparent', color: 'var(--color-danger)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)', cursor: deletingPolicyId === p.id ? 'wait' : 'pointer', opacity: deletingPolicyId === p.id ? 0.6 : 1 }}
+                          >
+                            {deletingPolicyId === p.id ? 'Deleting...' : 'Delete policy'}
+                          </button>
+                        </div>
+                      )}
 
                       {/* Renewal review action */}
                       <div style={{ padding: '8px 0 12px', borderTop: '1px solid var(--color-border)' }}>
@@ -1031,11 +1296,42 @@ export default function ClientDetailPage() {
               );
             };
 
+            const showPersonal = policyScopeTab === 'all' || policyScopeTab === 'personal';
+            const showBusiness = policyScopeTab === 'all' || policyScopeTab === 'business';
             return (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 32 }}>
-                <h2 style={{ fontSize: 16, fontWeight: 600, margin: '0 0 4px', color: 'var(--color-text)' }}>Policies</h2>
-                {renderScopeSection('Personal', personalPolicies, '#2563eb', '#dbeafe')}
-                {renderScopeSection('Business', businessPolicies, '#6d28d9', '#ede9fe')}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                  <h2 style={{ fontSize: 16, fontWeight: 600, margin: 0, color: 'var(--color-text)' }}>Policies</h2>
+                  {/* Scope tabs: All / Personal / Business — visible only when both kinds exist */}
+                  {personalPolicies.length > 0 && businessPolicies.length > 0 && (
+                    <div style={{ display: 'flex', gap: 4, padding: 2, backgroundColor: 'var(--color-bg)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)' }}>
+                      {([
+                        { key: 'all', label: 'All', count: data.policies.length },
+                        { key: 'personal', label: 'Personal', count: personalPolicies.length },
+                        { key: 'business', label: 'Business', count: businessPolicies.length },
+                      ] as const).map(t => (
+                        <button
+                          key={t.key}
+                          onClick={() => { setPolicyScopeTab(t.key); trackClick('agent_policy_scope_tab', { tab: t.key, client_id: clientId }); }}
+                          style={{
+                            padding: '4px 12px',
+                            fontSize: 12,
+                            fontWeight: policyScopeTab === t.key ? 600 : 500,
+                            backgroundColor: policyScopeTab === t.key ? 'var(--color-surface)' : 'transparent',
+                            color: policyScopeTab === t.key ? 'var(--color-text)' : 'var(--color-text-muted)',
+                            border: 'none',
+                            borderRadius: 'var(--radius-sm)',
+                            cursor: 'pointer',
+                          }}
+                        >
+                          {t.label} <span style={{ opacity: 0.7 }}>({t.count})</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                {showPersonal && renderScopeSection('Personal', personalPolicies, '#2563eb', '#dbeafe')}
+                {showBusiness && renderScopeSection('Business', businessPolicies, '#6d28d9', '#ede9fe')}
               </div>
             );
           })()}
