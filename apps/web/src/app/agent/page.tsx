@@ -200,21 +200,38 @@ export default function AdvisorDashboard() {
         <h1 style={{ fontSize: 24, fontWeight: 700, margin: 0, color: 'var(--color-text)' }}>
           My Clients
         </h1>
-        <button
-          onClick={() => { trackClick('agent_invite_open'); setShowInvite(!showInvite); }}
-          style={{
-            padding: '8px 20px',
-            backgroundColor: 'var(--color-primary)',
-            color: '#fff',
-            border: 'none',
-            borderRadius: 'var(--radius-md)',
-            fontSize: 14,
-            fontWeight: 600,
-            cursor: 'pointer',
-          }}
-        >
-          + Invite Client
-        </button>
+        <div className="mobile-wrap" style={{ display: 'flex', gap: 8 }}>
+          <button
+            onClick={() => { trackClick('agent_team_open'); router.push('/agent/team'); }}
+            style={{
+              padding: '8px 16px',
+              backgroundColor: 'var(--color-surface)',
+              color: 'var(--color-text)',
+              border: '1px solid var(--color-border)',
+              borderRadius: 'var(--radius-md)',
+              fontSize: 14,
+              fontWeight: 600,
+              cursor: 'pointer',
+            }}
+          >
+            Team
+          </button>
+          <button
+            onClick={() => { trackClick('agent_invite_open'); setShowInvite(!showInvite); }}
+            style={{
+              padding: '8px 20px',
+              backgroundColor: 'var(--color-primary)',
+              color: '#fff',
+              border: 'none',
+              borderRadius: 'var(--radius-md)',
+              fontSize: 14,
+              fontWeight: 600,
+              cursor: 'pointer',
+            }}
+          >
+            + Invite Client
+          </button>
+        </div>
       </div>
       <p style={{ fontSize: 14, color: 'var(--color-text-secondary)', margin: '0 0 16px' }}>
         See which clients have items to review right now.

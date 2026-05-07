@@ -1699,6 +1699,7 @@ export type AgencyMember = {
   name: string | null;
   email: string | null;
   role: 'owner' | 'producer' | 'csr' | 'viewer';
+  status: 'active' | 'invited' | 'removed';
 };
 
 export type AgencyContext = {
@@ -1843,6 +1844,37 @@ export const agentApi = {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ producer_member_id: producerMemberId }),
+    });
+  },
+  inviteMember(email: string, role: AgencyMember['role']): Promise<{ member_id: number; status: string; email: string; role: string }> {
+    return request("/agent/agency/members/invite", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, role }),
+    });
+  },
+  updateMemberRole(memberId: number, role: AgencyMember['role']): Promise<{ member_id: number; role: string }> {
+    return request(`/agent/agency/members/${memberId}/role`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ role }),
+    });
+  },
+  removeMember(memberId: number): Promise<{ ok: boolean }> {
+    return request(`/agent/agency/members/${memberId}`, { method: "DELETE" });
+  },
+  acceptTeamInvite(token: string): Promise<{ member_id: number; agency_id: number; agency_name: string | null; role: string }> {
+    return request("/agent/agency/members/accept-invite", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ token }),
+    });
+  },
+  updateAgency(payload: { name?: string; brand_logo_url?: string | null; brand_color?: string | null }): Promise<{ agency_id: number; name: string; brand_logo_url: string | null; brand_color: string | null }> {
+    return request("/agent/agency", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
     });
   },
   clientSummary(clientId: number): Promise<AgentClientSummary> {

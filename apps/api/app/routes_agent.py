@@ -1727,16 +1727,24 @@ def get_my_agency_membership(agent: User = Depends(require_agent), db: Session =
 
 
 @router.get("/agency/members")
-def list_agency_members(agent: User = Depends(require_agent), db: Session = Depends(get_db)):
-    """List active members of the caller's agency. Display order: Owner first, then by name."""
+def list_agency_members(
+    agent: User = Depends(require_agent),
+    db: Session = Depends(get_db),
+    include_invited: bool = True,
+):
+    """List members of the caller's agency. By default returns active + invited
+    (removed members always excluded). Display order: status (active first),
+    then role priority, then name.
+    """
     aid = _agency_id_for(db, agent.id)
     if aid is None:
         return []
 
+    statuses = ["active", "invited"] if include_invited else ["active"]
     members = db.execute(
         select(AgencyMember).where(
             AgencyMember.agency_id == aid,
-            AgencyMember.status == "active",
+            AgencyMember.status.in_(statuses),
         )
     ).scalars().all()
 
@@ -1744,7 +1752,7 @@ def list_agency_members(agent: User = Depends(require_agent), db: Session = Depe
     out: list[dict] = []
     for m in members:
         name = None
-        email = None
+        email = m.invited_email
         if m.user_id:
             name = db.execute(
                 select(UserProfile.full_name).where(UserProfile.user_id == m.user_id)
@@ -1760,9 +1768,265 @@ def list_agency_members(agent: User = Depends(require_agent), db: Session = Depe
             "name": name,
             "email": email,
             "role": m.role,
+            "status": m.status,
         })
 
-    # Owner first, then alphabetical by name
+    # Active first, then by role priority, then alphabetical by name
+    status_order = {"active": 0, "invited": 1}
     role_order = {"owner": 0, "producer": 1, "csr": 2, "viewer": 3}
-    out.sort(key=lambda x: (role_order.get(x["role"], 99), (x["name"] or "").lower()))
+    out.sort(key=lambda x: (
+        status_order.get(x["status"], 99),
+        role_order.get(x["role"], 99),
+        (x["name"] or x["email"] or "").lower(),
+    ))
     return out
+
+
+# ── Agency: team management (Owner-only writes) ─────────
+
+
+VALID_ROLES = {"owner", "producer", "csr", "viewer"}
+
+
+class MemberInviteRequest(BaseModel):
+    email: str
+    role: str  # owner | producer | csr | viewer
+
+
+class MemberRoleUpdate(BaseModel):
+    role: str
+
+
+class AcceptInviteRequest(BaseModel):
+    token: str
+
+
+class AgencyUpdateRequest(BaseModel):
+    name: str | None = None
+    brand_logo_url: str | None = None
+    brand_color: str | None = None
+
+
+def _count_active_owners(db: Session, agency_id: int) -> int:
+    return db.execute(
+        select(func.count(AgencyMember.id)).where(
+            AgencyMember.agency_id == agency_id,
+            AgencyMember.role == "owner",
+            AgencyMember.status == "active",
+        )
+    ).scalar() or 0
+
+
+@router.post("/agency/members/invite")
+async def invite_agency_member(
+    payload: MemberInviteRequest,
+    agent: User = Depends(require_agent),
+    db: Session = Depends(get_db),
+):
+    """Invite a new member to the caller's agency. Owner-only."""
+    _check_owner_role(db, agent)
+
+    role = payload.role.strip().lower()
+    if role not in VALID_ROLES:
+        raise HTTPException(status_code=400, detail=f"Invalid role: {role}")
+
+    email = payload.email.strip().lower()
+    if not email or "@" not in email:
+        raise HTTPException(status_code=400, detail="Valid email required")
+    if email == agent.email:
+        raise HTTPException(status_code=400, detail="You're already a member")
+
+    aid = _agency_id_for(db, agent.id)
+    if aid is None:
+        raise HTTPException(status_code=403, detail="No agency membership")
+
+    # Check for existing active or invited member with same email
+    existing_user = db.execute(select(User).where(User.email == email)).scalar_one_or_none()
+    if existing_user:
+        active = db.execute(
+            select(AgencyMember).where(
+                AgencyMember.agency_id == aid,
+                AgencyMember.user_id == existing_user.id,
+                AgencyMember.status.in_(("active", "invited")),
+            )
+        ).scalar_one_or_none()
+        if active:
+            raise HTTPException(status_code=400, detail="Already a member or invited")
+
+    # Check for outstanding invite by email
+    outstanding = db.execute(
+        select(AgencyMember).where(
+            AgencyMember.agency_id == aid,
+            AgencyMember.invited_email == email,
+            AgencyMember.status == "invited",
+        )
+    ).scalar_one_or_none()
+    if outstanding:
+        raise HTTPException(status_code=400, detail="Invite already pending for this email")
+
+    invite_token = secrets.token_urlsafe(32)
+    new_member = AgencyMember(
+        agency_id=aid,
+        user_id=existing_user.id if existing_user else None,
+        role=role,
+        # If user already exists, mark active immediately so they don't have to accept
+        status="active" if existing_user else "invited",
+        invited_email=email,
+        invite_token=invite_token if not existing_user else None,
+    )
+    db.add(new_member)
+    db.commit()
+    db.refresh(new_member)
+
+    # Promote User.role to "agent" if they were an individual user — they're now staff
+    if existing_user and existing_user.role == "individual":
+        existing_user.role = "agent"
+        db.commit()
+
+    # Send email if not already a member
+    if not existing_user:
+        from .models_agency import Agency
+        agency = db.get(Agency, aid)
+        agency_name = agency.name if agency else "your agency"
+        _raw_url = settings.app_url.rstrip("/")
+        app_url = _raw_url if "localhost" not in _raw_url and "127.0.0.1" not in _raw_url else "https://covrabl.vercel.app"
+        invite_url = f"{app_url}/login?team_invite={invite_token}"
+        try:
+            from .email import send_agency_member_invite_email
+            await send_agency_member_invite_email(email, agent.email, agency_name, role, invite_url)
+        except Exception:
+            pass  # email failure shouldn't block
+
+    return {
+        "member_id": new_member.id,
+        "status": new_member.status,
+        "email": email,
+        "role": role,
+    }
+
+
+@router.put("/agency/members/{member_id}/role")
+def update_member_role(
+    member_id: int,
+    payload: MemberRoleUpdate,
+    agent: User = Depends(require_agent),
+    db: Session = Depends(get_db),
+):
+    """Change a member's role. Owner-only. Cannot demote the last Owner."""
+    _check_owner_role(db, agent)
+    role = payload.role.strip().lower()
+    if role not in VALID_ROLES:
+        raise HTTPException(status_code=400, detail=f"Invalid role: {role}")
+
+    aid = _agency_id_for(db, agent.id)
+    member = db.get(AgencyMember, member_id)
+    if not member or member.agency_id != aid:
+        raise HTTPException(status_code=404, detail="Member not found")
+    if member.status != "active":
+        raise HTTPException(status_code=400, detail="Cannot change role of a non-active member")
+
+    if member.role == "owner" and role != "owner":
+        # Demoting an owner — protect last Owner
+        if _count_active_owners(db, aid) <= 1:
+            raise HTTPException(status_code=400, detail="Cannot demote the last Owner")
+
+    member.role = role
+    db.commit()
+    return {"member_id": member.id, "role": member.role}
+
+
+@router.delete("/agency/members/{member_id}")
+def remove_member(
+    member_id: int,
+    agent: User = Depends(require_agent),
+    db: Session = Depends(get_db),
+):
+    """Soft-delete a member (sets status='removed'). Owner-only. Cannot remove last Owner."""
+    _check_owner_role(db, agent)
+    aid = _agency_id_for(db, agent.id)
+    member = db.get(AgencyMember, member_id)
+    if not member or member.agency_id != aid:
+        raise HTTPException(status_code=404, detail="Member not found")
+    if member.status == "removed":
+        return {"ok": True, "already_removed": True}
+
+    if member.role == "owner" and _count_active_owners(db, aid) <= 1:
+        raise HTTPException(status_code=400, detail="Cannot remove the last Owner")
+
+    member.status = "removed"
+    member.removed_at = datetime.now()
+    db.commit()
+    return {"ok": True, "member_id": member.id}
+
+
+@router.post("/agency/members/accept-invite")
+def accept_team_invite(
+    payload: AcceptInviteRequest,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Bind an invited AgencyMember row to the calling user. Auth required."""
+    token = (payload.token or "").strip()
+    if not token:
+        raise HTTPException(status_code=400, detail="Token required")
+
+    member = db.execute(
+        select(AgencyMember).where(
+            AgencyMember.invite_token == token,
+            AgencyMember.status == "invited",
+        )
+    ).scalar_one_or_none()
+    if not member:
+        raise HTTPException(status_code=404, detail="Invite not found or already accepted")
+
+    if member.invited_email and member.invited_email.lower() != user.email.lower():
+        raise HTTPException(status_code=403, detail="This invite was sent to a different email")
+
+    member.user_id = user.id
+    member.status = "active"
+    member.invite_token = None
+    # Promote to "agent" role if user was an individual
+    if user.role == "individual":
+        user.role = "agent"
+    db.commit()
+
+    from .models_agency import Agency
+    agency = db.get(Agency, member.agency_id)
+    return {
+        "member_id": member.id,
+        "agency_id": member.agency_id,
+        "agency_name": agency.name if agency else None,
+        "role": member.role,
+    }
+
+
+@router.put("/agency")
+def update_agency(
+    payload: AgencyUpdateRequest,
+    agent: User = Depends(require_agent),
+    db: Session = Depends(get_db),
+):
+    """Update agency name + brand. Owner-only."""
+    _check_owner_role(db, agent)
+    aid = _agency_id_for(db, agent.id)
+    from .models_agency import Agency
+    agency = db.get(Agency, aid)
+    if not agency:
+        raise HTTPException(status_code=404, detail="Agency not found")
+
+    if payload.name is not None:
+        name = payload.name.strip()
+        if not name:
+            raise HTTPException(status_code=400, detail="Name cannot be empty")
+        agency.name = name
+    if payload.brand_logo_url is not None:
+        agency.brand_logo_url = payload.brand_logo_url.strip() or None
+    if payload.brand_color is not None:
+        agency.brand_color = payload.brand_color.strip() or None
+    db.commit()
+    return {
+        "agency_id": agency.id,
+        "name": agency.name,
+        "brand_logo_url": agency.brand_logo_url,
+        "brand_color": agency.brand_color,
+    }

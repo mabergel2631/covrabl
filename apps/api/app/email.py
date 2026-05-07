@@ -333,6 +333,43 @@ async def send_agent_invite_email(to_email: str, agent_email: str, invite_url: s
         logger.exception("Failed to send agent invite email to %s", to_email)
 
 
+async def send_agency_member_invite_email(
+    to_email: str,
+    inviter_email: str,
+    agency_name: str,
+    role: str,
+    invite_url: str,
+) -> None:
+    """Sent when an Owner invites someone to join their agency on Covrabl."""
+    role_label = {"owner": "Owner", "producer": "Producer", "csr": "CSR", "viewer": "Viewer"}.get(role, role)
+    html = f"""\
+<html>
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 480px; margin: 0 auto; padding: 40px 20px;">
+  <h2 style="color: #1a1a2e; margin-bottom: 16px;">Join {agency_name} on Covrabl</h2>
+  <p style="color: #555; line-height: 1.6;">
+    <strong>{inviter_email}</strong> invited you to join <strong>{agency_name}</strong> on Covrabl as a <strong>{role_label}</strong>.
+  </p>
+  <p style="color: #555; line-height: 1.6;">
+    Covrabl is the platform your team uses to manage client coverage, renewals, and reviews.
+    Click below to accept the invitation and set up your account.
+  </p>
+  {_email_button(invite_url, "Accept Invitation")}
+  <p style="color: #888; font-size: 13px; line-height: 1.5;">
+    Use this email address ({to_email}) when registering so your membership links automatically.
+  </p>
+</body>
+</html>"""
+
+    try:
+        await asyncio.to_thread(
+            _send_email, to_email,
+            f"You've been invited to {agency_name} on Covrabl",
+            html,
+        )
+    except Exception:
+        logger.exception("Failed to send agency member invite to %s", to_email)
+
+
 async def send_agent_link_request_email(to_email: str, agent_email: str, app_url: str) -> None:
     """Sent when an agent requests to link with an existing Covrabl user."""
     review_url = f"{app_url}/policies"

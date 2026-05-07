@@ -242,6 +242,106 @@ emails = {m.get("email") for m in mlist}
 ok = "other-owner@other.test" not in emails
 expect("agency 1 members list does NOT include agency 2 owner", ok, f"emails={sorted(emails)}")
 
+# ── Phase 4: Team management ──────────────────────────
+
+# Test 15: Producer cannot invite (owner-only)
+r = client.post(
+    "/agent/agency/members/invite",
+    headers=hdr(producer_token),
+    json={"email": "newhire@acme.test", "role": "csr"},
+)
+ok = r.status_code == 403
+expect("producer cannot invite (owner-only)", ok, f"status={r.status_code}")
+
+# Test 16: Owner invites a brand-new email — status='invited' with token
+r = client.post(
+    "/agent/agency/members/invite",
+    headers=hdr(owner_token),
+    json={"email": "newhire@acme.test", "role": "csr"},
+)
+new_member_id = r.json().get("member_id") if r.status_code == 200 else None
+ok = r.status_code == 200 and r.json().get("status") == "invited" and r.json().get("role") == "csr"
+expect("owner invites new email -> status=invited", ok, f"resp={r.json() if r.status_code==200 else r.text[:120]}")
+
+# Test 17: Members list now shows the invited row
+r = client.get("/agent/agency/members", headers=hdr(owner_token))
+mlist = r.json() if r.status_code == 200 else []
+ok = any(m.get("email") == "newhire@acme.test" and m.get("status") == "invited" for m in mlist)
+expect("invited member appears in /agency/members", ok, f"count={len(mlist)}")
+
+# Test 18: Re-inviting same email -> 400
+r = client.post(
+    "/agent/agency/members/invite",
+    headers=hdr(owner_token),
+    json={"email": "newhire@acme.test", "role": "viewer"},
+)
+ok = r.status_code == 400
+expect("re-inviting same email is rejected", ok, f"status={r.status_code}")
+
+# Test 19: Owner changes producer's role to csr
+r = client.put(
+    f"/agent/agency/members/{PRODUCER_MEMBER_ID}/role",
+    headers=hdr(owner_token),
+    json={"role": "csr"},
+)
+ok = r.status_code == 200 and r.json().get("role") == "csr"
+expect("owner promotes producer -> csr", ok, f"status={r.status_code}")
+
+# Restore for the rest of the test run
+client.put(f"/agent/agency/members/{PRODUCER_MEMBER_ID}/role", headers=hdr(owner_token), json={"role": "producer"})
+
+# Test 20: Last-Owner protection on demote
+r = client.put(
+    f"/agent/agency/members/{OWNER_MEMBER_ID}/role",
+    headers=hdr(owner_token),
+    json={"role": "viewer"},
+)
+ok = r.status_code == 400
+expect("cannot demote the last Owner", ok, f"status={r.status_code} body={r.text[:80]}")
+
+# Test 21: Owner removes the viewer member
+r = client.delete(
+    f"/agent/agency/members/{VIEWER_MEMBER_ID}",
+    headers=hdr(owner_token),
+)
+ok = r.status_code == 200 and r.json().get("ok") is True
+expect("owner removes viewer", ok, f"status={r.status_code}")
+
+# Test 22: Last-Owner protection on remove
+r = client.delete(
+    f"/agent/agency/members/{OWNER_MEMBER_ID}",
+    headers=hdr(owner_token),
+)
+ok = r.status_code == 400
+expect("cannot remove the last Owner", ok, f"status={r.status_code}")
+
+# Test 23: Owner renames the agency
+r = client.put(
+    "/agent/agency",
+    headers=hdr(owner_token),
+    json={"name": "Acme Insurance Group"},
+)
+ok = r.status_code == 200 and r.json().get("name") == "Acme Insurance Group"
+expect("owner renames agency", ok, f"status={r.status_code}")
+
+# Test 24: Cross-tenant: agency 1 owner cannot manage agency 2 members.
+# We don't know agency 2's member id without a query, so look it up.
+db = SessionLocal()
+from app.models_agency import AgencyMember as AM_inner
+other_member = db.execute(
+    select(AM_inner).where(AM_inner.role == "owner", AM_inner.user_id != _owner_uid)
+).scalar_one_or_none()
+other_member_id = other_member.id if other_member else None
+db.close()
+
+r = client.put(
+    f"/agent/agency/members/{other_member_id}/role",
+    headers=hdr(owner_token),
+    json={"role": "viewer"},
+)
+ok = r.status_code == 404  # Member exists but is in a different agency, so 404 from agency-scoped lookup
+expect("cross-tenant member edits return 404", ok, f"status={r.status_code} target={other_member_id}")
+
 
 # Summary
 print()

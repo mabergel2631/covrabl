@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '../../../lib/auth';
-import { authApi } from '../../../lib/api';
+import { authApi, agentApi } from '../../../lib/api';
 import { track } from '../../../lib/track';
 import { APP_NAME, APP_DESCRIPTION } from '../config';
 import AuthHeader from '../components/AuthHeader';
@@ -14,10 +14,16 @@ export default function LoginPage() {
   const router = useRouter();
   const [sessionExpired, setSessionExpired] = useState(false);
   const [mode, setMode] = useState<'login' | 'register'>('login');
+  const [teamInviteToken, setTeamInviteToken] = useState<string | null>(null);
 
   useEffect(() => {
-    if (typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('expired') === '1') {
-      setSessionExpired(true);
+    if (typeof window === 'undefined') return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('expired') === '1') setSessionExpired(true);
+    const tok = params.get('team_invite');
+    if (tok) {
+      setTeamInviteToken(tok);
+      setMode('register'); // default to register; user can switch if they already have an account
     }
   }, []);
   const [email, setEmail] = useState('');
@@ -43,6 +49,23 @@ export default function LoginPage() {
         ? await authApi.login(trimmedEmail, password)
         : await authApi.register(trimmedEmail, password, role);
       login(res.access_token);
+
+      // If we have a team invite token, claim it now (auth header is set after login())
+      if (teamInviteToken) {
+        try {
+          await agentApi.acceptTeamInvite(teamInviteToken);
+          track('team_invite_accepted', 'auth');
+          router.push('/agent');
+          return;
+        } catch (err: any) {
+          // Don't block login on accept failure — let user reach /agent anyway
+          // and surface a soft error; their account is created.
+          setError(`Signed in, but could not claim team invite: ${err.message || 'unknown error'}`);
+          router.push('/agent');
+          return;
+        }
+      }
+
       const returnTo = new URLSearchParams(window.location.search).get('returnTo');
       router.push(returnTo || '/policies');
     } catch (err: any) {
@@ -90,6 +113,15 @@ export default function LoginPage() {
             {mode === 'login' ? `Sign in to your ${APP_NAME} account` : `Get started with ${APP_NAME}`}
           </p>
 
+          {teamInviteToken && (
+            <div style={{
+              marginBottom: 20, padding: '10px 14px', fontSize: 13,
+              backgroundColor: '#eff6ff', border: '1px solid #bfdbfe',
+              borderRadius: 'var(--radius-md)', color: '#1e3a8a',
+            }}>
+              You've been invited to join a team. {mode === 'register' ? 'Create your account' : 'Sign in'} to accept the invitation.
+            </div>
+          )}
           {sessionExpired && !error && (
             <div style={{
               marginBottom: 20, padding: '10px 14px', fontSize: 13,

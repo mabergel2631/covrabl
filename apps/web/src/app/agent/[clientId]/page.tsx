@@ -312,8 +312,8 @@ export default function ClientDetailPage() {
               </>
             )}
           </p>
-          {/* Producer assignment — visible if agency has >1 member or someone is assigned */}
-          {(members.length > 1 || data.producer_member_id) && (
+          {/* Producer assignment — visible if agency has >1 active member or someone is assigned */}
+          {(members.filter(m => m.status === 'active').length > 1 || data.producer_member_id) && (
             <div style={{ marginTop: 8, position: 'relative', display: 'inline-block' }}>
               <button
                 type="button"
@@ -375,7 +375,7 @@ export default function ClientDetailPage() {
                   >
                     Unassigned
                   </button>
-                  {members.map(m => (
+                  {members.filter(m => m.status === 'active').map(m => (
                     <button
                       key={m.member_id}
                       type="button"
