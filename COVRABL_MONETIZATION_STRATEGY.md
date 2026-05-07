@@ -1,8 +1,29 @@
+> ⚠️ **ARCHIVED — superseded as of 2026-05-07.** This document describes a
+> consumer-first D2C path ($2.49–5.99/mo subscriptions, 17K paid users to
+> reach $1M ARR) that no longer reflects the product direction. Covrabl
+> pivoted to an **agency-first B2B** strategy in Spring 2026:
+> - Pricing: $99 list / $59 founding-partner / +$500 white-label, no D2C tier
+> - Positioning: "Client coverage intelligence and engagement platform"
+>   layered above the AMS, sold to agencies, not consumers
+> - Architecture: agency-as-tenant data model (Agency → Members → Roles →
+>   Client assignments), not flat per-user accounts
+>
+> Kept for reference: the carrier-partnership and aggregated-intelligence
+> framing in Channel 3 may still apply at scale. The D2C revenue math and
+> conversion levers in Channel 1 are no longer the plan.
+>
+> Current strategy lives in conversation context and memory entries
+> (`project_pricing_model`, `project_agency_positioning`,
+> `project_agency_data_model`, `project_renewal_review_framing`).
+> Do not use this doc to drive product or go-to-market decisions.
+
+---
+
 # Covrabl — Monetization & Revenue Strategy
 
 ## A multi-channel approach for sustainable growth
 
-*Last updated: February 2026*
+*Last updated: February 2026 — ARCHIVED 2026-05-07*
 
 ---
 
