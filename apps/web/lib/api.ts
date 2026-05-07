@@ -1755,6 +1755,18 @@ export type AgentClientSummary = {
   what_to_do: string[];
 };
 
+export type AgentClientActivityItem = {
+  type: "action" | "behavior";
+  label: string;
+  timestamp: string | null;
+};
+
+export type AgentClientActivity = {
+  items: AgentClientActivityItem[];
+  last_seen: string | null;
+  total: number;
+};
+
 export const agentApi = {
   clients(): Promise<AgentClient[]> {
     return request<AgentClient[]>("/agent/clients");
@@ -1764,6 +1776,9 @@ export const agentApi = {
   },
   clientSummary(clientId: number): Promise<AgentClientSummary> {
     return request<AgentClientSummary>(`/agent/clients/${clientId}/summary`);
+  },
+  clientActivity(clientId: number): Promise<AgentClientActivity> {
+    return request<AgentClientActivity>(`/agent/clients/${clientId}/activity`);
   },
   inviteClient(email: string): Promise<{ ok: boolean; status: string; client_id?: number; invite_token?: string }> {
     return request("/agent/clients/invite", {

@@ -87,7 +87,7 @@ async def global_exception_handler(request: Request, exc: Exception):
 @app.get("/health")
 def health_check():
     from app.config import settings
-    return {"status": "ok", "app_url": settings.app_url, "version": "2026-05-06-agency-demo-tone"}
+    return {"status": "ok", "app_url": settings.app_url, "version": "2026-05-07-client-detail-fixes"}
 
 
 @app.on_event("startup")

@@ -5,7 +5,7 @@ import { useRouter, useParams } from 'next/navigation';
 import { useAuth } from '../../../../lib/auth';
 import {
   agentApi, AgentClientSummary, AgentFlaggedItem, AgentNote, AgentClientDocument,
-  CoverageGap, API_BASE,
+  AgentClientActivity, CoverageGap, API_BASE,
 } from '../../../../lib/api';
 import { trackClick, trackFeatureUse } from '../../../../lib/track';
 import BackButton from '../../components/BackButton';
@@ -33,6 +33,7 @@ export default function ClientDetailPage() {
   const [data, setData] = useState<AgentClientSummary | null>(null);
   const [documents, setDocuments] = useState<AgentClientDocument[]>([]);
   const [notes, setNotes] = useState<AgentNote[]>([]);
+  const [activity, setActivity] = useState<AgentClientActivity | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [activeTab, setActiveTab] = useState<Tab>('overview');
@@ -64,14 +65,16 @@ export default function ClientDetailPage() {
 
     const load = async () => {
       try {
-        const [summary, docs, notesList] = await Promise.all([
+        const [summary, docs, notesList, act] = await Promise.all([
           agentApi.clientSummary(clientId),
           agentApi.clientDocuments(clientId),
           agentApi.clientNotes(clientId),
+          agentApi.clientActivity(clientId).catch(() => ({ items: [], last_seen: null, total: 0 })),
         ]);
         setData(summary);
         setDocuments(docs);
         setNotes(notesList);
+        setActivity(act);
         if (summary.policies.length > 0 && !uploadPolicyId) {
           setUploadPolicyId(summary.policies[0].id);
         }
@@ -84,6 +87,24 @@ export default function ClientDetailPage() {
     };
     load();
   }, [token, role, clientId]);
+
+  function relativeTime(iso: string | null): string {
+    if (!iso) return '';
+    const t = new Date(iso).getTime();
+    if (Number.isNaN(t)) return '';
+    const diffMs = Date.now() - t;
+    const sec = Math.max(0, Math.floor(diffMs / 1000));
+    if (sec < 60) return 'just now';
+    const min = Math.floor(sec / 60);
+    if (min < 60) return `${min}m ago`;
+    const hr = Math.floor(min / 60);
+    if (hr < 24) return `${hr}h ago`;
+    const d = Math.floor(hr / 24);
+    if (d < 30) return `${d}d ago`;
+    const mo = Math.floor(d / 30);
+    if (mo < 12) return `${mo}mo ago`;
+    return `${Math.floor(mo / 12)}y ago`;
+  }
 
   const handleAddNote = async () => {
     if (!noteText.trim()) return;
@@ -117,6 +138,7 @@ export default function ClientDetailPage() {
     setAddPolicyMsg('');
     trackClick('agent_create_policy', { client_id: clientId, carrier: addPolicyData.carrier, policy_type: addPolicyData.policy_type });
     try {
+      const wasFirstPolicy = data?.policies.length === 0;
       const result = await agentApi.createPolicyForClient(clientId, {
         scope: addPolicyData.scope,
         policy_type: addPolicyData.policy_type,
@@ -129,12 +151,23 @@ export default function ClientDetailPage() {
         business_name: addPolicyData.business_name || undefined,
       });
       trackFeatureUse('agent_policy_created', { client_id: clientId, policy_id: result.policy_id });
-      setAddPolicyMsg('Policy added!');
+      setAddPolicyMsg(wasFirstPolicy ? 'Policy added — upload a document next' : 'Policy added!');
       setAddPolicyData({ scope: 'personal', policy_type: '', carrier: '', policy_number: '', coverage_amount: '', deductible: '', premium_amount: '', renewal_date: '', business_name: '' });
       // Refresh data
       const summary = await agentApi.clientSummary(clientId);
       setData(summary);
-      setTimeout(() => { setShowAddPolicy(false); setAddPolicyMsg(''); }, 1500);
+      // Pre-select the just-created policy for the upload form
+      setUploadPolicyId(result.policy_id);
+      setTimeout(() => {
+        setShowAddPolicy(false);
+        setAddPolicyMsg('');
+        // If this was the agent's first policy for this client, jump straight to
+        // the documents tab with the upload form open — closes the loop.
+        if (wasFirstPolicy) {
+          setActiveTab('documents');
+          setShowUpload(true);
+        }
+      }, 1500);
     } catch (err: any) {
       setAddPolicyMsg(err.message || 'Failed to add policy');
     } finally {
@@ -198,9 +231,9 @@ export default function ClientDetailPage() {
 
   const scoreColor = (data.protection_score ?? 0) >= 70 ? 'var(--color-success)' : (data.protection_score ?? 0) >= 40 ? 'var(--color-warning)' : 'var(--color-danger)';
   const coverageStatusConfig = {
-    gaps: { label: 'Gaps Detected', color: 'var(--color-danger)', bg: '#fef2f2', border: '#fecaca' },
+    gaps: { label: 'Items to Review', color: 'var(--color-danger)', bg: '#fef2f2', border: '#fecaca' },
     review: { label: 'Review Recommended', color: '#92400e', bg: '#fef3c7', border: '#fde68a' },
-    good: { label: 'Good', color: 'var(--color-success)', bg: '#dcfce7', border: '#bbf7d0' },
+    good: { label: 'On Track', color: 'var(--color-success)', bg: '#dcfce7', border: '#bbf7d0' },
   } as const;
   const csCfg = coverageStatusConfig[data.coverage_status] || coverageStatusConfig.good;
 
@@ -222,6 +255,12 @@ export default function ClientDetailPage() {
           </h1>
           <p style={{ fontSize: 14, color: 'var(--color-text-secondary)', margin: 0 }}>
             {data.policies.length} {data.policies.length === 1 ? 'policy' : 'policies'}
+            {activity?.last_seen && (
+              <>
+                <span style={{ margin: '0 8px', color: 'var(--color-border)' }}>&middot;</span>
+                <span>Last activity {relativeTime(activity.last_seen)}</span>
+              </>
+            )}
           </p>
         </div>
         <div className="mobile-wrap" style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
@@ -393,10 +432,48 @@ export default function ClientDetailPage() {
             )}
           </div>
 
-          {/* 2. What Needs Attention */}
+          {/* 1b. Recent client activity */}
+          {activity && activity.items.length > 0 && (
+            <>
+              <h2 style={{ fontSize: 16, fontWeight: 600, margin: '0 0 4px', color: 'var(--color-text)' }}>Recent Client Activity</h2>
+              <p style={{ fontSize: 12, color: 'var(--color-text-muted)', margin: '0 0 12px' }}>
+                What this client has done lately &mdash; useful talking points for your next call.
+              </p>
+              <div className="card" style={{ padding: '12px 16px', marginBottom: 24 }}>
+                {activity.items.map((item, i) => (
+                  <div
+                    key={i}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 10,
+                      padding: '8px 0',
+                      borderBottom: i < activity.items.length - 1 ? '1px solid var(--color-border)' : 'none',
+                    }}
+                  >
+                    <span style={{
+                      width: 8,
+                      height: 8,
+                      borderRadius: 4,
+                      backgroundColor: item.type === 'action' ? 'var(--color-primary)' : '#94a3b8',
+                      flexShrink: 0,
+                    }} />
+                    <span style={{ flex: 1, fontSize: 13, color: 'var(--color-text)' }}>
+                      {item.label}
+                    </span>
+                    <span style={{ fontSize: 12, color: 'var(--color-text-muted)', flexShrink: 0 }}>
+                      {relativeTime(item.timestamp)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+
+          {/* 2. Items to review */}
           {data.flagged_items.length > 0 && (
             <>
-              <h2 style={{ fontSize: 16, fontWeight: 600, margin: '0 0 12px', color: 'var(--color-text)' }}>What Needs Attention</h2>
+              <h2 style={{ fontSize: 16, fontWeight: 600, margin: '0 0 12px', color: 'var(--color-text)' }}>Items to Review</h2>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 24 }}>
                 {data.flagged_items.map((item, i) => {
                   const colors = severityColors[item.severity] || severityColors.info;
@@ -429,10 +506,13 @@ export default function ClientDetailPage() {
             </>
           )}
 
-          {/* 3. What To Do */}
-          {data.what_to_do && data.what_to_do.length > 0 && data.what_to_do[0] !== 'No action needed' && (
+          {/* 3. Discussion topics */}
+          {data.what_to_do && data.what_to_do.length > 0 && !data.what_to_do[0].startsWith('Nothing flagged') && !data.what_to_do[0].startsWith('No action needed') && !data.what_to_do[0].startsWith('On track') && (
             <>
-              <h2 style={{ fontSize: 16, fontWeight: 600, margin: '0 0 12px', color: 'var(--color-text)' }}>What To Do</h2>
+              <h2 style={{ fontSize: 16, fontWeight: 600, margin: '0 0 4px', color: 'var(--color-text)' }}>Discussion Topics</h2>
+              <p style={{ fontSize: 12, color: 'var(--color-text-muted)', margin: '0 0 12px' }}>
+                Suggested talking points for your next conversation with this client &mdash; review and adjust before sharing.
+              </p>
               <div className="card" style={{ padding: '16px 20px', marginBottom: 24 }}>
                 {data.what_to_do.map((action, i) => (
                   <div
@@ -458,7 +538,29 @@ export default function ClientDetailPage() {
           {data.policies.length === 0 ? (
             <>
               <h2 style={{ fontSize: 16, fontWeight: 600, margin: '0 0 12px', color: 'var(--color-text)' }}>Policies</h2>
-              <div className="card" style={{ padding: 24, color: 'var(--color-text-muted)', textAlign: 'center' }}>No policies</div>
+              <div className="card" style={{ padding: 32, textAlign: 'center' }}>
+                <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--color-text)', marginBottom: 6 }}>
+                  No policies on file yet for this client
+                </div>
+                <p style={{ fontSize: 13, color: 'var(--color-text-muted)', margin: '0 auto 18px', maxWidth: 480 }}>
+                  Add the first policy and you&rsquo;ll be prompted to upload the dec page right after.
+                </p>
+                <button
+                  onClick={() => { trackClick('agent_empty_add_first_policy', { client_id: clientId }); setShowAddPolicy(true); }}
+                  style={{
+                    padding: '10px 24px',
+                    backgroundColor: 'var(--color-primary)',
+                    color: '#fff',
+                    border: 'none',
+                    borderRadius: 'var(--radius-md)',
+                    fontSize: 14,
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                  }}
+                >
+                  Add first policy
+                </button>
+              </div>
             </>
           ) : (() => {
             const personalPolicies = data.policies.filter(p => p.scope !== 'business');
@@ -782,16 +884,80 @@ export default function ClientDetailPage() {
           )}
 
           {showUpload && data.policies.length === 0 && (
-            <div className="card" style={{ padding: 20, marginBottom: 16, color: 'var(--color-text-muted)', fontSize: 13 }}>
-              This client has no policies yet. Add a policy first before uploading documents.
+            <div className="card" style={{ padding: 20, marginBottom: 16, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
+              <div style={{ fontSize: 13, color: 'var(--color-text)' }}>
+                Add a policy first &mdash; you&rsquo;ll be brought straight back here to upload its dec page.
+              </div>
+              <button
+                onClick={() => { trackClick('agent_docs_empty_add_policy', { client_id: clientId }); setActiveTab('overview'); setShowAddPolicy(true); setShowUpload(false); }}
+                style={{
+                  padding: '8px 18px',
+                  backgroundColor: 'var(--color-primary)',
+                  color: '#fff',
+                  border: 'none',
+                  borderRadius: 'var(--radius-md)',
+                  fontSize: 13,
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                Add first policy
+              </button>
             </div>
           )}
 
           {/* Document list */}
           {documents.length === 0 ? (
-            <div className="card" style={{ padding: 24, textAlign: 'center', color: 'var(--color-text-muted)' }}>
-              No documents yet
-            </div>
+            data.policies.length === 0 ? (
+              <div className="card" style={{ padding: 32, textAlign: 'center' }}>
+                <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--color-text)', marginBottom: 6 }}>
+                  No documents yet
+                </div>
+                <p style={{ fontSize: 13, color: 'var(--color-text-muted)', margin: '0 auto 18px', maxWidth: 460 }}>
+                  Add the first policy and you&rsquo;ll be brought back here to upload its dec page.
+                </p>
+                <button
+                  onClick={() => { trackClick('agent_docs_empty_add_first_policy', { client_id: clientId }); setActiveTab('overview'); setShowAddPolicy(true); }}
+                  style={{
+                    padding: '10px 24px',
+                    backgroundColor: 'var(--color-primary)',
+                    color: '#fff',
+                    border: 'none',
+                    borderRadius: 'var(--radius-md)',
+                    fontSize: 14,
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                  }}
+                >
+                  Add first policy
+                </button>
+              </div>
+            ) : (
+              <div className="card" style={{ padding: 32, textAlign: 'center' }}>
+                <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--color-text)', marginBottom: 6 }}>
+                  No documents uploaded yet
+                </div>
+                <p style={{ fontSize: 13, color: 'var(--color-text-muted)', margin: '0 auto 18px', maxWidth: 460 }}>
+                  Drop in a dec page, endorsement, or insurance card for this client.
+                </p>
+                <button
+                  onClick={() => { trackClick('agent_docs_empty_upload', { client_id: clientId }); setShowUpload(true); }}
+                  style={{
+                    padding: '10px 24px',
+                    backgroundColor: 'var(--color-primary)',
+                    color: '#fff',
+                    border: 'none',
+                    borderRadius: 'var(--radius-md)',
+                    fontSize: 14,
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                  }}
+                >
+                  Upload first document
+                </button>
+              </div>
+            )
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               {documents.map(doc => (

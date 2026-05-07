@@ -14,11 +14,47 @@ from .db import get_db
 from .models import User, Policy, Contact, PolicyDetail, Exposure
 from .models_agent import AgentClient, AgentNote, AgentPolicyAccess
 from .models_documents import Document
-from .models_features import PolicyShare, CoverageScore, ComplianceCheck, LeaseRequirement
+from .models_features import PolicyShare, CoverageScore, ComplianceCheck, LeaseRequirement, AuditLog, UserEvent
 from .storage import presign_put_url
 from .audit_helper import log_action
 
 router = APIRouter(prefix="/agent", tags=["agent"])
+
+
+# Consumer-direct lines that most P&C agents/agencies don't write.
+# Excluded from agent-side gap surfacing by default. Will move to a
+# per-agency `lines_we_write` setting when the Organization model lands.
+CONSUMER_ONLY_GAP_CATEGORIES: set[str] = {
+    "health_insurance",
+    "dental_insurance",
+    "vision_insurance",
+    "pet_insurance",
+}
+
+
+def _filter_gaps_for_agent_context(gaps: list[dict], policy_types: set[str]) -> list[dict]:
+    """Drop generic 'client doesn't have X' gaps for lines the agent isn't likely
+    to write. Keep them only if the client actually has a policy of that type
+    on file (which means the agent is already involved in that line).
+    """
+    filtered: list[dict] = []
+    for g in gaps:
+        category = g.get("category")
+        if category in CONSUMER_ONLY_GAP_CATEGORIES and not _category_in_policy_types(category, policy_types):
+            continue
+        filtered.append(g)
+    return filtered
+
+
+def _category_in_policy_types(category: str, policy_types: set[str]) -> bool:
+    mapping = {
+        "health_insurance": "health",
+        "dental_insurance": "dental",
+        "vision_insurance": "vision",
+        "pet_insurance": "pet",
+    }
+    pt = mapping.get(category)
+    return bool(pt and pt in policy_types)
 
 
 # ── Auth helpers ────────────────────────────────────────
@@ -228,13 +264,17 @@ def _compute_what_to_do(flagged_items: list[dict], gaps: list[dict]) -> list[str
         if f.get("category") == "expired_policy":
             actions.append(f"Renewal review needed: {f['title'].replace(' expired', '')} policy")
         elif f.get("category") == "compliance_fail":
-            actions.append(f"Discuss with broker: {f['detail']}")
+            actions.append(f"Discuss with client: {f['detail']}")
         elif f.get("category") == "upcoming_renewal":
             actions.append(f"Renewal review: {f['title']}")
 
+    # Only surface gaps with real signal — drop "info" severity to avoid
+    # padding the list with generic "they don't have X" suggestions.
     for g in gaps:
-        rec = g.get("recommendation", g.get("name", "coverage item"))
-        actions.append(rec)
+        if g.get("severity") == "info":
+            continue
+        name = g.get("name", "coverage item")
+        actions.append(f"Discuss with client: {name}")
 
     # Deduplicate while preserving order, cap at 4
     seen: set[str] = set()
@@ -246,7 +286,7 @@ def _compute_what_to_do(flagged_items: list[dict], gaps: list[dict]) -> list[str
         if len(unique) >= 4:
             break
 
-    return unique if unique else ["On track — no review items at this time"]
+    return unique if unique else ["Nothing flagged right now — review at next renewal"]
 
 
 def _flagged_items_for_client(db: Session, client_id: int, policies: list[Policy]) -> list[dict]:
@@ -397,6 +437,8 @@ def list_clients(agent: User = Depends(require_agent), db: Session = Depends(get
         flagged = _flagged_items_for_client(db, cid, policies)
         policy_dicts = [_policy_to_dict(p) for p in policies]
         gaps = analyze_coverage_gaps(policy_dicts)
+        client_policy_types = {(p.policy_type or "").lower() for p in policies}
+        gaps = _filter_gaps_for_agent_context(gaps, client_policy_types)
 
         coverage_status = _compute_coverage_status(flagged, gaps)
         next_action = _compute_next_action(flagged, gaps)
@@ -608,6 +650,8 @@ def client_summary(client_id: int, agent: User = Depends(require_agent), db: Ses
     ).scalar()
 
     gaps = analyze_coverage_gaps(policy_dicts)
+    client_policy_types = {(p.policy_type or "").lower() for p in policies}
+    gaps = _filter_gaps_for_agent_context(gaps, client_policy_types)
     summary = get_coverage_summary(policy_dicts)
 
     today = datetime.now().date()
@@ -1034,3 +1078,109 @@ def toggle_policy_visibility(
                f"Set visible={payload.visible} for agent {agent_id}")
     db.commit()
     return {"ok": True, "visible": payload.visible}
+
+
+# ── Client activity feed ───────────────────────────────
+
+
+def _humanize_audit_event(action: str, entity_type: str) -> str | None:
+    """Map (action, entity_type) -> human label for the agent's view of client activity.
+    Return None to skip noisy or agent-side events.
+    """
+    a, t = (action or "").lower(), (entity_type or "").lower()
+    if a == "uploaded" and t in ("document", "policy_document"):
+        return "Uploaded a document"
+    if a == "created" and t == "policy":
+        return "Added a policy"
+    if a == "created" and t == "claim":
+        return "Filed a claim"
+    if a == "created" and t == "compliance_check":
+        return "Ran a compliance check"
+    if a == "created" and t == "emergency_card":
+        return "Created an ICE card"
+    if a == "updated" and t == "policy":
+        return "Updated a policy"
+    return None
+
+
+def _humanize_user_event(event_name: str, page_path: str | None) -> str | None:
+    """Map UserEvent -> human label. Return None for noisy/internal events."""
+    name = (event_name or "").lower()
+    path = page_path or ""
+    if name in ("login_success", "session_start"):
+        return "Logged in"
+    if name == "chat_send":
+        return "Asked Covrabl a question"
+    if name in ("chat_view", "page_view") and "/chat" in path:
+        return "Opened the Ask Covrabl chat"
+    if name == "page_view" and "/compliance-report/" in path:
+        return "Viewed their compliance report"
+    if name == "page_view" and "/policies/" in path:
+        return "Viewed a policy"
+    if name == "page_view" and "/ice/" in path:
+        return "Opened their ICE card"
+    return None
+
+
+@router.get("/clients/{client_id}/activity")
+def client_activity(
+    client_id: int,
+    limit: int = 8,
+    days: int = 60,
+    agent: User = Depends(require_agent),
+    db: Session = Depends(get_db),
+):
+    """Recent activity for a client — upload/policy events plus behavioral signals.
+    Used to give agents talking points for the next call.
+    """
+    _verify_client_access(db, agent, client_id)
+    cutoff = datetime.now() - timedelta(days=max(1, min(days, 365)))
+    items: list[dict] = []
+
+    audit_rows = db.execute(
+        select(AuditLog).where(
+            AuditLog.user_id == client_id,
+            AuditLog.created_at >= cutoff,
+        ).order_by(AuditLog.created_at.desc()).limit(50)
+    ).scalars().all()
+    for row in audit_rows:
+        label = _humanize_audit_event(row.action, row.entity_type)
+        if not label:
+            continue
+        items.append({
+            "type": "action",
+            "label": label,
+            "timestamp": row.created_at.isoformat() if row.created_at else None,
+        })
+
+    event_rows = db.execute(
+        select(UserEvent).where(
+            UserEvent.user_id == client_id,
+            UserEvent.created_at >= cutoff,
+        ).order_by(UserEvent.created_at.desc()).limit(150)
+    ).scalars().all()
+    seen_buckets: set[tuple[str, str]] = set()
+    for row in event_rows:
+        label = _humanize_user_event(row.event_name, row.page_path)
+        if not label:
+            continue
+        # Collapse duplicates that occur the same calendar day so a flurry of
+        # page views doesn't drown out other signals.
+        bucket_day = row.created_at.date().isoformat() if row.created_at else ""
+        bucket = (label, bucket_day)
+        if bucket in seen_buckets:
+            continue
+        seen_buckets.add(bucket)
+        items.append({
+            "type": "behavior",
+            "label": label,
+            "timestamp": row.created_at.isoformat() if row.created_at else None,
+        })
+
+    items.sort(key=lambda x: x["timestamp"] or "", reverse=True)
+    last_seen = items[0]["timestamp"] if items else None
+    return {
+        "items": items[:limit],
+        "last_seen": last_seen,
+        "total": len(items),
+    }
