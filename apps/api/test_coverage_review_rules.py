@@ -37,19 +37,23 @@ def expect(name, predicate, detail=""):
 auto_policy = {"policy_type": "Auto", "carrier": "Chubb"}
 auto_prior = {"policy_type": "Auto", "carrier": "Travelers"}
 
-# Liability decrease
+# Liability decrease — must include from/to values
 items = compute_discussion_items(
     auto_policy, auto_prior,
     [make_delta("coverage_amount", 250000, 100000, "decreased")],
 )
-expect("auto: liability decrease fires", any("Liability limit decreased" in i for i in items), f"got={items}")
+expect("auto: liability decrease includes from/to values",
+       any("Liability limit decreased" in i and "$250,000" in i and "$100,000" in i for i in items),
+       f"got={items}")
 
-# Liability significant increase (>=25%)
+# Liability significant increase (>=25%) — must include from/to + percent
 items = compute_discussion_items(
     auto_policy, auto_prior,
     [make_delta("coverage_amount", 100000, 250000, "increased")],
 )
-expect("auto: liability +25% fires", any("Liability limit increased" in i for i in items), f"got={items}")
+expect("auto: liability +25% includes from/to + percent",
+       any("Liability limit increased" in i and "$100,000" in i and "$250,000" in i and "%" in i for i in items),
+       f"got={items}")
 
 # Liability small increase (<25%) does NOT fire
 items = compute_discussion_items(
@@ -96,13 +100,13 @@ items = compute_discussion_items(
     plain_policy, plain_policy,
     [make_delta("premium_amount", 1800, 2100, "increased")],
 )
-expect("premium +15% alone fires", any("Premium increased without" in i for i in items), f"got={items}")
+expect("premium +15% alone fires", any("Premium increased" in i for i in items), f"got={items}")
 
 items = compute_discussion_items(
     plain_policy, plain_policy,
     [make_delta("premium_amount", 2100, 1900, "decreased")],
 )
-expect("premium -10% alone fires", any("Premium decreased without" in i for i in items), f"got={items}")
+expect("premium -10% alone fires", any("Premium decreased" in i for i in items), f"got={items}")
 
 # Premium change WITH coverage change does NOT fire the standalone-premium rule
 items = compute_discussion_items(
@@ -113,14 +117,16 @@ items = compute_discussion_items(
     ],
 )
 expect("premium+coverage: standalone-premium rule does NOT fire",
-       not any("Premium increased without" in i for i in items), f"got={items}")
+       not any("Premium increased" in i for i in items), f"got={items}")
 
-# ──── Carrier change ─────────────────────────────────
+# ──── Carrier change includes specific carriers ──────
 items = compute_discussion_items(
     auto_policy, auto_prior,
     [make_delta("carrier", "Travelers", "Chubb", "changed")],
 )
-expect("carrier change fires", any("Carrier changed from prior term" in i for i in items), f"got={items}")
+expect("carrier change includes both carrier names",
+       any("Carrier changed from Travelers to Chubb" in i for i in items),
+       f"got={items}")
 
 # ──── Policy number changes intentionally produce NO discussion item ──
 # (Routine renewal mechanic — see coverage_review_rules.py comment)
@@ -140,7 +146,7 @@ items = compute_discussion_items(
     ],
 )
 expect("policy_number + premium change: only premium item surfaces",
-       any("Premium increased without" in i for i in items)
+       any("Premium increased" in i for i in items)
        and not any("Policy number" in i for i in items), f"got={items}")
 
 # ──── Many simultaneous deltas ───────────────────────

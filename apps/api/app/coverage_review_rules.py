@@ -63,6 +63,20 @@ def _pct_change(old, new) -> float | None:
     return (b - a) / a * 100.0
 
 
+def _fmt_money(v) -> str:
+    n = _to_int(v)
+    if n is None:
+        return str(v) if v is not None else "(none)"
+    return f"${n:,}"
+
+
+def _fmt_change_phrase(d: dict) -> str:
+    """Short 'from X to Y' phrase for embedding in a discussion item."""
+    old_v = d.get("old_value")
+    new_v = d.get("new_value")
+    return f"from {_fmt_money(old_v)} to {_fmt_money(new_v)}"
+
+
 def compute_discussion_items(
     policy: dict,
     previous_policy: dict | None,
@@ -98,72 +112,79 @@ def compute_discussion_items(
     if is_auto:
         if coverage_delta and coverage_delta.get("delta_type") == "decreased":
             items.append(
-                "Liability limit decreased from prior term. Review how current limits "
-                "align with the client's coverage objectives."
+                f"Liability limit decreased {_fmt_change_phrase(coverage_delta)}. "
+                f"Review how current limits align with the client's coverage objectives."
             )
         elif coverage_delta and coverage_delta.get("delta_type") == "increased":
             pct = _pct_change(coverage_delta.get("old_value"), coverage_delta.get("new_value"))
             if pct is not None and pct >= 25.0:
                 items.append(
-                    "Liability limit increased from prior term. Review whether this affects "
-                    "underlying-limit requirements on related coverage."
+                    f"Liability limit increased {_fmt_change_phrase(coverage_delta)} "
+                    f"(+{pct:.0f}%). Review whether this affects underlying-limit "
+                    f"requirements on related coverage."
                 )
 
         if deductible_delta and deductible_delta.get("delta_type") == "increased":
             items.append(
-                "Deductible increased from prior term. Review the trade-off between premium "
-                "and out-of-pocket exposure with the client."
+                f"Deductible increased {_fmt_change_phrase(deductible_delta)}. "
+                f"Review the trade-off between premium and out-of-pocket exposure with "
+                f"the client."
             )
 
     # ── Homeowners / dwelling rules ────────────────────
     if is_home:
         if coverage_delta and coverage_delta.get("delta_type") == "decreased":
             items.append(
-                "Dwelling coverage decreased from prior term. Review current rebuild "
-                "assumptions and replacement-cost methodology with carrier and client."
+                f"Dwelling coverage decreased {_fmt_change_phrase(coverage_delta)}. "
+                f"Review current rebuild assumptions and replacement-cost methodology "
+                f"with carrier and client."
             )
         elif coverage_delta and coverage_delta.get("delta_type") == "increased":
             pct = _pct_change(coverage_delta.get("old_value"), coverage_delta.get("new_value"))
             if pct is not None and pct >= 15.0:
                 items.append(
-                    "Dwelling coverage increased from prior term. Review the underlying "
-                    "rebuild estimate."
+                    f"Dwelling coverage increased {_fmt_change_phrase(coverage_delta)} "
+                    f"(+{pct:.0f}%). Review the underlying rebuild estimate."
                 )
 
         if deductible_delta:
             items.append(
-                "Deductible changed from prior term. Review the out-of-pocket impact on a "
-                "typical loss with the client."
+                f"Deductible changed {_fmt_change_phrase(deductible_delta)}. "
+                f"Review the out-of-pocket impact on a typical loss with the client."
             )
 
     # ── Health rules ───────────────────────────────────
     if is_health:
         if deductible_delta and deductible_delta.get("delta_type") == "increased":
             items.append(
-                "Deductible increased from prior term. Review year-of-care exposure with "
-                "the client."
+                f"Deductible increased {_fmt_change_phrase(deductible_delta)}. "
+                f"Review year-of-care exposure with the client."
             )
 
     # ── Premium movement (any policy) ──────────────────
     if premium_delta and not coverage_delta and not deductible_delta:
         pct = _pct_change(premium_delta.get("old_value"), premium_delta.get("new_value"))
         if pct is not None:
+            phrase = _fmt_change_phrase(premium_delta)
             if pct >= 10.0:
                 items.append(
-                    "Premium increased without tracked coverage changes. Review carrier "
-                    "rate explanation and any non-tracked policy changes."
+                    f"Premium increased {phrase} (+{pct:.1f}%) without tracked coverage "
+                    f"changes. Review carrier rate explanation and any non-tracked "
+                    f"policy changes."
                 )
             elif pct <= -5.0:
                 items.append(
-                    "Premium decreased without tracked coverage changes. Review whether "
-                    "endorsements or sub-limits changed in ways not captured here."
+                    f"Premium decreased {phrase} ({pct:.1f}%) without tracked coverage "
+                    f"changes. Review whether endorsements or sub-limits changed in "
+                    f"ways not captured here."
                 )
 
     # ── Universal: carrier change ──────────────────────
     if carrier_delta:
         items.append(
-            "Carrier changed from prior term. Review endorsements, exclusions, waiting "
-            "periods, and any prior-acts coverage for continuity."
+            f"Carrier changed from {carrier_delta.get('old_value') or '(unknown)'} "
+            f"to {carrier_delta.get('new_value') or '(unknown)'}. Review endorsements, "
+            f"exclusions, waiting periods, and any prior-acts coverage for continuity."
         )
 
     # Note: policy_number changes are routine renewal mechanics (the carrier

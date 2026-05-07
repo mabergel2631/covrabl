@@ -33,15 +33,30 @@ CONSUMER_ONLY_GAP_CATEGORIES: set[str] = {
     "pet_insurance",
 }
 
+# Data-hygiene / preparedness gaps that are useful for individual consumers
+# but pure noise on the agent surface (the agent is the data-keeper; they
+# don't need to be told "add the claims phone number"). Always dropped in
+# agent context regardless of whether the client holds a policy of that type.
+AGENT_NOISE_GAP_CATEGORIES: set[str] = {
+    "preparedness",       # "Missing Claims Contact" — agent is the data-keeper
+    "incomplete_data",    # "Unknown Coverage Limit" — agent can fill these in directly
+}
+
 
 def _filter_gaps_for_agent_context(gaps: list[dict], policy_types: set[str]) -> list[dict]:
-    """Drop generic 'client doesn't have X' gaps for lines the agent isn't likely
-    to write. Keep them only if the client actually has a policy of that type
-    on file (which means the agent is already involved in that line).
+    """Drop gaps that don't add value on the agent surface.
+
+    Two filters:
+    1. Lines the agent isn't likely to write (health/dental/etc.) — kept only
+       if the client already has a policy of that type.
+    2. Data-hygiene / preparedness items (missing claims contact, etc.) — the
+       agent is the data-keeper, not the recipient of these prompts.
     """
     filtered: list[dict] = []
     for g in gaps:
         category = g.get("category")
+        if category in AGENT_NOISE_GAP_CATEGORIES:
+            continue
         if category in CONSUMER_ONLY_GAP_CATEGORIES and not _category_in_policy_types(category, policy_types):
             continue
         filtered.append(g)
@@ -392,9 +407,15 @@ def _flagged_items_for_client(db: Session, client_id: int, policies: list[Policy
     items = []
     today = datetime.now().date()
 
+    # Skip flagging expired policies that have been renewed (they're historical
+    # predecessors in a replaces_policy_id chain — being expired is by design,
+    # not an outstanding issue).
+    replaced_ids = {p.replaces_policy_id for p in policies if p.replaces_policy_id}
+
     for p in policies:
-        # Expired policies
-        if p.status == "expired":
+        # Expired policies — only flag if it's an orphan (not the prior version
+        # of a renewal chain).
+        if p.status == "expired" and p.id not in replaced_ids:
             items.append({
                 "category": "expired_policy",
                 "severity": "high",

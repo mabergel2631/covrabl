@@ -12,10 +12,24 @@ type BackButtonProps = {
 export default function BackButton({ href, label, parentLabel }: BackButtonProps) {
   const router = useRouter();
 
+  const handleClick = () => {
+    // If the user navigated here from another page in this app, pop history
+    // so the browser's forward button works as expected. Otherwise (deep link
+    // or external referrer), fall back to pushing the parent href.
+    if (typeof window !== 'undefined') {
+      const ref = document.referrer;
+      if (ref && ref.startsWith(window.location.origin)) {
+        router.back();
+        return;
+      }
+    }
+    router.push(href);
+  };
+
   return (
     <nav style={{ marginBottom: 16, fontSize: 13, display: 'flex', alignItems: 'center', gap: 6 }}>
       <button
-        onClick={() => router.push(href)}
+        onClick={handleClick}
         style={{
           background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, padding: '4px 0',
           display: 'inline-flex', alignItems: 'center', gap: 6,
