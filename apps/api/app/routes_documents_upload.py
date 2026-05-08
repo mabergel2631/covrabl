@@ -79,6 +79,48 @@ def download_document(document_id: int, db: Session = Depends(get_db), user: Use
     return {"download_url": download_url}
 
 
+@router.delete("/{document_id}")
+def delete_document(document_id: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """Delete a document. Owner or any agent with access to the parent policy.
+
+    Removes the DB row and (best-effort) the file from storage.
+    """
+    doc = db.get(Document, document_id)
+    if not doc:
+        raise HTTPException(status_code=404, detail="Document not found")
+
+    # Permission via access helper — works for both consumer (own policy) and
+    # agent-side (verified via _verify_client_access in the agent caller path,
+    # but get_policy_for_user covers the simpler owner case).
+    from .access import get_policy_for_user
+    get_policy_for_user(doc.policy_id, db, user)
+
+    # Best-effort: delete the file from storage. Failures don't block the row delete.
+    try:
+        from .storage import _get_r2, UPLOAD_DIR
+        r2 = _get_r2()
+        if r2 is not None and doc.object_key:
+            client, bucket = r2
+            try:
+                client.delete_object(Bucket=bucket, Key=doc.object_key)
+            except Exception:
+                pass  # best-effort
+        elif doc.object_key:
+            local = UPLOAD_DIR / doc.object_key
+            if local.exists():
+                try:
+                    local.unlink()
+                except Exception:
+                    pass
+    except Exception:
+        pass  # never block on storage cleanup
+
+    log_action(db, user.id, "deleted", "document", doc.id)
+    db.delete(doc)
+    db.commit()
+    return {"ok": True, "document_id": document_id}
+
+
 @router.get("/by-policy/{policy_id}")
 def list_docs(policy_id: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     from .access import get_policy_for_user

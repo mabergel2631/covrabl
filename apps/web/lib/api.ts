@@ -352,6 +352,9 @@ export const documentsApi = {
   download(documentId: number) {
     return request<{ download_url: string }>(`/documents/${documentId}/download`);
   },
+  delete(documentId: number) {
+    return request<{ ok: boolean }>(`/documents/${documentId}`, { method: "DELETE" });
+  },
   confirmExtraction(documentId: number, data: ExtractionData) {
     return request<{ ok: boolean }>(`/documents/${documentId}/extract/confirm`, {
       method: "POST",

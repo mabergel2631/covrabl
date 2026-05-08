@@ -1647,9 +1647,9 @@ export default function ClientDetailPage() {
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               {documents.map(doc => (
-                <div key={doc.id} className="card" onClick={() => trackClick('agent_document_item', { doc_id: doc.id, filename: doc.filename, doc_type: doc.doc_type, client_id: clientId })} style={{ padding: '14px 20px', cursor: 'pointer' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <div>
+                <div key={doc.id} className="card" style={{ padding: '14px 20px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+                    <div style={{ flex: 1, minWidth: 200 }}>
                       <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--color-text)' }}>{doc.filename}</div>
                       <div style={{ fontSize: 12, color: 'var(--color-text-muted)', marginTop: 2 }}>
                         {doc.carrier} &middot; {doc.doc_type}
@@ -1676,6 +1676,63 @@ export default function ClientDetailPage() {
                         {doc.extraction_status === 'done' ? 'Extracted' : doc.extraction_status === 'pending' ? 'Processing' : doc.extraction_status === 'failed' ? 'Failed' : 'Not extracted'}
                       </div>
                     </div>
+                  </div>
+                  {/* Action buttons */}
+                  <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
+                    <button
+                      onClick={async (e) => {
+                        e.stopPropagation();
+                        try {
+                          trackClick('agent_doc_open', { doc_id: doc.id, client_id: clientId });
+                          const { download_url } = await documentsApi.download(doc.id);
+                          window.open(download_url, '_blank', 'noopener');
+                        } catch (err: any) {
+                          alert(err?.message || 'Could not open document');
+                        }
+                      }}
+                      style={{ padding: '4px 12px', fontSize: 12, fontWeight: 600, backgroundColor: 'var(--color-primary)', color: '#fff', border: 'none', borderRadius: 'var(--radius-sm)', cursor: 'pointer' }}
+                    >
+                      Open
+                    </button>
+                    {doc.extraction_status !== 'done' && (
+                      <button
+                        onClick={async (e) => {
+                          e.stopPropagation();
+                          try {
+                            trackClick('agent_doc_extract', { doc_id: doc.id, client_id: clientId });
+                            await documentsApi.extract(doc.id);
+                            const [docs, summary] = await Promise.all([
+                              agentApi.clientDocuments(clientId),
+                              agentApi.clientSummary(clientId),
+                            ]);
+                            setDocuments(docs);
+                            setData(summary);
+                          } catch (err: any) {
+                            alert(err?.message || 'Extraction failed');
+                          }
+                        }}
+                        style={{ padding: '4px 12px', fontSize: 12, fontWeight: 600, backgroundColor: 'var(--color-surface)', color: 'var(--color-text)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)', cursor: 'pointer' }}
+                      >
+                        {doc.extraction_status === 'failed' ? 'Retry extraction' : 'Run extraction'}
+                      </button>
+                    )}
+                    <button
+                      onClick={async (e) => {
+                        e.stopPropagation();
+                        if (!confirm(`Delete "${doc.filename}"? The file will be removed from storage and the policy's document list.`)) return;
+                        try {
+                          trackClick('agent_doc_delete', { doc_id: doc.id, client_id: clientId });
+                          await documentsApi.delete(doc.id);
+                          const docs = await agentApi.clientDocuments(clientId);
+                          setDocuments(docs);
+                        } catch (err: any) {
+                          alert(err?.message || 'Could not delete document');
+                        }
+                      }}
+                      style={{ padding: '4px 12px', fontSize: 12, fontWeight: 600, backgroundColor: 'transparent', color: 'var(--color-danger)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)', cursor: 'pointer' }}
+                    >
+                      Delete
+                    </button>
                   </div>
                 </div>
               ))}
