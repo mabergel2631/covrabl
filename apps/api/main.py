@@ -104,17 +104,16 @@ def health_check():
     # per-service config issue. If they're true but R2_* are false, the
     # vars were saved on the wrong service/env.
     railway_signals = {
-        "RAILWAY_ENVIRONMENT": bool(os.getenv("RAILWAY_ENVIRONMENT")),
-        "RAILWAY_PROJECT_ID": bool(os.getenv("RAILWAY_PROJECT_ID")),
-        "RAILWAY_SERVICE_ID": bool(os.getenv("RAILWAY_SERVICE_ID")),
-        "RAILWAY_PUBLIC_DOMAIN": bool(os.getenv("RAILWAY_PUBLIC_DOMAIN")),
-        "DATABASE_URL": bool(os.getenv("DATABASE_URL")),  # known-good user-set var
-        "JWT_SECRET": bool(os.getenv("JWT_SECRET")),       # known-good user-set var
+        "RAILWAY_ENVIRONMENT_NAME": os.getenv("RAILWAY_ENVIRONMENT_NAME") or os.getenv("RAILWAY_ENVIRONMENT") or "(none)",
+        "RAILWAY_SERVICE_NAME": os.getenv("RAILWAY_SERVICE_NAME") or "(none)",
+        "RAILWAY_PUBLIC_DOMAIN": os.getenv("RAILWAY_PUBLIC_DOMAIN") or "(none)",
+        "DATABASE_URL": bool(os.getenv("DATABASE_URL")),
+        "JWT_SECRET": bool(os.getenv("JWT_SECRET")),
     }
     return {
         "status": "ok",
         "app_url": settings.app_url,
-        "version": "2026-05-07-r2-diag2",
+        "version": "2026-05-07-r2-diag3",
         "storage": storage_backend(),
         "r2_env": r2_env_seen,
         "railway_env": railway_signals,
