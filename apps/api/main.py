@@ -99,12 +99,25 @@ def health_check():
         "R2_ACCOUNT_ID": bool(os.getenv("R2_ACCOUNT_ID")),
         "R2_BUCKET": bool(os.getenv("R2_BUCKET")),
     }
+    # Sanity: does Railway inject ANY env vars to this container? If
+    # railway_signals are all false, Railway may have a per-environment or
+    # per-service config issue. If they're true but R2_* are false, the
+    # vars were saved on the wrong service/env.
+    railway_signals = {
+        "RAILWAY_ENVIRONMENT": bool(os.getenv("RAILWAY_ENVIRONMENT")),
+        "RAILWAY_PROJECT_ID": bool(os.getenv("RAILWAY_PROJECT_ID")),
+        "RAILWAY_SERVICE_ID": bool(os.getenv("RAILWAY_SERVICE_ID")),
+        "RAILWAY_PUBLIC_DOMAIN": bool(os.getenv("RAILWAY_PUBLIC_DOMAIN")),
+        "DATABASE_URL": bool(os.getenv("DATABASE_URL")),  # known-good user-set var
+        "JWT_SECRET": bool(os.getenv("JWT_SECRET")),       # known-good user-set var
+    }
     return {
         "status": "ok",
         "app_url": settings.app_url,
-        "version": "2026-05-07-r2-storage-diag",
-        "storage": storage_backend(),  # "r2" or "local"
+        "version": "2026-05-07-r2-diag2",
+        "storage": storage_backend(),
         "r2_env": r2_env_seen,
+        "railway_env": railway_signals,
     }
 
 
