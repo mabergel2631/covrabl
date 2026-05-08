@@ -192,7 +192,11 @@ export default function ClientDetailPage() {
   };
 
   const handleAddPolicy = async () => {
-    if (!addPolicyData.carrier || !addPolicyData.policy_type) return;
+    // policy_type is always required (came from Step 2). Carrier is required ONLY
+    // when no file is attached — if a file is attached, the carrier comes from
+    // extraction and we use "Pending extraction" as a placeholder until then.
+    if (!addPolicyData.policy_type) return;
+    if (!wizardFile && !addPolicyData.carrier) return;
     setAddingPolicy(true);
     setAddPolicyMsg('');
     setWizardUploadProgress('');
@@ -202,7 +206,7 @@ export default function ClientDetailPage() {
       const result = await agentApi.createPolicyForClient(clientId, {
         scope: addPolicyData.scope,
         policy_type: addPolicyData.policy_type,
-        carrier: addPolicyData.carrier,
+        carrier: addPolicyData.carrier || (wizardFile ? 'Pending extraction...' : ''),
         policy_number: addPolicyData.policy_number || undefined,
         coverage_amount: addPolicyData.coverage_amount ? parseInt(addPolicyData.coverage_amount) : undefined,
         deductible: addPolicyData.deductible ? parseInt(addPolicyData.deductible) : undefined,
@@ -764,20 +768,21 @@ export default function ClientDetailPage() {
             {addPolicyStep === 2 && (
               <div>
                 <p style={{ fontSize: 13, color: 'var(--color-text-secondary)', margin: '0 0 16px' }}>
-                  Enter the basics for this {types.find(t => t.value === addPolicyData.policy_type)?.label || addPolicyData.policy_type} policy
-                  &mdash; or attach the dec page below and AI extraction will fill in everything below for you.
+                  {wizardFile
+                    ? <>Ready to upload <strong>{wizardFile.name}</strong>. AI extraction will fill in carrier, coverage, deductible, premium, and renewal date — no manual entry needed.</>
+                    : <>Attach the dec page below to auto-extract everything, or fill in the fields manually. You can always edit afterward via the policy&apos;s Edit button.</>}
                 </p>
 
-                {/* Upload-and-extract option — saves manual entry */}
+                {/* Upload-and-extract option */}
                 <div style={{
                   padding: '14px 16px',
                   marginBottom: 16,
-                  backgroundColor: '#fef9c3',
-                  border: '1px dashed #d97706',
+                  backgroundColor: wizardFile ? '#dcfce7' : '#fef9c3',
+                  border: wizardFile ? '1px solid #16a34a' : '1px dashed #d97706',
                   borderRadius: 'var(--radius-md)',
                 }}>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: '#92400e', marginBottom: 8 }}>
-                    Skip manual entry — attach a dec page (optional)
+                  <div style={{ fontSize: 13, fontWeight: 600, color: wizardFile ? '#15803d' : '#92400e', marginBottom: 8 }}>
+                    {wizardFile ? '✓ PDF ready — extraction will run automatically' : 'Attach a dec page to auto-extract everything (recommended)'}
                   </div>
                   <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
                     <input
@@ -792,17 +797,14 @@ export default function ClientDetailPage() {
                         onClick={() => setWizardFile(null)}
                         style={{ padding: '4px 10px', fontSize: 12, backgroundColor: 'transparent', color: '#92400e', border: '1px solid #d97706', borderRadius: 'var(--radius-sm)', cursor: 'pointer' }}
                       >
-                        Remove
+                        Remove file
                       </button>
                     )}
                   </div>
-                  <p style={{ fontSize: 12, color: '#92400e', margin: '8px 0 0', lineHeight: 1.5 }}>
-                    {wizardFile
-                      ? <>We&apos;ll create the policy with the carrier you enter below, attach <strong>{wizardFile.name}</strong>, and extract the rest. Edit anything afterward via the policy&apos;s Edit button.</>
-                      : <>Carrier is the only required field if you upload a document — coverage, deductible, premium, and renewal date will be extracted from the dec page.</>}
-                  </p>
                 </div>
 
+                {/* Manual entry — hidden when a file is attached, since extraction will populate everything */}
+                {!wizardFile && (
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                   <div>
                     <label style={{ fontSize: 12, color: 'var(--color-text-muted)', display: 'block', marginBottom: 4 }}>Carrier *</label>
@@ -835,18 +837,19 @@ export default function ClientDetailPage() {
                     <input type="date" value={addPolicyData.renewal_date} onChange={e => setAddPolicyData(d => ({ ...d, renewal_date: e.target.value }))} style={{ width: '100%', padding: '8px 12px', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', fontSize: 13, backgroundColor: 'var(--color-surface)', color: 'var(--color-text)', boxSizing: 'border-box' }} />
                   </div>
                 </div>
+                )}
                 <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, marginTop: 16 }}>
                   <button onClick={() => setAddPolicyStep(1)} style={{ padding: '8px 14px', fontSize: 13, background: 'transparent', color: 'var(--color-text-muted)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', cursor: 'pointer' }}>← Back</button>
                   <div style={{ display: 'flex', gap: 8 }}>
                     <button onClick={closeWizard} style={{ padding: '8px 16px', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', background: 'var(--color-surface)', color: 'var(--color-text)', fontSize: 13, cursor: 'pointer' }}>Cancel</button>
                     <button
                       onClick={async () => { await handleAddPolicy(); if (!addPolicyMsg) setAddPolicyStep(0); }}
-                      disabled={addingPolicy || !addPolicyData.carrier || !addPolicyData.policy_type}
-                      style={{ padding: '8px 20px', backgroundColor: 'var(--color-primary)', color: '#fff', border: 'none', borderRadius: 'var(--radius-md)', fontSize: 13, fontWeight: 600, cursor: addingPolicy ? 'wait' : 'pointer', opacity: addingPolicy || !addPolicyData.carrier || !addPolicyData.policy_type ? 0.6 : 1 }}
+                      disabled={addingPolicy || !addPolicyData.policy_type || (!wizardFile && !addPolicyData.carrier)}
+                      style={{ padding: '8px 20px', backgroundColor: 'var(--color-primary)', color: '#fff', border: 'none', borderRadius: 'var(--radius-md)', fontSize: 13, fontWeight: 600, cursor: addingPolicy ? 'wait' : 'pointer', opacity: addingPolicy || !addPolicyData.policy_type || (!wizardFile && !addPolicyData.carrier) ? 0.6 : 1 }}
                     >
                       {addingPolicy
                         ? (wizardUploadProgress || 'Adding...')
-                        : (wizardFile ? 'Add Policy + Extract' : 'Add Policy')}
+                        : (wizardFile ? 'Upload + Extract' : 'Add Policy')}
                     </button>
                   </div>
                 </div>
