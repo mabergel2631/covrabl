@@ -218,6 +218,25 @@ export const authApi = {
       body: JSON.stringify({ password }),
     });
   },
+  // Privacy / SOC: full data export (JSON dump of everything the user owns)
+  async exportMyData(): Promise<void> {
+    const r = await fetch(`${API_BASE}/auth/me/export-data`, {
+      headers: { Authorization: `Bearer ${typeof window !== 'undefined' ? localStorage.getItem('token') : ''}` },
+    });
+    if (!r.ok) {
+      throw new Error(`Export failed (${r.status})`);
+    }
+    const data = await r.json();
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `covrabl-data-export-${new Date().toISOString().slice(0, 10)}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  },
 };
 
 // ── Policies API ─────────────────────────────────────

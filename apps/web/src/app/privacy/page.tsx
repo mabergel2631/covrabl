@@ -239,7 +239,8 @@ export default function PrivacyPage() {
         </ul>
         <p>
           Each of these providers is bound by their own privacy policies and contractual obligations
-          to protect your data.
+          to protect your data. The complete list of subprocessors with the specific data each one processes
+          and their location is published at <Link href="/subprocessors" style={{ color: 'var(--color-primary)' }}>/subprocessors</Link>.
         </p>
 
         {/* Export your data — visible when logged in */}

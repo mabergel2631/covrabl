@@ -72,8 +72,11 @@ def download_document(document_id: int, db: Session = Depends(get_db), user: Use
     if not doc:
         raise HTTPException(status_code=404, detail="Document not found")
 
-    from .access import get_policy_for_user
-    get_policy_for_user(doc.policy_id, db, user)
+    from .access import get_policy_for_user_or_agent
+    get_policy_for_user_or_agent(doc.policy_id, db, user)
+
+    log_action(db, user.id, "downloaded", "document", doc.id, f"filename={doc.filename}")
+    db.commit()
 
     download_url = presign_get_url(doc.object_key)
     return {"download_url": download_url}
@@ -89,11 +92,9 @@ def delete_document(document_id: int, db: Session = Depends(get_db), user: User 
     if not doc:
         raise HTTPException(status_code=404, detail="Document not found")
 
-    # Permission via access helper — works for both consumer (own policy) and
-    # agent-side (verified via _verify_client_access in the agent caller path,
-    # but get_policy_for_user covers the simpler owner case).
-    from .access import get_policy_for_user
-    get_policy_for_user(doc.policy_id, db, user)
+    # Permission via access helper — owner OR agent with client access
+    from .access import get_policy_for_user_or_agent
+    get_policy_for_user_or_agent(doc.policy_id, db, user)
 
     # Best-effort: delete the file from storage. Failures don't block the row delete.
     try:

@@ -526,6 +526,42 @@ export default function ProfilePage() {
         </div>
       </div>
 
+      {/* 5b. Privacy: data export */}
+      <div style={{
+        padding: 0, marginBottom: 20, overflow: 'hidden',
+        border: '1px solid var(--color-border)', borderRadius: 'var(--radius-lg)',
+        backgroundColor: '#fff',
+      }}>
+        <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--color-border)', backgroundColor: 'var(--color-bg)' }}>
+          <h2 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: 'var(--color-text)' }}>Your data</h2>
+        </div>
+        <div style={{ padding: 20 }}>
+          <p style={{ fontSize: 14, color: 'var(--color-text-secondary)', margin: '0 0 12px', lineHeight: 1.6 }}>
+            Download a complete JSON copy of your account: profile, policies, documents (metadata),
+            audit log, and everything else we have on file. Useful for record-keeping or before
+            deleting your account.
+          </p>
+          <button
+            onClick={async () => {
+              trackClick('profile_export_data');
+              try {
+                await authApi.exportMyData();
+              } catch (err: any) {
+                alert(err?.message || 'Export failed');
+              }
+            }}
+            style={{
+              padding: '8px 20px', fontSize: 14, fontWeight: 600,
+              backgroundColor: 'var(--color-surface)', color: 'var(--color-text)',
+              border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)',
+              cursor: 'pointer',
+            }}
+          >
+            Download my data (JSON)
+          </button>
+        </div>
+      </div>
+
       {/* 6. Danger Zone */}
       <div style={{
         padding: 0, marginBottom: 20, overflow: 'hidden',
