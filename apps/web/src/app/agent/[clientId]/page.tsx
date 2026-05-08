@@ -566,6 +566,7 @@ export default function ClientDetailPage() {
         <div className="mobile-wrap" style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
           <button
             onClick={() => { trackClick('agent_detail_upload', { client_id: clientId }); setActiveTab('documents'); setShowUpload(true); }}
+            title="Attach an additional document (renewal letter, claim form, etc.) to a policy that already exists. To add a brand-new policy from a PDF, use + Add Policy instead — its last step has the dec-page upload built in."
             style={{
               padding: '8px 16px',
               backgroundColor: 'var(--color-surface)',
@@ -578,7 +579,7 @@ export default function ClientDetailPage() {
               whiteSpace: 'nowrap',
             }}
           >
-            Upload for Client
+            Upload to Existing Policy
           </button>
           <button
             onClick={() => { trackClick('agent_detail_add_policy', { client_id: clientId }); setShowAddPolicy(!showAddPolicy); }}
@@ -1505,6 +1506,12 @@ export default function ClientDetailPage() {
           {/* Upload form */}
           {showUpload && data.policies.length > 0 && (
             <div className="card" style={{ padding: 20, marginBottom: 16 }}>
+              <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 4, color: 'var(--color-text)' }}>
+                Attach a document to an existing policy
+              </div>
+              <p style={{ fontSize: 12, color: 'var(--color-text-muted)', margin: '0 0 12px', lineHeight: 1.5 }}>
+                Pick which policy this document belongs to. For attaching a brand-new policy, close this and click <strong>+ Add Policy</strong> at the top instead — Step 3 has a dec-page upload that auto-extracts coverage details.
+              </p>
               <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'flex-end' }}>
                 <div>
                   <label style={{ fontSize: 12, color: 'var(--color-text-muted)', display: 'block', marginBottom: 4 }}>Policy</label>
@@ -1624,9 +1631,23 @@ export default function ClientDetailPage() {
                 <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--color-text)', marginBottom: 6 }}>
                   No documents uploaded yet
                 </div>
-                <p style={{ fontSize: 13, color: 'var(--color-text-muted)', margin: '0 auto 18px', maxWidth: 460 }}>
-                  Drop in a dec page, endorsement, or insurance card for this client.
+                <p style={{ fontSize: 13, color: 'var(--color-text-muted)', margin: '0 auto 12px', maxWidth: 480, lineHeight: 1.5 }}>
+                  This tab attaches additional documents (renewal letters, endorsements, claim forms) to policies that already exist.
                 </p>
+                <div style={{
+                  margin: '0 auto 18px',
+                  maxWidth: 480,
+                  padding: '10px 14px',
+                  backgroundColor: '#fef9c3',
+                  border: '1px solid #fde68a',
+                  borderRadius: 'var(--radius-md)',
+                  fontSize: 12,
+                  lineHeight: 1.5,
+                  color: '#854d0e',
+                  textAlign: 'left',
+                }}>
+                  <strong>Adding a brand-new policy from a PDF?</strong> Use the <strong>+ Add Policy</strong> button at the top — its last step (Step 3) has a dec-page upload built in and will auto-extract coverage, deductible, premium, and renewal date from the document.
+                </div>
                 <button
                   onClick={() => { trackClick('agent_docs_empty_upload', { client_id: clientId }); setShowUpload(true); }}
                   style={{
@@ -1640,7 +1661,7 @@ export default function ClientDetailPage() {
                     cursor: 'pointer',
                   }}
                 >
-                  Upload first document
+                  Attach document to existing policy
                 </button>
               </div>
             )
