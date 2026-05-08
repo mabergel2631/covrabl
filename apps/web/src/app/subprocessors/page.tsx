@@ -47,13 +47,6 @@ const SUBPROCESSORS: Array<{
     website: 'https://resend.com/legal/privacy-policy',
   },
   {
-    vendor: 'Stripe',
-    category: 'Payment processing',
-    data: 'Billing information (customer ID, subscription state). Card details are never stored on Covrabl servers — they are tokenized by Stripe.',
-    location: 'United States',
-    website: 'https://stripe.com/privacy',
-  },
-  {
     vendor: 'GitHub',
     category: 'Source code hosting',
     data: 'Application source code only. No customer data.',
