@@ -141,3 +141,31 @@ def presign_get_url(object_key: str, expires_seconds: int = 3600) -> str:
 def storage_backend() -> str:
     """For health/diagnostics. Returns 'r2' or 'local'."""
     return "r2" if _get_r2() is not None else "local"
+
+
+def fetch_object_bytes(object_key: str) -> bytes | None:
+    """Read the bytes of a stored object regardless of backend.
+
+    R2 mode: GetObject from the bucket.
+    Local mode: read from UPLOAD_DIR.
+    Returns None if the object can't be found in either place.
+    """
+    if not object_key:
+        return None
+    r2 = _get_r2()
+    if r2 is not None:
+        client, bucket = r2
+        try:
+            resp = client.get_object(Bucket=bucket, Key=object_key)
+            return resp["Body"].read()
+        except Exception as e:
+            logger.warning("R2 GetObject failed for %s: %s — trying local fallback", object_key, e)
+            # fall through to local
+
+    local = UPLOAD_DIR / object_key
+    if local.exists():
+        try:
+            return local.read_bytes()
+        except Exception as e:
+            logger.exception("Local read failed for %s: %s", object_key, e)
+    return None

@@ -31,9 +31,10 @@ def extract_document(document_id: int, db: Session = Depends(get_db), user: User
     if not doc:
         raise HTTPException(status_code=404, detail="Document not found")
 
-    policy = db.get(Policy, doc.policy_id)
-    if not policy or policy.user_id != user.id:
-        raise HTTPException(status_code=404, detail="Document not found")
+    # Allow owner OR agent-with-client-access (so agents can extract
+    # documents they uploaded for clients).
+    from .access import get_policy_for_user_or_agent
+    policy = get_policy_for_user_or_agent(doc.policy_id, db, user)
 
     check_extraction_limit(user, db)
 
@@ -41,13 +42,13 @@ def extract_document(document_id: int, db: Session = Depends(get_db), user: User
     db.commit()
 
     try:
-        # Read file directly from disk instead of HTTP
-        from pathlib import Path
-        upload_dir = Path(__file__).resolve().parent.parent / "uploads"
-        file_path = upload_dir / doc.object_key
-        if not file_path.exists():
-            raise HTTPException(status_code=404, detail="File not found on disk")
-        pdf_bytes = file_path.read_bytes()
+        # Storage-backend-aware fetch — works for both R2 and local disk.
+        from .storage import fetch_object_bytes
+        pdf_bytes = fetch_object_bytes(doc.object_key)
+        if pdf_bytes is None:
+            doc.extraction_status = "failed"
+            db.commit()
+            raise HTTPException(status_code=404, detail="File not found in storage")
 
         text = ""
         with pdfplumber.open(io.BytesIO(pdf_bytes)) as pdf:
@@ -227,9 +228,10 @@ def confirm_extraction(document_id: int, payload: ConfirmExtraction, db: Session
     if not doc:
         raise HTTPException(status_code=404, detail="Document not found")
 
-    policy = db.get(Policy, doc.policy_id)
-    if not policy or policy.user_id != user.id:
-        raise HTTPException(status_code=404, detail="Document not found")
+    # Same access rule as extract — agents can confirm extractions for
+    # client policies, not just their own.
+    from .access import get_policy_for_user_or_agent
+    policy = get_policy_for_user_or_agent(doc.policy_id, db, user)
 
     # Detect deltas BEFORE applying changes (compare new vs current)
     new_data = {

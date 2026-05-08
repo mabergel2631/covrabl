@@ -242,7 +242,19 @@ export default function ClientDetailPage() {
             doc_type: 'policy',
           });
           setWizardUploadProgress('Extracting policy details…');
-          await documentsApi.extract(finalized.document_id);
+          const extractRes = await documentsApi.extract(finalized.document_id);
+          // Auto-confirm: apply the extracted fields to the policy so the
+          // wizard "just works" without a separate review step.
+          if (extractRes && extractRes.extraction) {
+            try {
+              await documentsApi.confirmExtraction(finalized.document_id, extractRes.extraction);
+            } catch (confirmErr: any) {
+              // Non-fatal — extraction succeeded but couldn't be applied.
+              // The agent can still see the extracted data in the deltas
+              // and edit manually.
+              console.warn('confirmExtraction failed:', confirmErr);
+            }
+          }
           setWizardUploadProgress('');
           setAddPolicyMsg('Policy added and details extracted from the document.');
         } catch (extractErr: any) {
@@ -398,15 +410,20 @@ export default function ClientDetailPage() {
       setUploadMsg('Uploaded — extracting…');
       trackFeatureUse('agent_document_uploaded', { client_id: clientId });
 
-      // Kick off extraction so policy fields auto-populate (agent can edit
-      // afterward via the per-policy Edit button). Non-fatal on failure —
-      // agent still sees the document attached and can run extract manually.
+      // Kick off extraction AND auto-confirm so policy fields populate.
+      // Non-fatal on failure — agent still sees the document attached and
+      // can run extract manually from the document list.
       try {
-        await documentsApi.extract(finalized.document_id);
+        const extractRes = await documentsApi.extract(finalized.document_id);
+        if (extractRes && extractRes.extraction) {
+          try {
+            await documentsApi.confirmExtraction(finalized.document_id, extractRes.extraction);
+          } catch (confirmErr) {
+            console.warn('confirmExtraction failed (non-fatal):', confirmErr);
+          }
+        }
         setUploadMsg('Uploaded and extracted.');
       } catch (extractErr: any) {
-        // Don't block the upload UX — surface the extraction status as failed
-        // so the agent can retry from the document list.
         setUploadMsg(`Uploaded, but extraction did not complete: ${extractErr?.message || 'unknown error'}`);
       }
 
@@ -1724,7 +1741,15 @@ export default function ClientDetailPage() {
                           e.stopPropagation();
                           try {
                             trackClick('agent_doc_extract', { doc_id: doc.id, client_id: clientId });
-                            await documentsApi.extract(doc.id);
+                            const extractRes = await documentsApi.extract(doc.id);
+                            // Auto-confirm so the policy fields update.
+                            if (extractRes && extractRes.extraction) {
+                              try {
+                                await documentsApi.confirmExtraction(doc.id, extractRes.extraction);
+                              } catch (confirmErr) {
+                                console.warn('confirmExtraction failed (non-fatal):', confirmErr);
+                              }
+                            }
                             const [docs, summary] = await Promise.all([
                               agentApi.clientDocuments(clientId),
                               agentApi.clientSummary(clientId),
