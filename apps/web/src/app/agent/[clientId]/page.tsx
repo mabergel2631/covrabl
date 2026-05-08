@@ -94,6 +94,9 @@ export default function ClientDetailPage() {
 
   // Add Policy wizard step (0=scope, 1=type, 2=details)
   const [addPolicyStep, setAddPolicyStep] = useState<0 | 1 | 2>(0);
+  // Optional file selected in Step 3 → triggers upload + extraction after policy create
+  const [wizardFile, setWizardFile] = useState<File | null>(null);
+  const [wizardUploadProgress, setWizardUploadProgress] = useState<string>('');
 
   useEffect(() => {
     if (!token) { router.replace('/login'); return; }
@@ -192,7 +195,8 @@ export default function ClientDetailPage() {
     if (!addPolicyData.carrier || !addPolicyData.policy_type) return;
     setAddingPolicy(true);
     setAddPolicyMsg('');
-    trackClick('agent_create_policy', { client_id: clientId, carrier: addPolicyData.carrier, policy_type: addPolicyData.policy_type });
+    setWizardUploadProgress('');
+    trackClick('agent_create_policy', { client_id: clientId, carrier: addPolicyData.carrier, policy_type: addPolicyData.policy_type, with_file: !!wizardFile });
     try {
       const wasFirstPolicy = data?.policies.length === 0;
       const result = await agentApi.createPolicyForClient(clientId, {
@@ -207,23 +211,65 @@ export default function ClientDetailPage() {
         business_name: addPolicyData.business_name || undefined,
       });
       trackFeatureUse('agent_policy_created', { client_id: clientId, policy_id: result.policy_id });
-      setAddPolicyMsg(wasFirstPolicy ? 'Policy added — upload a document next' : 'Policy added!');
+
+      // If a file was attached in Step 3, upload + extract so coverage / deductible
+      // / premium / renewal date auto-populate from the dec page. Errors here
+      // don't roll back the policy create — agent still has the policy and
+      // can edit manually or retry the upload from Documents.
+      if (wizardFile) {
+        try {
+          setWizardUploadProgress('Uploading…');
+          const initRes = await agentApi.initClientUpload(clientId, {
+            policy_id: result.policy_id,
+            filename: wizardFile.name,
+            content_type: wizardFile.type || 'application/pdf',
+            doc_type: 'policy',
+          });
+          await fetch(initRes.upload_url, {
+            method: 'PUT',
+            headers: { 'Content-Type': wizardFile.type || 'application/pdf' },
+            body: wizardFile,
+          });
+          const finalized = await agentApi.finalizeClientUpload(clientId, {
+            policy_id: result.policy_id,
+            filename: wizardFile.name,
+            content_type: wizardFile.type || 'application/pdf',
+            object_key: initRes.object_key,
+            doc_type: 'policy',
+          });
+          setWizardUploadProgress('Extracting policy details…');
+          await documentsApi.extract(finalized.document_id);
+          setWizardUploadProgress('');
+          setAddPolicyMsg('Policy added and details extracted from the document.');
+        } catch (extractErr: any) {
+          setWizardUploadProgress('');
+          setAddPolicyMsg(`Policy added, but document upload/extraction failed: ${extractErr?.message || 'unknown error'}. You can retry from Documents.`);
+        }
+      } else {
+        setAddPolicyMsg(wasFirstPolicy ? 'Policy added — upload a document next' : 'Policy added!');
+      }
+
       setAddPolicyData({ scope: 'personal', policy_type: '', carrier: '', policy_number: '', coverage_amount: '', deductible: '', premium_amount: '', renewal_date: '', business_name: '' });
+      setWizardFile(null);
       // Refresh data
-      const summary = await agentApi.clientSummary(clientId);
+      const [summary, docs] = await Promise.all([
+        agentApi.clientSummary(clientId),
+        agentApi.clientDocuments(clientId),
+      ]);
       setData(summary);
+      setDocuments(docs);
       // Pre-select the just-created policy for the upload form
       setUploadPolicyId(result.policy_id);
       setTimeout(() => {
         setShowAddPolicy(false);
         setAddPolicyMsg('');
-        // If this was the agent's first policy for this client, jump straight to
-        // the documents tab with the upload form open — closes the loop.
-        if (wasFirstPolicy) {
+        // If this was the agent's first policy AND no file was attached,
+        // jump to documents tab with upload form open — closes the loop.
+        if (wasFirstPolicy && !wizardFile) {
           setActiveTab('documents');
           setShowUpload(true);
         }
-      }, 1500);
+      }, 2500);
     } catch (err: any) {
       setAddPolicyMsg(err.message || 'Failed to add policy');
     } finally {
@@ -717,9 +763,45 @@ export default function ClientDetailPage() {
             {addPolicyStep === 2 && (
               <div>
                 <p style={{ fontSize: 13, color: 'var(--color-text-secondary)', margin: '0 0 16px' }}>
-                  Enter the basics for this {types.find(t => t.value === addPolicyData.policy_type)?.label || addPolicyData.policy_type} policy.
-                  You can edit any of this later or attach a document so AI extraction fills in coverage amounts and other details.
+                  Enter the basics for this {types.find(t => t.value === addPolicyData.policy_type)?.label || addPolicyData.policy_type} policy
+                  &mdash; or attach the dec page below and AI extraction will fill in everything below for you.
                 </p>
+
+                {/* Upload-and-extract option — saves manual entry */}
+                <div style={{
+                  padding: '14px 16px',
+                  marginBottom: 16,
+                  backgroundColor: '#fef9c3',
+                  border: '1px dashed #d97706',
+                  borderRadius: 'var(--radius-md)',
+                }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: '#92400e', marginBottom: 8 }}>
+                    Skip manual entry — attach a dec page (optional)
+                  </div>
+                  <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
+                    <input
+                      type="file"
+                      accept="application/pdf,image/*"
+                      onChange={e => setWizardFile(e.target.files?.[0] || null)}
+                      style={{ fontSize: 13 }}
+                    />
+                    {wizardFile && (
+                      <button
+                        type="button"
+                        onClick={() => setWizardFile(null)}
+                        style={{ padding: '4px 10px', fontSize: 12, backgroundColor: 'transparent', color: '#92400e', border: '1px solid #d97706', borderRadius: 'var(--radius-sm)', cursor: 'pointer' }}
+                      >
+                        Remove
+                      </button>
+                    )}
+                  </div>
+                  <p style={{ fontSize: 12, color: '#92400e', margin: '8px 0 0', lineHeight: 1.5 }}>
+                    {wizardFile
+                      ? <>We&apos;ll create the policy with the carrier you enter below, attach <strong>{wizardFile.name}</strong>, and extract the rest. Edit anything afterward via the policy&apos;s Edit button.</>
+                      : <>Carrier is the only required field if you upload a document — coverage, deductible, premium, and renewal date will be extracted from the dec page.</>}
+                  </p>
+                </div>
+
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                   <div>
                     <label style={{ fontSize: 12, color: 'var(--color-text-muted)', display: 'block', marginBottom: 4 }}>Carrier *</label>
@@ -761,7 +843,9 @@ export default function ClientDetailPage() {
                       disabled={addingPolicy || !addPolicyData.carrier || !addPolicyData.policy_type}
                       style={{ padding: '8px 20px', backgroundColor: 'var(--color-primary)', color: '#fff', border: 'none', borderRadius: 'var(--radius-md)', fontSize: 13, fontWeight: 600, cursor: addingPolicy ? 'wait' : 'pointer', opacity: addingPolicy || !addPolicyData.carrier || !addPolicyData.policy_type ? 0.6 : 1 }}
                     >
-                      {addingPolicy ? 'Adding...' : 'Add Policy'}
+                      {addingPolicy
+                        ? (wizardUploadProgress || 'Adding...')
+                        : (wizardFile ? 'Add Policy + Extract' : 'Add Policy')}
                     </button>
                   </div>
                 </div>

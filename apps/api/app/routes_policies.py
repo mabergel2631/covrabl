@@ -59,6 +59,20 @@ def _delete_policy_cascade(db: Session, policy_id: int):
     for orphan in db.execute(select(Policy).where(Policy.replaces_policy_id == policy_id)).scalars().all():
         orphan.replaces_policy_id = None
 
+    # Defensive: null out the SET-NULL-mapped FKs even if the live DB schema
+    # doesn't have ON DELETE SET NULL applied (the cascade-helper comment up
+    # top warns about this — Postgres in prod may not match the model).
+    from .models_features import PolicyDraft, LeaseRequirement as _LR2
+    for draft in db.execute(select(PolicyDraft).where(PolicyDraft.matched_policy_id == policy_id)).scalars().all():
+        draft.matched_policy_id = None
+    for lr2 in db.execute(select(_LR2).where(_LR2.policy_id == policy_id)).scalars().all():
+        lr2.policy_id = None
+    # Certificate.policy_id is also SET NULL in the model; it's already
+    # explicitly deleted in the loop above (current behavior — keep). If
+    # we ever change that, null here too.
+
+    db.flush()  # commit the NULL updates before deleting the policy itself
+
     policy = db.get(Policy, policy_id)
     if policy:
         db.delete(policy)
