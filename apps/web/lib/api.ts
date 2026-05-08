@@ -1732,6 +1732,18 @@ export function fetchActiveAnnouncements(): Promise<{ id: number; title: string;
 
 // ── Agent / Advisor API ─────────────────────────────────────
 
+export type ThisWeekItem = {
+  client_id: number;
+  client_email: string | null;
+  client_name: string | null;
+  category: 'renewal' | 'upload' | 'share_view' | 'stalled';
+  reason: string;
+  suggested_action: string;
+  severity: 'high' | 'medium' | 'low';
+  date: string | null;
+  entity_id: number | null;
+};
+
 export type AgentClient = {
   id: number | null;
   email: string;
@@ -1894,6 +1906,9 @@ export const agentApi = {
   },
   overview(): Promise<AgentOverview> {
     return request<AgentOverview>("/agent/overview");
+  },
+  thisWeek(): Promise<ThisWeekItem[]> {
+    return request<ThisWeekItem[]>("/agent/this-week");
   },
   agencyMe(): Promise<AgencyContext> {
     return request<AgencyContext>("/agent/agency/me");

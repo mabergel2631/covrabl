@@ -6,6 +6,7 @@ import { useAuth } from '../../../lib/auth';
 import { agentApi, AgentOverview, AgentClient } from '../../../lib/api';
 import { trackClick, trackFeatureUse } from '../../../lib/track';
 import BackButton from '../components/BackButton';
+import ThisWeek from '../components/ThisWeek';
 
 const statusConfig = {
   gaps: { label: 'Items to Review', icon: '\u2757', color: 'var(--color-danger)', bg: '#fef2f2' },
@@ -196,6 +197,11 @@ export default function AdvisorDashboard() {
   return (
     <div style={{ padding: '32px 24px', maxWidth: 1000, margin: '0 auto' }}>
       <BackButton href="/" label="My Clients" parentLabel="Home" />
+
+      {/* Phase 7: outreach feed — appears above the client list when there's
+          actionable activity. Hidden when empty (no noise). */}
+      <ThisWeek />
+
       <div className="mobile-col" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
         <h1 style={{ fontSize: 24, fontWeight: 700, margin: 0, color: 'var(--color-text)' }}>
           My Clients

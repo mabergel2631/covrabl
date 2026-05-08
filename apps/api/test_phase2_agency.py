@@ -681,6 +681,71 @@ correct_code = pyotp.TOTP(mfa_secret).now()
 r = client.post("/auth/mfa/disable", headers=hdr(mfa_user_token), json={"password": "mfapw123", "code": correct_code})
 expect("mfa disable with correct password + TOTP", r.status_code == 200 and r.json().get("mfa_enabled") is False, f"status={r.status_code}")
 
+# ── Phase 7: This Week outreach feed ──────────────────
+
+# Setup: ensure the agency-1 client has at least one policy with a near-term renewal
+# (some prior tests may have left the client with policies — pick a clean window).
+db = SessionLocal()
+from datetime import date as _date_p7, timedelta as _td_p7
+from app.models import Policy as _Policy_p7
+near = _date_p7.today() + _td_p7(days=15)
+near_pol = _Policy_p7(
+    user_id=CLIENT_ID,
+    scope="personal",
+    policy_type="Auto",
+    carrier="ThisWeek Test Carrier",
+    policy_number="TW-001",
+    coverage_amount=200000,
+    deductible=1000,
+    premium_amount=2000,
+    renewal_date=near,
+    status="active",
+)
+db.add(near_pol)
+db.commit()
+db.close()
+
+# Owner sees the upcoming renewal as a high-severity row in the feed
+r = client.get("/agent/this-week", headers=hdr(owner_token))
+items = r.json() if r.status_code == 200 else []
+ok = (
+    r.status_code == 200
+    and isinstance(items, list)
+    and any(
+        it.get("category") == "renewal"
+        and "renews in" in it.get("reason", "")
+        and it.get("severity") in ("high", "medium")
+        and it.get("client_id") == CLIENT_ID
+        for it in items
+    )
+)
+expect("this-week feed surfaces upcoming renewal as a row", ok, f"got_count={len(items)}")
+
+# Reasons must be observational — banned tokens like "low engagement", "AI score" must not appear
+banned = ["low engagement", "engagement score", "AI score", "likely to churn", "predicted"]
+ok = all(not any(b.lower() in (it.get("reason", "") + it.get("suggested_action", "")).lower() for b in banned) for it in items)
+expect("this-week reasons contain no predictive/scoring language", ok, f"items={[it.get('reason') for it in items]}")
+
+# Producer (cross-member, same agency) sees the same feed
+r = client.get("/agent/this-week", headers=hdr(producer_token))
+producer_items = r.json() if r.status_code == 200 else []
+ok = r.status_code == 200 and len(producer_items) >= 1
+expect("producer (cross-member) sees the same outreach feed", ok, f"count={len(producer_items)}")
+
+# Cross-tenant: agency 2 owner does NOT see agency 1's client in their feed
+db = SessionLocal()
+agency2_owner = db.execute(select(User).where(User.email == "other-owner@other.test")).scalar_one_or_none()
+agency2_owner_id = agency2_owner.id if agency2_owner else None
+db.close()
+if agency2_owner_id:
+    other_token2 = create_access_token(agency2_owner_id)
+    r = client.get("/agent/this-week", headers=hdr(other_token2))
+    other_items = r.json() if r.status_code == 200 else []
+    ok = not any(it.get("client_id") == CLIENT_ID for it in other_items)
+    expect("cross-tenant agent does NOT see agency 1's outreach items", ok,
+           f"got client_ids={[it.get('client_id') for it in other_items]}")
+
+
 # 10. Login no longer requires MFA challenge
 r = client.post("/auth/login", json={"email": "mfa-test@covrabldemo.dev", "password": "mfapw123"})
 ok = r.status_code == 200 and r.json().get("access_token") and "mfa_required" not in r.json()

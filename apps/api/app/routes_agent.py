@@ -2134,6 +2134,23 @@ def seed_prior_year_sample(
     }
 
 
+# ── Phase 7: This Week outreach feed ───────────────────
+
+
+@router.get("/this-week")
+def this_week_feed(agent: User = Depends(require_agent), db: Session = Depends(get_db)):
+    """Ranked outreach items for the current agent's full client book.
+
+    See `outreach.compute_this_week` and the locked design in memory
+    (`project_outreach_feed.md`) for the ranking + reason rules.
+    """
+    client_ids = _get_client_ids(db, agent)
+    if not client_ids:
+        return []
+    from .outreach import compute_this_week
+    return compute_this_week(db, client_ids)
+
+
 # ── Agency: introspection ───────────────────────────────
 
 
