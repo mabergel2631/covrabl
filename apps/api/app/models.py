@@ -69,6 +69,11 @@ class Policy(Base):
 
     renewal_date: Mapped[Date | None] = mapped_column(Date, nullable=True)
 
+    # When True, this policy row represents a quote (not a bound policy) — it's
+    # eligible to be the right-hand side of a QuoteComparison and is hidden
+    # from the active-policy lists. Defaults to False (a normal active policy).
+    is_quote: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+
     created_at: Mapped[DateTime] = mapped_column(DateTime, server_default=func.now())
 
     # Version chain relationships

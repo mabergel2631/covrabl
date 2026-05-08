@@ -1900,6 +1900,37 @@ export type PublicRenewalReviewData = {
   discussion_items?: DiscussionItem[];
 };
 
+export type QuoteComparisonData = {
+  id: number;
+  incumbent_policy: RenewalReviewPolicyBrief;
+  quote_policy: RenewalReviewPolicyBrief;
+  deltas: RenewalDelta[];
+  summary_text: string | null;
+  share_token: string | null;
+  shared_at: string | null;
+  discussion_items?: DiscussionItem[];
+};
+
+export type PublicQuoteComparisonData = {
+  incumbent_policy: Omit<RenewalReviewPolicyBrief, 'id'>;
+  quote_policy: Omit<RenewalReviewPolicyBrief, 'id'>;
+  deltas: RenewalDelta[];
+  summary_text: string | null;
+  shared_at: string | null;
+  agent: { name: string | null; email: string | null };
+  discussion_items?: DiscussionItem[];
+};
+
+export type QuoteComparisonListItem = {
+  id: number;
+  incumbent_policy_id: number;
+  quote_policy_id: number;
+  summary_text: string | null;
+  share_token: string | null;
+  shared_at: string | null;
+  created_at: string | null;
+};
+
 export const agentApi = {
   clients(): Promise<AgentClient[]> {
     return request<AgentClient[]>("/agent/clients");
@@ -1995,6 +2026,7 @@ export const agentApi = {
     renewal_date: string | null;
     business_name: string | null;
     status: 'active' | 'expired' | 'archived';
+    is_quote: boolean;
   }>): Promise<{ ok: boolean; policy_id: number; scope: string; policy_type: string; carrier: string; policy_number: string }> {
     return request(`/agent/clients/${clientId}/policies/${policyId}`, {
       method: "PUT",
@@ -2043,6 +2075,53 @@ export const agentApi = {
         throw err;
       }
       return r.json() as Promise<PublicRenewalReviewData>;
+    });
+  },
+  // Quote Comparison (Phase 6)
+  createQuoteComparison(clientId: number, incumbentPolicyId: number, quotePolicyId: number): Promise<QuoteComparisonData> {
+    return request<QuoteComparisonData>(`/agent/clients/${clientId}/policies/${incumbentPolicyId}/quote-comparisons`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ quote_policy_id: quotePolicyId }),
+    });
+  },
+  listQuoteComparisons(clientId: number): Promise<QuoteComparisonListItem[]> {
+    return request<QuoteComparisonListItem[]>(`/agent/clients/${clientId}/quote-comparisons`);
+  },
+  getQuoteComparison(comparisonId: number): Promise<QuoteComparisonData> {
+    return request<QuoteComparisonData>(`/agent/quote-comparisons/${comparisonId}`);
+  },
+  updateQuoteComparison(comparisonId: number, summaryText: string): Promise<QuoteComparisonData> {
+    return request<QuoteComparisonData>(`/agent/quote-comparisons/${comparisonId}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ summary_text: summaryText }),
+    });
+  },
+  dismissQuoteItem(comparisonId: number, hash: string, dismissed: boolean): Promise<QuoteComparisonData> {
+    return request<QuoteComparisonData>(`/agent/quote-comparisons/${comparisonId}/dismiss-item`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ hash, dismissed }),
+    });
+  },
+  shareQuoteComparison(comparisonId: number): Promise<{ share_token: string; shared_at: string | null }> {
+    return request(`/agent/quote-comparisons/${comparisonId}/share`, { method: "POST" });
+  },
+  revokeQuoteShare(comparisonId: number): Promise<{ ok: boolean }> {
+    return request(`/agent/quote-comparisons/${comparisonId}/share`, { method: "DELETE" });
+  },
+  deleteQuoteComparison(comparisonId: number): Promise<{ ok: boolean }> {
+    return request(`/agent/quote-comparisons/${comparisonId}`, { method: "DELETE" });
+  },
+  publicQuoteComparison(token: string): Promise<PublicQuoteComparisonData> {
+    return fetch(`${API_BASE}/quote-comparison/public/${encodeURIComponent(token)}`).then(async (r) => {
+      if (!r.ok) {
+        const err: any = new Error(`Quote comparison not found (${r.status})`);
+        err.status = r.status;
+        throw err;
+      }
+      return r.json() as Promise<PublicQuoteComparisonData>;
     });
   },
   inviteClient(email: string): Promise<{ ok: boolean; status: string; client_id?: number; invite_token?: string }> {

@@ -6,10 +6,11 @@ from sqlalchemy.orm import Session
 
 from .db import get_db
 from .models import Policy, User
-from .models_features import PolicyDelta, RenewalReview
+from .models_features import PolicyDelta, RenewalReview, QuoteComparison
 from .models_profile import UserProfile
 
 router = APIRouter(prefix="/renewal-review", tags=["renewal-review-public"])
+quote_router = APIRouter(prefix="/quote-comparison", tags=["quote-comparison-public"])
 
 
 def _serialize_policy_brief(p: Policy | None) -> dict | None:
@@ -103,6 +104,59 @@ def public_renewal_review(token: str, db: Session = Depends(get_db)):
         "summary_text": review.summary_text,
         "shared_at": review.shared_at.isoformat() if review.shared_at else None,
         "discussion_items": public_items,
+        "agent": {
+            "name": agent_profile or (agent.email if agent else None),
+            "email": agent.email if agent else None,
+        },
+    }
+
+
+@quote_router.get("/public/{token}")
+def public_quote_comparison(token: str, db: Session = Depends(get_db)):
+    """Public read-only quote comparison via share token."""
+    if not token or len(token) < 10:
+        raise HTTPException(status_code=404, detail="Not found")
+
+    comparison = db.execute(
+        select(QuoteComparison).where(QuoteComparison.share_token == token)
+    ).scalar_one_or_none()
+    if not comparison:
+        raise HTTPException(status_code=404, detail="Not found")
+
+    incumbent = db.get(Policy, comparison.incumbent_policy_id)
+    quote = db.get(Policy, comparison.quote_policy_id)
+    if not incumbent or not quote:
+        raise HTTPException(status_code=404, detail="Not found")
+
+    incumbent_brief = _serialize_policy_brief(incumbent)
+    quote_brief = _serialize_policy_brief(quote)
+
+    # Build deltas the same way the agent endpoint does — quote vs incumbent.
+    # Reuse the shared helpers from routes_agent so the wording stays in lockstep.
+    from .routes_agent import _compute_quote_deltas, _build_discussion_items
+    delta_list = _compute_quote_deltas(db, incumbent, quote)
+
+    review_shim = type("RR", (), {
+        "dismissed_items_json": comparison.dismissed_items_json,
+    })()
+    discussion_items = _build_discussion_items(
+        quote, incumbent_brief, delta_list, review_shim, public=True,
+    )
+
+    agent = db.get(User, comparison.agent_id)
+    agent_profile = None
+    if agent:
+        agent_profile = db.execute(
+            select(UserProfile.full_name).where(UserProfile.user_id == agent.id)
+        ).scalar()
+
+    return {
+        "incumbent_policy": incumbent_brief,
+        "quote_policy": quote_brief,
+        "deltas": delta_list,
+        "summary_text": comparison.summary_text,
+        "shared_at": comparison.shared_at.isoformat() if comparison.shared_at else None,
+        "discussion_items": discussion_items,
         "agent": {
             "name": agent_profile or (agent.email if agent else None),
             "email": agent.email if agent else None,

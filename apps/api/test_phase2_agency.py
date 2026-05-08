@@ -57,6 +57,9 @@ with engine.begin() as conn:
         conn.execute(text("ALTER TABLE users ADD COLUMN mfa_recovery_codes VARCHAR(2000)"))
     if "mfa_enrolled_at" not in user_cols:
         conn.execute(text("ALTER TABLE users ADD COLUMN mfa_enrolled_at TIMESTAMP"))
+    pol_cols = [c["name"] for c in insp.get_columns("policies")]
+    if "is_quote" not in pol_cols:
+        conn.execute(text("ALTER TABLE policies ADD COLUMN is_quote BOOLEAN DEFAULT 0 NOT NULL"))
 print("[setup] create_all + idempotent column fills done")
 
 db = SessionLocal()
@@ -744,6 +747,170 @@ if agency2_owner_id:
     ok = not any(it.get("client_id") == CLIENT_ID for it in other_items)
     expect("cross-tenant agent does NOT see agency 1's outreach items", ok,
            f"got client_ids={[it.get('client_id') for it in other_items]}")
+
+
+# ── Phase 6: Quote Comparison ──────────────────────────
+
+# Setup: ensure CLIENT_ID has both an incumbent policy and a quote (is_quote=True)
+db = SessionLocal()
+from app.models import Policy as _Pol_p6
+incumbent_p6 = _Pol_p6(
+    user_id=CLIENT_ID,
+    scope="personal",
+    policy_type="Auto",
+    carrier="Incumbent Carrier",
+    policy_number="INC-2026",
+    coverage_amount=300000,
+    deductible=500,
+    premium_amount=2400,
+    status="active",
+)
+quote_p6 = _Pol_p6(
+    user_id=CLIENT_ID,
+    scope="personal",
+    policy_type="Auto",
+    carrier="Quote Carrier",
+    policy_number="QUO-2026",
+    coverage_amount=250000,  # decreased — should fire a discussion item
+    deductible=1000,         # increased — should fire a discussion item
+    premium_amount=2000,     # decreased
+    status="active",
+    is_quote=True,
+)
+db.add_all([incumbent_p6, quote_p6])
+db.commit()
+INCUMBENT_P6_ID = incumbent_p6.id
+QUOTE_P6_ID = quote_p6.id
+db.close()
+
+# Updating a policy with is_quote=True flips the flag (used by the UI's Compare picker)
+r = client.put(
+    f"/agent/clients/{CLIENT_ID}/policies/{QUOTE_P6_ID}",
+    json={"is_quote": True},
+    headers=hdr(owner_token),
+)
+ok = r.status_code == 200
+expect("update policy with is_quote=True succeeds", ok, f"status={r.status_code} body={r.text[:200]}")
+
+# Confirm the field stuck
+db_check = SessionLocal()
+flagged = db_check.get(_Pol_p6, QUOTE_P6_ID)
+ok = flagged is not None and getattr(flagged, "is_quote", False) is True
+db_check.close()
+expect("is_quote=True persists on the quote policy", ok, f"is_quote={getattr(flagged, 'is_quote', None) if flagged else None}")
+
+# Create the comparison
+r = client.post(
+    f"/agent/clients/{CLIENT_ID}/policies/{INCUMBENT_P6_ID}/quote-comparisons",
+    json={"quote_policy_id": QUOTE_P6_ID},
+    headers=hdr(owner_token),
+)
+ok = (
+    r.status_code == 200
+    and r.json().get("incumbent_policy", {}).get("policy_number") == "INC-2026"
+    and r.json().get("quote_policy", {}).get("policy_number") == "QUO-2026"
+)
+COMPARISON_ID = r.json().get("id") if r.status_code == 200 else None
+expect("create quote comparison returns full payload", ok, f"status={r.status_code} id={COMPARISON_ID}")
+
+# Deltas should include coverage_amount + deductible at minimum
+deltas = r.json().get("deltas", []) if r.status_code == 200 else []
+delta_keys = {d["field_key"] for d in deltas}
+ok = "coverage_amount" in delta_keys and "deductible" in delta_keys and "carrier" in delta_keys
+expect("quote comparison surfaces field-level deltas", ok, f"keys={delta_keys}")
+
+# Discussion items should be observational, no banned tokens
+items_p6 = r.json().get("discussion_items", []) if r.status_code == 200 else []
+banned_p6 = ["consider umbrella", "underinsured", "better than", "worse than", "save money", "likely "]
+joined = " ".join(it.get("text", "") for it in items_p6).lower()
+ok = len(items_p6) >= 1 and not any(b in joined for b in banned_p6)
+expect("quote comparison discussion items respect banned tokens", ok, f"items={[it.get('text') for it in items_p6]}")
+
+# Idempotent: re-creating returns the same id
+r2 = client.post(
+    f"/agent/clients/{CLIENT_ID}/policies/{INCUMBENT_P6_ID}/quote-comparisons",
+    json={"quote_policy_id": QUOTE_P6_ID},
+    headers=hdr(owner_token),
+)
+ok = r2.status_code == 200 and r2.json().get("id") == COMPARISON_ID
+expect("re-creating quote comparison is idempotent (same id)", ok, f"id={r2.json().get('id')} expected={COMPARISON_ID}")
+
+# Update summary
+r = client.put(
+    f"/agent/quote-comparisons/{COMPARISON_ID}",
+    json={"summary_text": "Quote drops liability and raises deductible — review with client."},
+    headers=hdr(owner_token),
+)
+ok = r.status_code == 200 and r.json().get("summary_text", "").startswith("Quote drops liability")
+expect("update quote comparison summary", ok, f"status={r.status_code}")
+
+# Producer (cross-member, same agency) can view it
+r = client.get(f"/agent/quote-comparisons/{COMPARISON_ID}", headers=hdr(producer_token))
+ok = r.status_code == 200 and r.json().get("id") == COMPARISON_ID
+expect("producer (cross-member) can view quote comparison", ok, f"status={r.status_code}")
+
+# List for client returns the comparison
+r = client.get(f"/agent/clients/{CLIENT_ID}/quote-comparisons", headers=hdr(owner_token))
+ok = r.status_code == 200 and any(qc.get("id") == COMPARISON_ID for qc in r.json())
+expect("list quote comparisons includes the new one", ok, f"count={len(r.json()) if r.status_code == 200 else 0}")
+
+# Dismiss an item, then re-fetch and confirm it's marked dismissed (agent view)
+first_hash = items_p6[0]["hash"] if items_p6 else None
+if first_hash:
+    r = client.put(
+        f"/agent/quote-comparisons/{COMPARISON_ID}/dismiss-item",
+        json={"hash": first_hash, "dismissed": True},
+        headers=hdr(owner_token),
+    )
+    ok = r.status_code == 200
+    expect("dismiss item returns 200", ok, f"status={r.status_code}")
+    new_items = r.json().get("discussion_items", [])
+    ok = any(it.get("hash") == first_hash and it.get("dismissed") is True for it in new_items)
+    expect("dismissed item shows dismissed=True on agent view", ok, "")
+
+# Share the comparison, then hit the public endpoint
+r = client.post(f"/agent/quote-comparisons/{COMPARISON_ID}/share", headers=hdr(owner_token))
+ok = r.status_code == 200 and r.json().get("share_token")
+TOKEN_P6 = r.json().get("share_token") if r.status_code == 200 else None
+expect("share quote comparison returns a token", ok, f"token_len={len(TOKEN_P6 or '')}")
+
+if TOKEN_P6:
+    r = client.get(f"/quote-comparison/public/{TOKEN_P6}")
+    ok = (
+        r.status_code == 200
+        and r.json().get("incumbent_policy", {}).get("policy_number") == "INC-2026"
+        and r.json().get("quote_policy", {}).get("policy_number") == "QUO-2026"
+    )
+    expect("public endpoint returns the comparison by token", ok, f"status={r.status_code}")
+    # Dismissed items are filtered OUT on the public surface
+    public_items = r.json().get("discussion_items", []) if r.status_code == 200 else []
+    if first_hash:
+        ok = not any(it.get("hash") == first_hash for it in public_items)
+        expect("public quote comparison hides dismissed items", ok, f"public_items={[it.get('hash') for it in public_items]}")
+
+# Cross-tenant: agency 2 owner cannot view this comparison
+if agency2_owner_id:
+    other_tok = create_access_token(agency2_owner_id)
+    r = client.get(f"/agent/quote-comparisons/{COMPARISON_ID}", headers=hdr(other_tok))
+    ok = r.status_code in (403, 404)
+    expect("cross-tenant agent cannot view quote comparison", ok, f"status={r.status_code}")
+
+# Revoke and confirm token is invalid
+r = client.delete(f"/agent/quote-comparisons/{COMPARISON_ID}/share", headers=hdr(owner_token))
+ok = r.status_code == 200
+expect("revoke quote share returns 200", ok, f"status={r.status_code}")
+if TOKEN_P6:
+    r = client.get(f"/quote-comparison/public/{TOKEN_P6}")
+    ok = r.status_code == 404
+    expect("revoked share token returns 404 publicly", ok, f"status={r.status_code}")
+
+# Delete the comparison
+r = client.delete(f"/agent/quote-comparisons/{COMPARISON_ID}", headers=hdr(owner_token))
+ok = r.status_code == 200
+expect("delete quote comparison returns 200", ok, f"status={r.status_code}")
+r = client.get(f"/agent/quote-comparisons/{COMPARISON_ID}", headers=hdr(owner_token))
+ok = r.status_code == 404
+expect("deleted quote comparison is gone (404)", ok, f"status={r.status_code}")
 
 
 # 10. Login no longer requires MFA challenge

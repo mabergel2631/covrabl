@@ -38,7 +38,7 @@ from app.routes_deltas import router as deltas_router
 from app.routes_scores import router as scores_router
 from app.routes_inbound import router as inbound_router
 from app.routes_agent import router as agent_router
-from app.routes_renewal_review import router as renewal_review_router
+from app.routes_renewal_review import router as renewal_review_router, quote_router as quote_comparison_public_router
 from app.routes_admin import router as admin_router, public_router as announcements_router
 from app.routes_exposures import router as exposures_router
 from app.routes_certificates import router as certificates_router
@@ -337,6 +337,37 @@ def on_startup():
             conn.execute(text("ALTER TABLE users ADD COLUMN mfa_enrolled_at TIMESTAMP"))
             logging.info("Self-heal: added mfa_enrolled_at to users")
 
+    # Phase 6 — Quote Comparison: is_quote flag on policies + quote_comparisons table
+    insp = inspect(engine)
+    existing_tables = insp.get_table_names()
+    policy_cols = [c["name"] for c in insp.get_columns("policies")] if "policies" in existing_tables else []
+    with engine.begin() as conn:
+        if "policies" in existing_tables and "is_quote" not in policy_cols:
+            conn.execute(text("ALTER TABLE policies ADD COLUMN is_quote BOOLEAN DEFAULT FALSE NOT NULL"))
+            logging.info("Self-heal: added is_quote to policies")
+        if "quote_comparisons" not in existing_tables:
+            conn.execute(text("""
+                CREATE TABLE quote_comparisons (
+                    id SERIAL PRIMARY KEY,
+                    incumbent_policy_id INTEGER NOT NULL REFERENCES policies(id) ON DELETE CASCADE,
+                    quote_policy_id INTEGER NOT NULL REFERENCES policies(id) ON DELETE CASCADE,
+                    agent_id INTEGER NOT NULL REFERENCES users(id),
+                    agency_id INTEGER REFERENCES agencies(id),
+                    summary_text TEXT,
+                    share_token VARCHAR(60) UNIQUE,
+                    shared_at TIMESTAMP,
+                    dismissed_items_json TEXT,
+                    created_at TIMESTAMP DEFAULT NOW(),
+                    updated_at TIMESTAMP DEFAULT NOW()
+                )
+            """))
+            conn.execute(text("CREATE INDEX ix_quote_comparisons_incumbent ON quote_comparisons(incumbent_policy_id)"))
+            conn.execute(text("CREATE INDEX ix_quote_comparisons_quote ON quote_comparisons(quote_policy_id)"))
+            conn.execute(text("CREATE INDEX ix_quote_comparisons_agent_id ON quote_comparisons(agent_id)"))
+            conn.execute(text("CREATE INDEX ix_quote_comparisons_agency_id ON quote_comparisons(agency_id)"))
+            conn.execute(text("CREATE INDEX ix_quote_comparisons_share_token ON quote_comparisons(share_token)"))
+            logging.info("Self-heal: created quote_comparisons table")
+
     # Idempotent data normalization
     with engine.begin() as conn:
         conn.execute(text("UPDATE users SET email = lower(email) WHERE email != lower(email)"))
@@ -366,6 +397,7 @@ app.include_router(scores_router)
 app.include_router(inbound_router)
 app.include_router(agent_router)
 app.include_router(renewal_review_router)
+app.include_router(quote_comparison_public_router)
 app.include_router(admin_router)
 app.include_router(announcements_router)
 app.include_router(exposures_router)

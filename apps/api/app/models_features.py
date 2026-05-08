@@ -150,6 +150,33 @@ class RenewalReview(Base):
     updated_at: Mapped[DateTime] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now())
 
 
+class QuoteComparison(Base):
+    """Agent-authored side-by-side of an incumbent (in-force) policy and a quote.
+
+    Sibling to RenewalReview — same shape, same delta engine, same dismiss/share
+    machinery — but here the "right-hand side" is a quote (Policy with
+    is_quote=True) rather than a renewing policy. Multiple quotes against the
+    same incumbent are supported by creating multiple QuoteComparison rows.
+    """
+    __tablename__ = "quote_comparisons"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    incumbent_policy_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("policies.id", ondelete="CASCADE"), index=True
+    )
+    quote_policy_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("policies.id", ondelete="CASCADE"), index=True
+    )
+    agent_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), index=True)
+    agency_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("agencies.id"), nullable=True, index=True)
+    summary_text: Mapped[str | None] = mapped_column(Text, nullable=True)
+    share_token: Mapped[str | None] = mapped_column(String(60), nullable=True, unique=True, index=True)
+    shared_at: Mapped[DateTime | None] = mapped_column(DateTime, nullable=True)
+    dismissed_items_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[DateTime] = mapped_column(DateTime, server_default=func.now())
+    updated_at: Mapped[DateTime] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now())
+
+
 class CoverageScore(Base):
     """User coverage score by category."""
     __tablename__ = "coverage_scores"

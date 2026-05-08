@@ -50,6 +50,10 @@ export default function ClientDetailPage() {
   const [renewalPickerFor, setRenewalPickerFor] = useState<number | null>(null);
   const [renewalPickerSelection, setRenewalPickerSelection] = useState<number | null>(null);
   const [linkingRenewal, setLinkingRenewal] = useState(false);
+  // Quote-comparison picker (separate from renewal picker)
+  const [quotePickerFor, setQuotePickerFor] = useState<number | null>(null);
+  const [quotePickerSelection, setQuotePickerSelection] = useState<number | null>(null);
+  const [creatingQuoteComparison, setCreatingQuoteComparison] = useState(false);
 
   // Add Policy
   const [showAddPolicy, setShowAddPolicy] = useState(false);
@@ -290,6 +294,29 @@ export default function ClientDetailPage() {
       setAddPolicyMsg(err.message || 'Failed to add policy');
     } finally {
       setAddingPolicy(false);
+    }
+  };
+
+  const handleCompareQuote = async (incumbentPolicyId: number, quotePolicyId: number) => {
+    setCreatingQuoteComparison(true);
+    trackClick('agent_quote_compare_submit', { client_id: clientId, incumbent_id: incumbentPolicyId, quote_id: quotePolicyId });
+    try {
+      // Mark the picked policy as is_quote=true so it visually distinguishes from the bound policy.
+      // Failure here shouldn't block the comparison itself.
+      try {
+        await agentApi.updatePolicyForClient(clientId, quotePolicyId, { is_quote: true });
+      } catch (markErr) {
+        console.warn('Could not mark policy as quote (continuing with comparison):', markErr);
+      }
+      const comparison = await agentApi.createQuoteComparison(clientId, incumbentPolicyId, quotePolicyId);
+      trackFeatureUse('agent_quote_compared', { comparison_id: comparison.id });
+      setQuotePickerFor(null);
+      setQuotePickerSelection(null);
+      router.push(`/agent/${clientId}/quote-comparison/${comparison.id}`);
+    } catch (err: any) {
+      alert(err?.message || 'Failed to create quote comparison');
+    } finally {
+      setCreatingQuoteComparison(false);
     }
   };
 
@@ -1323,6 +1350,101 @@ export default function ClientDetailPage() {
                                 </button>
                               )}
                             </div>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Quote comparison row — separate from renewal so an agent can do either independently */}
+                      <div style={{
+                        marginBottom: 12,
+                        padding: '10px 12px',
+                        backgroundColor: 'var(--color-bg)',
+                        borderRadius: 'var(--radius-md)',
+                        border: '1px solid var(--color-border)',
+                      }}>
+                        {quotePickerFor === p.id ? (
+                          (() => {
+                            const targetType = (p.policy_type || '').toLowerCase().trim();
+                            const candidates = data.policies.filter(pp => pp.id !== p.id && (pp.policy_type || '').toLowerCase().trim() === targetType);
+                            return (
+                              <div onClick={e => e.stopPropagation()}>
+                                <div style={{ fontSize: 12, color: 'var(--color-text-muted)', marginBottom: 6 }}>
+                                  Pick a quote to compare against this policy.
+                                </div>
+                                {candidates.length === 0 ? (
+                                  <div style={{ fontSize: 13, color: 'var(--color-text-muted)', fontStyle: 'italic' }}>
+                                    No matching policy on this client to compare against. Add a quote policy first (Add Policy → mark coverage matching this one).
+                                  </div>
+                                ) : (
+                                  <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                                    <select
+                                      value={quotePickerSelection ?? ''}
+                                      onChange={(e) => setQuotePickerSelection(e.target.value ? Number(e.target.value) : null)}
+                                      style={{ padding: '8px 12px', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', fontSize: 13, backgroundColor: 'var(--color-surface)', color: 'var(--color-text)', minWidth: 240 }}
+                                    >
+                                      <option value="">Select quote policy...</option>
+                                      {candidates.map(c => (
+                                        <option key={c.id} value={c.id}>
+                                          {c.carrier} {c.policy_type}{c.policy_number ? ` · ${c.policy_number}` : ''}
+                                        </option>
+                                      ))}
+                                    </select>
+                                    <button
+                                      onClick={() => quotePickerSelection && handleCompareQuote(p.id, quotePickerSelection)}
+                                      disabled={!quotePickerSelection || creatingQuoteComparison}
+                                      style={{
+                                        padding: '8px 16px',
+                                        backgroundColor: 'var(--color-primary)',
+                                        color: '#fff',
+                                        border: 'none',
+                                        borderRadius: 'var(--radius-md)',
+                                        fontSize: 13,
+                                        fontWeight: 600,
+                                        cursor: creatingQuoteComparison ? 'wait' : 'pointer',
+                                        opacity: (!quotePickerSelection || creatingQuoteComparison) ? 0.6 : 1,
+                                      }}
+                                    >
+                                      {creatingQuoteComparison ? 'Comparing...' : 'Compare'}
+                                    </button>
+                                    <button
+                                      onClick={() => { setQuotePickerFor(null); setQuotePickerSelection(null); }}
+                                      style={{
+                                        padding: '8px 12px',
+                                        backgroundColor: 'transparent',
+                                        color: 'var(--color-text-muted)',
+                                        border: '1px solid var(--color-border)',
+                                        borderRadius: 'var(--radius-md)',
+                                        fontSize: 13,
+                                        cursor: 'pointer',
+                                      }}
+                                    >
+                                      Cancel
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })()
+                        ) : (
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+                            <div style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>
+                              Quote comparison &mdash; line this policy up against an alternative quote on file.
+                            </div>
+                            <button
+                              onClick={(e) => { e.stopPropagation(); trackClick('agent_quote_picker_open', { policy_id: p.id, client_id: clientId }); setQuotePickerFor(p.id); setQuotePickerSelection(null); }}
+                              style={{
+                                padding: '6px 14px',
+                                backgroundColor: 'var(--color-surface)',
+                                color: 'var(--color-text)',
+                                border: '1px solid var(--color-border)',
+                                borderRadius: 'var(--radius-md)',
+                                fontSize: 12,
+                                fontWeight: 600,
+                                cursor: 'pointer',
+                              }}
+                            >
+                              Compare to quote...
+                            </button>
                           </div>
                         )}
                       </div>

@@ -94,6 +94,8 @@ class PolicyUpdate(BaseModel):
     deductible_type: Optional[Literal["annual", "per_incident"]] = None
     deductible_period_start: Optional[date] = None
     deductible_applied: Optional[int] = None
+    # Quote flag — marks a policy row as a quote (not yet bound)
+    is_quote: Optional[bool] = None
 
     @field_validator("policy_type")
     @classmethod

@@ -15,7 +15,7 @@ from .models import User, Policy, Contact, PolicyDetail, Exposure
 from .models_agency import AgencyMember
 from .models_agent import AgentClient, AgentNote, AgentPolicyAccess
 from .models_documents import Document
-from .models_features import PolicyShare, CoverageScore, ComplianceCheck, LeaseRequirement, AuditLog, UserEvent, PolicyDelta, RenewalReview
+from .models_features import PolicyShare, CoverageScore, ComplianceCheck, LeaseRequirement, AuditLog, UserEvent, PolicyDelta, RenewalReview, QuoteComparison
 from .routes_deltas import determine_delta_type, calculate_severity, TRACKED_FIELDS
 from .storage import presign_put_url
 from .audit_helper import log_action
@@ -1890,6 +1890,310 @@ def revoke_renewal_share(
         review.share_token = None
         review.shared_at = None
         db.commit()
+    return {"ok": True}
+
+
+# ── Quote comparison (Phase 6) ─────────────────────────
+
+
+def _compute_quote_deltas(db: Session, incumbent: Policy, quote: Policy) -> list[dict]:
+    """Compare two policies (incumbent vs quote) and return delta dicts.
+
+    Reuses the same field-level comparison + PolicyDetail comparison that the
+    renewal flow uses, so the delta shape is identical and the rule engine in
+    coverage_review_rules.compute_discussion_items applies cleanly.
+    """
+    out: list[dict] = []
+    for field in TRACKED_FIELDS:
+        old_value = getattr(incumbent, field, None)
+        new_value = getattr(quote, field, None)
+        if old_value is None and new_value is None:
+            continue
+        old_str = str(old_value) if old_value is not None else None
+        new_str = str(new_value) if new_value is not None else None
+        if old_str == new_str:
+            continue
+        out.append({
+            "field_key": field,
+            "old_value": old_str,
+            "new_value": new_str,
+            "delta_type": determine_delta_type(field, old_str, new_str),
+            "severity": calculate_severity(field, old_str, new_str, determine_delta_type(field, old_str, new_str)),
+        })
+    # Also compare PolicyDetail rows so BI limits, etc. show up in the diff
+    for d in _compute_detail_deltas(db, incumbent.id, quote.id):
+        out.append(d)
+    return out
+
+
+def _quote_comparison_payload(
+    db: Session, comparison: QuoteComparison, *, public: bool = False,
+) -> dict:
+    """Build the agent (or public) view of a quote comparison."""
+    incumbent = db.get(Policy, comparison.incumbent_policy_id)
+    quote = db.get(Policy, comparison.quote_policy_id)
+    if not incumbent or not quote:
+        raise HTTPException(status_code=404, detail="Comparison references missing policy")
+
+    incumbent_brief = _serialize_policy_brief(incumbent)
+    quote_brief = _serialize_policy_brief(quote)
+    delta_list = _compute_quote_deltas(db, incumbent, quote)
+
+    # Reuse the renewal-review rule engine and dismiss-hash machinery.
+    # `_build_discussion_items` accepts (policy, previous_policy_brief, deltas, review).
+    # For a quote comparison: the "right-hand side" is the quote, the "previous" is
+    # the incumbent. The rule engine doesn't know it's a quote — and that's intentional.
+    review_shim = type("RR", (), {
+        "dismissed_items_json": comparison.dismissed_items_json,
+    })()
+    discussion_items = _build_discussion_items(
+        quote, incumbent_brief, delta_list, review_shim, public=public,
+    )
+
+    return {
+        "id": comparison.id,
+        "incumbent_policy": incumbent_brief,
+        "quote_policy": quote_brief,
+        "deltas": delta_list,
+        "summary_text": comparison.summary_text,
+        "share_token": comparison.share_token,
+        "shared_at": comparison.shared_at.isoformat() if comparison.shared_at else None,
+        "discussion_items": discussion_items,
+    }
+
+
+class CreateQuoteComparisonRequest(BaseModel):
+    quote_policy_id: int
+
+
+@router.post("/clients/{client_id}/policies/{policy_id}/quote-comparisons")
+def create_quote_comparison(
+    client_id: int,
+    policy_id: int,
+    payload: CreateQuoteComparisonRequest,
+    agent: User = Depends(require_agent),
+    db: Session = Depends(get_db),
+):
+    """Create a quote comparison anchored on the incumbent (`policy_id`) vs a
+    quote (`payload.quote_policy_id`). Both must belong to the same client.
+
+    The quote_policy must already exist as a Policy row; the typical flow is
+    for the agent to create a Policy with is_quote=True, then call this.
+    """
+    _check_write_role(db, agent)
+    _verify_client_access(db, agent, client_id)
+
+    incumbent = db.get(Policy, policy_id)
+    if not incumbent or incumbent.user_id != client_id:
+        raise HTTPException(status_code=404, detail="Incumbent policy not found for this client")
+    quote = db.get(Policy, payload.quote_policy_id)
+    if not quote or quote.user_id != client_id:
+        raise HTTPException(status_code=404, detail="Quote policy not found for this client")
+    if incumbent.id == quote.id:
+        raise HTTPException(status_code=400, detail="Cannot compare a policy to itself")
+
+    # Idempotent: if an active comparison already exists for this pair, return it.
+    existing = db.execute(
+        select(QuoteComparison)
+        .where(QuoteComparison.incumbent_policy_id == incumbent.id)
+        .where(QuoteComparison.quote_policy_id == quote.id)
+    ).scalar_one_or_none()
+    if existing:
+        return _quote_comparison_payload(db, existing)
+
+    comparison = QuoteComparison(
+        incumbent_policy_id=incumbent.id,
+        quote_policy_id=quote.id,
+        agent_id=agent.id,
+        agency_id=_agency_id_for(db, agent.id),
+        summary_text=None,
+    )
+    db.add(comparison)
+    db.flush()  # need comparison.id for the audit log
+    log_action(
+        db, client_id, "created", "quote_comparison", comparison.id,
+        f"Quote {quote.id} vs incumbent {incumbent.id} by agent {agent.id}",
+    )
+    db.commit()
+    db.refresh(comparison)
+    return _quote_comparison_payload(db, comparison)
+
+
+@router.get("/clients/{client_id}/quote-comparisons")
+def list_quote_comparisons_for_client(
+    client_id: int,
+    agent: User = Depends(require_agent),
+    db: Session = Depends(get_db),
+):
+    """List all quote comparisons that involve this client's policies."""
+    _verify_client_access(db, agent, client_id)
+    rows = db.execute(
+        select(QuoteComparison, Policy)
+        .join(Policy, Policy.id == QuoteComparison.incumbent_policy_id)
+        .where(Policy.user_id == client_id)
+        .order_by(QuoteComparison.created_at.desc())
+    ).all()
+    return [
+        {
+            "id": qc.id,
+            "incumbent_policy_id": qc.incumbent_policy_id,
+            "quote_policy_id": qc.quote_policy_id,
+            "summary_text": qc.summary_text,
+            "share_token": qc.share_token,
+            "shared_at": qc.shared_at.isoformat() if qc.shared_at else None,
+            "created_at": qc.created_at.isoformat() if qc.created_at else None,
+        }
+        for qc, _ in rows
+    ]
+
+
+@router.get("/quote-comparisons/{comparison_id}")
+def get_quote_comparison(
+    comparison_id: int,
+    agent: User = Depends(require_agent),
+    db: Session = Depends(get_db),
+):
+    """Full payload for a single quote comparison (agent view)."""
+    comparison = db.get(QuoteComparison, comparison_id)
+    if not comparison:
+        raise HTTPException(status_code=404, detail="Comparison not found")
+    incumbent = db.get(Policy, comparison.incumbent_policy_id)
+    if not incumbent:
+        raise HTTPException(status_code=404, detail="Comparison references missing policy")
+    _verify_client_access(db, agent, incumbent.user_id)
+    return _quote_comparison_payload(db, comparison)
+
+
+class QuoteComparisonUpdate(BaseModel):
+    summary_text: str | None = None
+
+
+@router.put("/quote-comparisons/{comparison_id}")
+def update_quote_comparison(
+    comparison_id: int,
+    payload: QuoteComparisonUpdate,
+    agent: User = Depends(require_agent),
+    db: Session = Depends(get_db),
+):
+    """Upsert the agent-authored summary on a quote comparison."""
+    _check_write_role(db, agent)
+    comparison = db.get(QuoteComparison, comparison_id)
+    if not comparison:
+        raise HTTPException(status_code=404, detail="Comparison not found")
+    incumbent = db.get(Policy, comparison.incumbent_policy_id)
+    if not incumbent:
+        raise HTTPException(status_code=404, detail="Comparison references missing policy")
+    _verify_client_access(db, agent, incumbent.user_id)
+
+    comparison.summary_text = (payload.summary_text or "").strip() or None
+    db.commit()
+    db.refresh(comparison)
+    return _quote_comparison_payload(db, comparison)
+
+
+@router.put("/quote-comparisons/{comparison_id}/dismiss-item")
+def dismiss_quote_item(
+    comparison_id: int,
+    payload: DismissItemRequest,
+    agent: User = Depends(require_agent),
+    db: Session = Depends(get_db),
+):
+    """Toggle dismiss flag on a single discussion item (by hash)."""
+    _check_write_role(db, agent)
+    comparison = db.get(QuoteComparison, comparison_id)
+    if not comparison:
+        raise HTTPException(status_code=404, detail="Comparison not found")
+    incumbent = db.get(Policy, comparison.incumbent_policy_id)
+    if not incumbent:
+        raise HTTPException(status_code=404, detail="Comparison references missing policy")
+    _verify_client_access(db, agent, incumbent.user_id)
+
+    import json as _json
+    try:
+        existing = set(_json.loads(comparison.dismissed_items_json or "[]"))
+    except Exception:
+        existing = set()
+
+    item_hash = (payload.hash or "").strip()
+    if not item_hash:
+        raise HTTPException(status_code=400, detail="Missing item hash")
+
+    if payload.dismissed:
+        existing.add(item_hash)
+    else:
+        existing.discard(item_hash)
+
+    comparison.dismissed_items_json = _json.dumps(sorted(existing))
+    db.commit()
+    db.refresh(comparison)
+    return _quote_comparison_payload(db, comparison)
+
+
+@router.post("/quote-comparisons/{comparison_id}/share")
+def share_quote_comparison(
+    comparison_id: int,
+    agent: User = Depends(require_agent),
+    db: Session = Depends(get_db),
+):
+    """Generate (or return existing) public share token."""
+    _check_write_role(db, agent)
+    comparison = db.get(QuoteComparison, comparison_id)
+    if not comparison:
+        raise HTTPException(status_code=404, detail="Comparison not found")
+    incumbent = db.get(Policy, comparison.incumbent_policy_id)
+    if not incumbent:
+        raise HTTPException(status_code=404, detail="Comparison references missing policy")
+    _verify_client_access(db, agent, incumbent.user_id)
+
+    if not comparison.share_token:
+        comparison.share_token = secrets.token_urlsafe(24)
+        comparison.shared_at = datetime.now()
+    db.commit()
+    return {
+        "share_token": comparison.share_token,
+        "shared_at": comparison.shared_at.isoformat() if comparison.shared_at else None,
+    }
+
+
+@router.delete("/quote-comparisons/{comparison_id}/share")
+def revoke_quote_share(
+    comparison_id: int,
+    agent: User = Depends(require_agent),
+    db: Session = Depends(get_db),
+):
+    """Revoke the public share link."""
+    _check_write_role(db, agent)
+    comparison = db.get(QuoteComparison, comparison_id)
+    if not comparison:
+        raise HTTPException(status_code=404, detail="Comparison not found")
+    incumbent = db.get(Policy, comparison.incumbent_policy_id)
+    if not incumbent:
+        raise HTTPException(status_code=404, detail="Comparison references missing policy")
+    _verify_client_access(db, agent, incumbent.user_id)
+    comparison.share_token = None
+    comparison.shared_at = None
+    db.commit()
+    return {"ok": True}
+
+
+@router.delete("/quote-comparisons/{comparison_id}")
+def delete_quote_comparison(
+    comparison_id: int,
+    agent: User = Depends(require_agent),
+    db: Session = Depends(get_db),
+):
+    """Delete a quote comparison entirely (does not delete the underlying policies)."""
+    _check_write_role(db, agent)
+    comparison = db.get(QuoteComparison, comparison_id)
+    if not comparison:
+        raise HTTPException(status_code=404, detail="Comparison not found")
+    incumbent = db.get(Policy, comparison.incumbent_policy_id)
+    if not incumbent:
+        raise HTTPException(status_code=404, detail="Comparison references missing policy")
+    _verify_client_access(db, agent, incumbent.user_id)
+    db.delete(comparison)
+    log_action(db, incumbent.user_id, "deleted", "quote_comparison", comparison_id, f"By agent {agent.id}")
+    db.commit()
     return {"ok": True}
 
 
