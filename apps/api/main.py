@@ -89,7 +89,13 @@ async def global_exception_handler(request: Request, exc: Exception):
 @app.get("/health")
 def health_check():
     from app.config import settings
-    return {"status": "ok", "app_url": settings.app_url, "version": "2026-05-07-agency-selfheal"}
+    from app.storage import storage_backend
+    return {
+        "status": "ok",
+        "app_url": settings.app_url,
+        "version": "2026-05-07-r2-storage",
+        "storage": storage_backend(),  # "r2" or "local"
+    }
 
 
 @app.on_event("startup")
