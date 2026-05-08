@@ -184,7 +184,10 @@ export const authApi = {
     });
   },
   login(email: string, password: string) {
-    return request<{ access_token: string; token_type: string }>("/auth/login", {
+    return request<
+      | { access_token: string; token_type: string }
+      | { mfa_required: true; mfa_token: string }
+    >("/auth/login", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ email, password }),
@@ -218,6 +221,35 @@ export const authApi = {
       body: JSON.stringify({ password }),
     });
   },
+  // ── MFA / 2FA ──────────────────────────────────────────
+  loginMfa(mfaToken: string, code: string): Promise<{ access_token: string; token_type: string }> {
+    return request<{ access_token: string; token_type: string }>("/auth/login/mfa", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ mfa_token: mfaToken, code }),
+    });
+  },
+  mfaSetup(): Promise<{ otpauth_uri: string; secret: string; recovery_codes: string[] }> {
+    return request("/auth/mfa/setup", { method: "POST" });
+  },
+  mfaEnable(code: string): Promise<{ ok: boolean; mfa_enabled: boolean }> {
+    return request("/auth/mfa/enable", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ code }),
+    });
+  },
+  mfaDisable(password: string, code?: string): Promise<{ ok: boolean; mfa_enabled: boolean }> {
+    return request("/auth/mfa/disable", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ password, code }),
+    });
+  },
+  mfaStatus(): Promise<{ mfa_enabled: boolean; mfa_enrolled_at: string | null; recovery_codes_remaining: number }> {
+    return request("/auth/mfa/status");
+  },
+
   // Privacy / SOC: full data export (JSON dump of everything the user owns)
   async exportMyData(): Promise<void> {
     const r = await fetch(`${API_BASE}/auth/me/export-data`, {

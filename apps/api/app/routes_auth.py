@@ -9,6 +9,7 @@ from pydantic import BaseModel
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
+from .audit_helper import log_action
 from .auth import hash_password, verify_password, create_access_token, get_current_user
 from .config import settings
 from .db import get_db
@@ -108,8 +109,12 @@ def register(payload: UserCreate, db: Session = Depends(get_db)):
     return Token(access_token=create_access_token(user.id))
 
 
-@router.post("/login", response_model=Token)
+@router.post("/login")
 def login(payload: UserCreate, request: Request, db: Session = Depends(get_db)):
+    """First step of login. If MFA is enabled on the account, returns a
+    short-lived challenge token instead of a full access token; the client
+    must call POST /auth/login/mfa with that token + their TOTP code.
+    """
     _check_rate_limit(request)
     email = payload.email.strip().lower()
     ip = request.client.host if request.client else "unknown"
@@ -117,17 +122,165 @@ def login(payload: UserCreate, request: Request, db: Session = Depends(get_db)):
     if not user or not verify_password(payload.password, user.hashed_password):
         _record_failure(request)
         logger.info("Login failed for %s (user_exists=%s) from %s", email, user is not None, ip)
-        # If the user exists, log the failure attempt for SOC-style audit trail.
-        # When the email doesn't map to an account we skip the DB write to avoid
-        # creating noise + leaking enumeration via row counts.
         if user is not None:
             log_action(db, user.id, "login_failed", "user", user.id, f"Invalid password from {ip}")
             db.commit()
         raise HTTPException(status_code=401, detail="Invalid credentials")
     _clear_failures(request)
+
+    if getattr(user, "mfa_enabled", False) and user.mfa_secret:
+        from .mfa import issue_mfa_challenge_token
+        log_action(db, user.id, "login_mfa_required", "user", user.id, f"From {ip}")
+        db.commit()
+        return {
+            "mfa_required": True,
+            "mfa_token": issue_mfa_challenge_token(user.id),
+        }
+
     log_action(db, user.id, "login_success", "user", user.id, f"From {ip}")
     db.commit()
     return Token(access_token=create_access_token(user.id))
+
+
+class MfaLoginRequest(BaseModel):
+    mfa_token: str
+    code: str  # 6-digit TOTP or 12-char recovery code (XXXX-XXXX-XXXX)
+
+
+@router.post("/login/mfa", response_model=Token)
+def login_mfa(payload: MfaLoginRequest, request: Request, db: Session = Depends(get_db)):
+    """Second step of MFA login. Exchange the challenge token + TOTP code (or
+    recovery code) for a real access token.
+    """
+    from .mfa import decode_mfa_challenge_token, verify_totp, consume_recovery_code
+    user_id = decode_mfa_challenge_token(payload.mfa_token)
+    if user_id is None:
+        raise HTTPException(status_code=401, detail="Invalid or expired challenge")
+    user = db.get(User, user_id)
+    if not user or not user.mfa_enabled or not user.mfa_secret:
+        raise HTTPException(status_code=401, detail="Invalid challenge")
+
+    ip = request.client.host if request.client else "unknown"
+    code = (payload.code or "").strip()
+
+    # Try TOTP first; fall back to recovery code if it's the longer format
+    if verify_totp(user.mfa_secret, code):
+        log_action(db, user.id, "mfa_login_success", "user", user.id, f"TOTP from {ip}")
+        db.commit()
+        return Token(access_token=create_access_token(user.id))
+
+    # Recovery code path
+    used, remaining = consume_recovery_code(user.mfa_recovery_codes, code)
+    if used:
+        user.mfa_recovery_codes = remaining
+        log_action(db, user.id, "mfa_login_success", "user", user.id, f"Recovery code from {ip}")
+        db.commit()
+        return Token(access_token=create_access_token(user.id))
+
+    log_action(db, user.id, "mfa_login_failed", "user", user.id, f"Bad code from {ip}")
+    db.commit()
+    raise HTTPException(status_code=401, detail="Invalid code")
+
+
+# ── MFA enroll / disable (authenticated user) ─────────
+
+
+class MfaEnableRequest(BaseModel):
+    code: str  # 6-digit TOTP code from the user's authenticator app
+
+
+class MfaDisableRequest(BaseModel):
+    password: str
+    code: str | None = None  # TOTP or recovery code; required when MFA is on
+
+
+@router.post("/mfa/setup")
+def mfa_setup(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Generate (but do NOT yet enable) a fresh TOTP secret + recovery codes.
+
+    Returns the otpauth URI for QR rendering and the plaintext recovery codes
+    (shown ONCE — user must save them now). Secret is staged on the user row
+    in mfa_secret but mfa_enabled stays False until the user confirms via
+    POST /auth/mfa/enable with a valid code.
+
+    If MFA is already enabled, this endpoint refuses — user must disable first.
+    """
+    from .mfa import generate_secret, otpauth_uri, generate_recovery_codes, hash_recovery_codes
+    if user.mfa_enabled:
+        raise HTTPException(status_code=400, detail="MFA is already enabled. Disable it first to re-enroll.")
+
+    secret = generate_secret()
+    codes = generate_recovery_codes(10)
+    user.mfa_secret = secret
+    user.mfa_recovery_codes = hash_recovery_codes(codes)
+    user.mfa_enabled = False  # not yet
+    user.mfa_enrolled_at = None
+    db.commit()
+    return {
+        "otpauth_uri": otpauth_uri(secret, user.email),
+        "secret": secret,  # backup for users who can't scan QR; safe to display only during setup
+        "recovery_codes": codes,
+    }
+
+
+@router.post("/mfa/enable")
+def mfa_enable(payload: MfaEnableRequest, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Confirm enrollment by verifying a TOTP code against the staged secret.
+    Marks MFA enabled.
+    """
+    from .mfa import verify_totp
+    if user.mfa_enabled:
+        raise HTTPException(status_code=400, detail="MFA already enabled")
+    if not user.mfa_secret:
+        raise HTTPException(status_code=400, detail="Run /mfa/setup first")
+    if not verify_totp(user.mfa_secret, payload.code):
+        raise HTTPException(status_code=400, detail="Invalid code — try again")
+    user.mfa_enabled = True
+    user.mfa_enrolled_at = datetime.now(timezone.utc)
+    log_action(db, user.id, "mfa_enabled", "user", user.id)
+    db.commit()
+    return {"ok": True, "mfa_enabled": True}
+
+
+@router.post("/mfa/disable")
+def mfa_disable(payload: MfaDisableRequest, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Disable MFA. Requires password + a valid TOTP/recovery code if MFA
+    was already enabled. If MFA was staged but never enabled (setup but no
+    enable), only password is required to clear the staged secret.
+    """
+    from .mfa import verify_totp, consume_recovery_code
+    if not verify_password(payload.password, user.hashed_password):
+        raise HTTPException(status_code=403, detail="Incorrect password")
+
+    if user.mfa_enabled:
+        if not payload.code:
+            raise HTTPException(status_code=400, detail="Code required to disable MFA")
+        ok = verify_totp(user.mfa_secret or "", payload.code)
+        if not ok:
+            used, _ = consume_recovery_code(user.mfa_recovery_codes, payload.code)
+            ok = used
+        if not ok:
+            raise HTTPException(status_code=400, detail="Invalid code")
+
+    user.mfa_enabled = False
+    user.mfa_secret = None
+    user.mfa_recovery_codes = None
+    user.mfa_enrolled_at = None
+    log_action(db, user.id, "mfa_disabled", "user", user.id)
+    db.commit()
+    return {"ok": True, "mfa_enabled": False}
+
+
+@router.get("/mfa/status")
+def mfa_status(user: User = Depends(get_current_user)):
+    """Quick status check for the profile page UI."""
+    return {
+        "mfa_enabled": bool(getattr(user, "mfa_enabled", False)),
+        "mfa_enrolled_at": user.mfa_enrolled_at.isoformat() if getattr(user, "mfa_enrolled_at", None) else None,
+        "recovery_codes_remaining": (
+            len(__import__("json").loads(user.mfa_recovery_codes)) if user.mfa_recovery_codes else 0
+        ),
+    }
 
 
 # ── Password reset ────────────────────────────────────

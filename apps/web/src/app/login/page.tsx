@@ -16,6 +16,10 @@ export default function LoginPage() {
   const [mode, setMode] = useState<'login' | 'register'>('login');
   const [teamInviteToken, setTeamInviteToken] = useState<string | null>(null);
   const [clientInvitePresent, setClientInvitePresent] = useState(false);
+  // MFA challenge state
+  const [mfaChallengeToken, setMfaChallengeToken] = useState<string | null>(null);
+  const [mfaCode, setMfaCode] = useState('');
+  const [mfaSubmitting, setMfaSubmitting] = useState(false);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -56,7 +60,15 @@ export default function LoginPage() {
       const res = mode === 'login'
         ? await authApi.login(trimmedEmail, password)
         : await authApi.register(trimmedEmail, password, role);
-      login(res.access_token);
+
+      // MFA challenge — server says "password OK, but I need your TOTP"
+      if (mode === 'login' && 'mfa_required' in res && res.mfa_required) {
+        setMfaChallengeToken(res.mfa_token);
+        setLoading(false);
+        return;
+      }
+
+      login((res as { access_token: string }).access_token);
 
       // If we have a team invite token, claim it now (auth header is set after login())
       if (teamInviteToken) {
@@ -80,6 +92,24 @@ export default function LoginPage() {
       setError(err.message || 'Something went wrong');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleMfaSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!mfaChallengeToken || !mfaCode.trim()) return;
+    setMfaSubmitting(true);
+    setError('');
+    try {
+      track('login_mfa_submit', 'auth');
+      const res = await authApi.loginMfa(mfaChallengeToken, mfaCode.trim());
+      login(res.access_token);
+      const returnTo = new URLSearchParams(window.location.search).get('returnTo');
+      router.push(returnTo || '/policies');
+    } catch (err: any) {
+      setError(err?.message || 'Invalid code — try again');
+    } finally {
+      setMfaSubmitting(false);
     }
   };
 
@@ -150,6 +180,47 @@ export default function LoginPage() {
           )}
           {error && <div className="alert alert-error" style={{ marginBottom: 20 }}>{error}</div>}
 
+          {/* MFA challenge step — shown after a successful password login when 2FA is enabled */}
+          {mfaChallengeToken ? (
+            <form onSubmit={handleMfaSubmit}>
+              <div style={{
+                padding: '12px 14px', marginBottom: 16, fontSize: 13,
+                backgroundColor: '#eff6ff', border: '1px solid #bfdbfe',
+                borderRadius: 'var(--radius-md)', color: '#1e3a8a', lineHeight: 1.5,
+              }}>
+                Two-factor authentication is enabled on this account. Open your authenticator app and enter the 6-digit code, or use one of your recovery codes.
+              </div>
+              <label className="form-label">Authentication code</label>
+              <input
+                className="form-input"
+                type="text"
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                value={mfaCode}
+                onChange={e => setMfaCode(e.target.value)}
+                placeholder="123456 or XXXX-XXXX-XXXX"
+                autoFocus
+                style={{ fontFamily: 'monospace', letterSpacing: '0.05em' }}
+              />
+              <div style={{ marginTop: 16, display: 'flex', gap: 8 }}>
+                <button
+                  type="submit"
+                  className="btn btn-primary"
+                  disabled={mfaSubmitting || !mfaCode.trim()}
+                  style={{ flex: 1 }}
+                >
+                  {mfaSubmitting ? 'Verifying…' : 'Verify and sign in'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setMfaChallengeToken(null); setMfaCode(''); setError(''); }}
+                  style={{ padding: '0 16px', fontSize: 13, background: 'transparent', color: 'var(--color-text-muted)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', cursor: 'pointer' }}
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
+          ) : (
           <form onSubmit={handleSubmit}>
             <label className="form-label">Email</label>
             <input
@@ -220,6 +291,7 @@ export default function LoginPage() {
               {loading ? 'Please wait...' : mode === 'login' ? 'Sign In' : 'Create Account'}
             </button>
           </form>
+          )}
 
           <div style={{ marginTop: 16, display: 'flex', flexDirection: 'column', gap: 6, alignItems: 'center' }}>
             <p style={{ margin: 0, textAlign: 'center', fontSize: 11, color: 'var(--color-text-muted)', lineHeight: 1.5 }}>

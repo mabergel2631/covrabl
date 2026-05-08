@@ -48,6 +48,15 @@ with engine.begin() as conn:
     rr_cols = [c["name"] for c in insp.get_columns("renewal_reviews")]
     if "dismissed_items_json" not in rr_cols:
         conn.execute(text("ALTER TABLE renewal_reviews ADD COLUMN dismissed_items_json TEXT"))
+    user_cols = [c["name"] for c in insp.get_columns("users")]
+    if "mfa_enabled" not in user_cols:
+        conn.execute(text("ALTER TABLE users ADD COLUMN mfa_enabled BOOLEAN DEFAULT 0 NOT NULL"))
+    if "mfa_secret" not in user_cols:
+        conn.execute(text("ALTER TABLE users ADD COLUMN mfa_secret VARCHAR(64)"))
+    if "mfa_recovery_codes" not in user_cols:
+        conn.execute(text("ALTER TABLE users ADD COLUMN mfa_recovery_codes VARCHAR(2000)"))
+    if "mfa_enrolled_at" not in user_cols:
+        conn.execute(text("ALTER TABLE users ADD COLUMN mfa_enrolled_at TIMESTAMP"))
 print("[setup] create_all + idempotent column fills done")
 
 db = SessionLocal()
@@ -595,6 +604,87 @@ expect("owner revokes share token", ok, f"status={r.status_code}")
 r = client.get(f"/renewal-review/public/{SHARE_TOKEN}")
 ok = r.status_code == 404
 expect("revoked token returns 404", ok, f"status={r.status_code}")
+
+
+# ── MFA / 2FA end-to-end ──────────────────────────────
+
+import pyotp
+
+# Need a user with a valid (non-RFC-2606-reserved) email since pydantic
+# EmailStr rejects .test/.example/.local/.localhost. Existing test users use
+# .test domains which fail at /auth/login validation.
+db = SessionLocal()
+mfa_user = User(email="mfa-test@covrabldemo.dev", hashed_password=hash_password("mfapw123"), role="agent")
+db.add(mfa_user)
+db.flush()
+MFA_USER_ID = mfa_user.id
+db.add(AgencyMember(agency_id=AGENCY_ID, user_id=MFA_USER_ID, role="producer", status="active"))
+db.commit()
+db.close()
+mfa_user_token = create_access_token(MFA_USER_ID)
+
+# 1. Setup — should return secret + 10 recovery codes
+r = client.post("/auth/mfa/setup", headers=hdr(mfa_user_token))
+setup = r.json() if r.status_code == 200 else {}
+ok = (
+    r.status_code == 200
+    and setup.get("secret")
+    and len(setup.get("recovery_codes", [])) == 10
+    and "otpauth://" in setup.get("otpauth_uri", "")
+)
+expect("mfa setup returns secret + 10 recovery codes + otpauth URI", ok, f"status={r.status_code}")
+mfa_secret = setup.get("secret", "")
+recovery_codes = setup.get("recovery_codes", [])
+
+# 2. Enable with WRONG code -> 400
+r = client.post("/auth/mfa/enable", headers=hdr(mfa_user_token), json={"code": "000000"})
+expect("mfa enable rejects wrong code", r.status_code == 400, f"status={r.status_code}")
+
+# 3. Enable with CORRECT TOTP code
+correct_code = pyotp.TOTP(mfa_secret).now()
+r = client.post("/auth/mfa/enable", headers=hdr(mfa_user_token), json={"code": correct_code})
+expect("mfa enable succeeds with correct code", r.status_code == 200 and r.json().get("mfa_enabled") is True, f"status={r.status_code}")
+
+# 4. Status shows enabled
+r = client.get("/auth/mfa/status", headers=hdr(mfa_user_token))
+ok = r.status_code == 200 and r.json().get("mfa_enabled") is True and r.json().get("recovery_codes_remaining") == 10
+expect("mfa status reports enabled + 10 recovery codes", ok, f"resp={r.json()}")
+
+# 5. Login now returns mfa_required + challenge token (NOT a full access_token)
+r = client.post("/auth/login", json={"email": "mfa-test@covrabldemo.dev", "password": "mfapw123"})
+body = r.json() if r.status_code == 200 else {}
+ok = r.status_code == 200 and body.get("mfa_required") is True and body.get("mfa_token")
+expect("login with MFA returns challenge token, not access token", ok, f"resp_keys={list(body.keys())}")
+challenge_token = body.get("mfa_token", "")
+
+# 6. /login/mfa with wrong code -> 401
+r = client.post("/auth/login/mfa", json={"mfa_token": challenge_token, "code": "000000"})
+expect("login/mfa rejects wrong code", r.status_code == 401, f"status={r.status_code}")
+
+# 7. /login/mfa with correct TOTP -> access_token
+correct_code = pyotp.TOTP(mfa_secret).now()
+r = client.post("/auth/login/mfa", json={"mfa_token": challenge_token, "code": correct_code})
+ok = r.status_code == 200 and r.json().get("access_token")
+expect("login/mfa with correct TOTP returns access_token", ok, f"status={r.status_code}")
+
+# 8. /login/mfa with a RECOVERY code -> access_token + remaining count decreases
+r = client.post("/auth/login", json={"email": "mfa-test@covrabldemo.dev", "password": "mfapw123"})
+challenge_token2 = r.json().get("mfa_token", "")
+r = client.post("/auth/login/mfa", json={"mfa_token": challenge_token2, "code": recovery_codes[0]})
+expect("login/mfa with recovery code returns access_token", r.status_code == 200 and r.json().get("access_token"), f"status={r.status_code}")
+
+r = client.get("/auth/mfa/status", headers=hdr(mfa_user_token))
+expect("recovery code count decreased after use", r.json().get("recovery_codes_remaining") == 9, f"remaining={r.json().get('recovery_codes_remaining')}")
+
+# 9. Disable (requires password + valid TOTP)
+correct_code = pyotp.TOTP(mfa_secret).now()
+r = client.post("/auth/mfa/disable", headers=hdr(mfa_user_token), json={"password": "mfapw123", "code": correct_code})
+expect("mfa disable with correct password + TOTP", r.status_code == 200 and r.json().get("mfa_enabled") is False, f"status={r.status_code}")
+
+# 10. Login no longer requires MFA challenge
+r = client.post("/auth/login", json={"email": "mfa-test@covrabldemo.dev", "password": "mfapw123"})
+ok = r.status_code == 200 and r.json().get("access_token") and "mfa_required" not in r.json()
+expect("login after disable returns access_token directly", ok, f"resp={r.json()}")
 
 
 # Summary

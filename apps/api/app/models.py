@@ -15,6 +15,11 @@ class User(Base):
     stripe_customer_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
     stripe_subscription_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
     trial_ends_at: Mapped[DateTime | None] = mapped_column(DateTime, nullable=True)
+    # MFA / 2FA (TOTP). Nullable until enrolled.
+    mfa_enabled: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    mfa_secret: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    mfa_recovery_codes: Mapped[str | None] = mapped_column(String(2000), nullable=True)  # JSON list of bcrypt hashes
+    mfa_enrolled_at: Mapped[DateTime | None] = mapped_column(DateTime, nullable=True)
     created_at: Mapped[DateTime] = mapped_column(DateTime, server_default=func.now())
 
 

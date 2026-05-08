@@ -8,6 +8,7 @@ import { formatPhone } from '../../../lib/format';
 import { trackClick, trackFeatureUse } from '../../../lib/track';
 import { useToast } from '../components/Toast';
 import BackButton from '../components/BackButton';
+import MfaSection from '../components/MfaSection';
 
 const CONTEXT_FLAGS: { key: keyof UserProfile; label: string; help: string }[] = [
   { key: 'is_homeowner', label: 'I own a home', help: 'Helps identify homeowners insurance gaps' },
@@ -525,6 +526,9 @@ export default function ProfilePage() {
           )}
         </div>
       </div>
+
+      {/* 5a. Two-factor authentication */}
+      <MfaSection />
 
       {/* 5b. Privacy: data export */}
       <div style={{

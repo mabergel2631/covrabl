@@ -320,6 +320,23 @@ def on_startup():
                 pass  # table or column may not exist yet on a stripped-down install
             logging.info("Self-heal: created Agency-of-One for user %s (%s)", uid, email)
 
+    # MFA / 2FA columns on users table — added 2026-05-08
+    insp = inspect(engine)
+    user_cols = [c["name"] for c in insp.get_columns("users")]
+    with engine.begin() as conn:
+        if "mfa_enabled" not in user_cols:
+            conn.execute(text("ALTER TABLE users ADD COLUMN mfa_enabled BOOLEAN DEFAULT FALSE NOT NULL"))
+            logging.info("Self-heal: added mfa_enabled to users")
+        if "mfa_secret" not in user_cols:
+            conn.execute(text("ALTER TABLE users ADD COLUMN mfa_secret VARCHAR(64)"))
+            logging.info("Self-heal: added mfa_secret to users")
+        if "mfa_recovery_codes" not in user_cols:
+            conn.execute(text("ALTER TABLE users ADD COLUMN mfa_recovery_codes VARCHAR(2000)"))
+            logging.info("Self-heal: added mfa_recovery_codes to users")
+        if "mfa_enrolled_at" not in user_cols:
+            conn.execute(text("ALTER TABLE users ADD COLUMN mfa_enrolled_at TIMESTAMP"))
+            logging.info("Self-heal: added mfa_enrolled_at to users")
+
     # Idempotent data normalization
     with engine.begin() as conn:
         conn.execute(text("UPDATE users SET email = lower(email) WHERE email != lower(email)"))
