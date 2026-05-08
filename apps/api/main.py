@@ -90,11 +90,21 @@ async def global_exception_handler(request: Request, exc: Exception):
 def health_check():
     from app.config import settings
     from app.storage import storage_backend
+    # Diagnostic: which R2 env vars are present? Reports True/False per var,
+    # NEVER the values themselves. Lets us debug "storage":"local" cases
+    # without exposing credentials.
+    r2_env_seen = {
+        "R2_ACCESS_KEY_ID": bool(os.getenv("R2_ACCESS_KEY_ID")),
+        "R2_SECRET_ACCESS_KEY": bool(os.getenv("R2_SECRET_ACCESS_KEY")),
+        "R2_ACCOUNT_ID": bool(os.getenv("R2_ACCOUNT_ID")),
+        "R2_BUCKET": bool(os.getenv("R2_BUCKET")),
+    }
     return {
         "status": "ok",
         "app_url": settings.app_url,
-        "version": "2026-05-07-r2-storage",
+        "version": "2026-05-07-r2-storage-diag",
         "storage": storage_backend(),  # "r2" or "local"
+        "r2_env": r2_env_seen,
     }
 
 
