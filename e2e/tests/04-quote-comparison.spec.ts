@@ -8,17 +8,25 @@ test.describe('Quote Comparison', () => {
     await loginAsDemo(page);
     await settled(page);
 
-    // Robert Thompson has 4 policies including Auto + Watercraft + Home + Umbrella — good candidate
+    // Robert Thompson has 5 policies including two Autos (Chubb + Mercury) —
+    // the Auto policies are the ones we want to compare. Other policy types
+    // (Home, Umbrella, Watercraft) have no same-type sibling and would show
+    // an empty picker.
     await page.getByText('robert.thompson@demo.dev', { exact: false }).first().click();
     await page.waitForURL(/\/agent\/\d+/, { timeout: 15_000 });
     await settled(page);
 
-    // Click the first "Compare to quote..." button — expand the accordion if
-    // the button isn't already visible.
+    // Target the Chubb Auto row specifically by its unique policy number.
+    // This avoids landing on Chubb Home/Umbrella/Watercraft which have no
+    // same-type Auto to compare against.
+    const autoRow = page.getByText(/CHB-MAS-770201/i).first();
+    await expect(autoRow).toBeVisible({ timeout: 15_000 });
+    // Find that row's "Compare to quote..." button. If not already visible,
+    // click the row to expand the accordion.
     let compareBtn = page.getByRole('button', { name: /Compare to quote/i }).first();
     if (!(await compareBtn.isVisible().catch(() => false))) {
-      await page.getByText(/Chubb/i).first().click();
-      await page.waitForTimeout(500);
+      await autoRow.click();
+      await page.waitForTimeout(800);
       compareBtn = page.getByRole('button', { name: /Compare to quote/i }).first();
     }
     if (!(await compareBtn.isVisible().catch(() => false))) {
@@ -26,9 +34,10 @@ test.describe('Quote Comparison', () => {
     }
     await compareBtn.click();
 
-    // Picker dropdown appears — pick any candidate
+    // Picker dropdown appears — pick any candidate.
+    // (Bumped to 20s for CI cold-start margin.)
     const select = page.locator('select').first();
-    await expect(select).toBeVisible({ timeout: 10_000 });
+    await expect(select).toBeVisible({ timeout: 20_000 });
 
     // Pick the first non-empty option
     const optionValues = await select.locator('option').evaluateAll(opts =>

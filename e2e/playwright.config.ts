@@ -1,12 +1,17 @@
 import { defineConfig, devices } from '@playwright/test';
 
+// GitHub Actions runners are slower than a dev laptop, and Railway workers
+// are cold after a fresh deploy. Bump timeouts and allow one retry on CI so
+// transient network/cold-start jitter doesn't fail a run on its own.
+const isCI = !!process.env.CI;
+
 export default defineConfig({
   testDir: './tests',
-  timeout: 60_000,
-  expect: { timeout: 10_000 },
+  timeout: isCI ? 90_000 : 60_000,
+  expect: { timeout: isCI ? 15_000 : 10_000 },
   fullyParallel: false, // Demo account is shared state — sequential is safer
   workers: 1,
-  retries: 0,
+  retries: isCI ? 1 : 0,
   // Runs once before any tests; wipes + re-seeds the demo account so each
   // run starts from a known-clean state.
   globalSetup: require.resolve('./global-setup'),
@@ -23,8 +28,8 @@ export default defineConfig({
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
     video: 'retain-on-failure',
-    actionTimeout: 15_000,
-    navigationTimeout: 30_000,
+    actionTimeout: isCI ? 25_000 : 15_000,
+    navigationTimeout: isCI ? 45_000 : 30_000,
   },
   projects: [
     // Desktop / tablet baselines

@@ -18,11 +18,19 @@ test.describe('Client detail', () => {
 
     // Expand the first policy row to reveal the action buttons
     await page.getByText(/Allstate/i).first().click();
-    await page.waitForTimeout(500);
+    await page.waitForTimeout(800);
 
-    // Key entry points are present once expanded
-    await expect(page.getByRole('button', { name: /Mark as renewal of/i }).first()).toBeVisible();
+    // Compare-to-quote always appears once expanded, regardless of renewal state.
     await expect(page.getByRole('button', { name: /Compare to quote/i }).first()).toBeVisible();
+
+    // Renewal section is also visible; the button label depends on whether a
+    // prior-year link already exists. On the first viewport "Mark as renewal of"
+    // shows; on subsequent viewports (after test 03 has run on an earlier
+    // viewport and seeded a prior-year link on this same demo account), the
+    // section shows "Linked as renewal of" + "Open Renewal Review" instead.
+    await expect(
+      page.getByText(/Mark as renewal of|Open Renewal Review|Linked as renewal of/i).first()
+    ).toBeVisible();
 
     await snapshot(page, v, 'client_detail_sarah');
 
