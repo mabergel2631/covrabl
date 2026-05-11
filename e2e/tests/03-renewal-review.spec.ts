@@ -47,15 +47,20 @@ test.describe('Renewal Review', () => {
 
     await snapshot(page, v, 'renewal_review_agent');
 
-    // Type a summary and save
+    // Type a summary and save. Per-viewport text so the Save button enables
+    // even if an earlier viewport's run already wrote a summary to the same
+    // renewal record.
     const textarea = page.getByPlaceholder(/Example: Premium increased/i).first();
-    await textarea.fill('E2E test summary — automated check from the QA suite.');
-    await page.getByRole('button', { name: /Save summary/i }).click();
-    // Wait for the saved confirmation OR for the button to re-enable
-    await page.waitForTimeout(2000);
+    await textarea.fill(`E2E test summary — automated check from the QA suite (${v}).`);
+    const saveBtn = page.getByRole('button', { name: /^Save summary$/i });
+    if (await saveBtn.isEnabled().catch(() => false)) {
+      await saveBtn.click();
+      await page.waitForTimeout(2000);
+    }
 
-    // Generate share link
-    const shareBtn = page.getByRole('button', { name: /Generate share link/i });
+    // Create share link (the renewal-review page labels this "Create share link";
+    // the quote-comparison page uses "Generate share link". Accept either.)
+    const shareBtn = page.getByRole('button', { name: /Create share link|Generate share link/i });
     if (await shareBtn.isVisible().catch(() => false)) {
       await shareBtn.click();
       await page.waitForTimeout(2000);

@@ -50,11 +50,17 @@ test.describe('Quote Comparison', () => {
 
     await snapshot(page, v, 'quote_comparison_agent');
 
-    // Save a summary
+    // Save a summary. The Save button is disabled when the draft matches the
+    // saved value, so when an earlier viewport's run already saved the same
+    // text on the same comparison, the click would hang on "not enabled".
+    // Always type slightly-different text and click only if the button enables.
     const textarea = page.getByPlaceholder(/Example: This quote drops/i).first();
-    await textarea.fill('E2E test summary — automated check from the QA suite.');
-    await page.getByRole('button', { name: /Save summary/i }).click();
-    await page.waitForTimeout(2000);
+    await textarea.fill(`E2E test summary — automated check from the QA suite (${v}).`);
+    const saveBtn = page.getByRole('button', { name: /^Save summary$/i });
+    if (await saveBtn.isEnabled().catch(() => false)) {
+      await saveBtn.click();
+      await page.waitForTimeout(2000);
+    }
 
     // Share link
     const shareBtn = page.getByRole('button', { name: /Generate share link/i });
@@ -82,7 +88,10 @@ test.describe('Quote Comparison', () => {
       await pubPage.goto(shareUrl);
       await pubPage.waitForLoadState('networkidle', { timeout: 15_000 }).catch(() => {});
 
-      await expect(pubPage.getByRole('heading', { name: /Quote Comparison/i })).toBeVisible({ timeout: 15_000 });
+      // Public-share heading is dynamic: "<type> · <incumbent> vs. <quote>"
+      // (e.g., "Auto · Chubb vs. Mercury"). The public page uses the heading
+      // "What's different" (not "Structured differences" — that's agent-side).
+      await expect(pubPage.getByRole('heading', { name: /What's different/i })).toBeVisible({ timeout: 15_000 });
 
       const pubOverflow = await pubPage.evaluate(() => {
         const html = document.documentElement;

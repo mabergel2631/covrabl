@@ -1,0 +1,82 @@
+name: e2e
+
+# Runs the Playwright suite against the live demo on covrabl.com after every
+# push to master and on every PR. The suite's globalSetup wipes + reseeds the
+# demo@covrabl.com account before the run, so the only state mutated is the
+# throwaway demo sandbox.
+#
+# Triage on failure:
+#   - HTML report is in the e2e-report artifact (download + open index.html)
+#   - Screenshots + videos + traces are in the e2e-results artifact
+#   - Traces open with `npx playwright show-trace path/to/trace.zip`
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+  workflow_dispatch:
+
+# Cancel in-progress runs when a newer commit arrives — saves CI minutes and
+# avoids two runs racing on the shared demo account.
+concurrency:
+  group: e2e-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    defaults:
+      run:
+        working-directory: e2e
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: e2e/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright browser
+        run: npx playwright install --with-deps chromium
+
+      # If master was just pushed, Railway is redeploying right now. Wait for
+      # the API to come back up before we hammer it. If the build takes longer
+      # than 3 minutes the step fails and we retry the whole run.
+      - name: Wait for Railway API to be healthy
+        run: |
+          for i in $(seq 1 36); do
+            if curl -fsS https://covrabl-api.up.railway.app/health > /dev/null; then
+              echo "API healthy after $((i*5))s"
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "API never became healthy"
+          exit 1
+
+      - name: Run Playwright tests
+        run: npx playwright test --reporter=list
+
+      - name: Upload Playwright HTML report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-report
+          path: e2e/playwright-report
+          retention-days: 14
+
+      - name: Upload traces + screenshots
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-results
+          path: e2e/test-results
+          retention-days: 14
