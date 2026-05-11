@@ -13,8 +13,14 @@ test.describe('Quote Comparison', () => {
     await page.waitForURL(/\/agent\/\d+/, { timeout: 15_000 });
     await settled(page);
 
-    // Click the first "Compare to quote..." button
-    const compareBtn = page.getByRole('button', { name: /Compare to quote/i }).first();
+    // Click the first "Compare to quote..." button — expand the accordion if
+    // the button isn't already visible.
+    let compareBtn = page.getByRole('button', { name: /Compare to quote/i }).first();
+    if (!(await compareBtn.isVisible().catch(() => false))) {
+      await page.getByText(/Chubb/i).first().click();
+      await page.waitForTimeout(500);
+      compareBtn = page.getByRole('button', { name: /Compare to quote/i }).first();
+    }
     if (!(await compareBtn.isVisible().catch(() => false))) {
       test.skip(true, 'No Compare-to-quote button visible — page may have changed shape');
     }

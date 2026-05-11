@@ -13,10 +13,18 @@ test.describe('Renewal Review', () => {
     await page.waitForURL(/\/agent\/\d+/, { timeout: 15_000 });
     await settled(page);
 
-    // Use the "+ Add Prior Year (sample)" button on the first policy to seed a year-over-year pair.
-    // This is the agent-owner demo shortcut wired into the page.
-    const seedButton = page.getByRole('button', { name: /Add Prior Year/i }).first();
+    // The seed button lives inside the per-policy accordion. Expand it if
+    // it's not already showing (clicking the row toggles, so probe first).
+    let seedButton = page.getByRole('button', { name: /Add Prior Year/i }).first();
+    if (!(await seedButton.isVisible().catch(() => false))) {
+      await page.getByText(/Allstate/i).first().click();
+      await page.waitForTimeout(500);
+      seedButton = page.getByRole('button', { name: /Add Prior Year/i }).first();
+    }
     if (await seedButton.isVisible().catch(() => false)) {
+      // The seed button opens a native confirm() dialog. Accept it so the
+      // backing API call actually fires.
+      page.once('dialog', d => d.accept().catch(() => {}));
       await seedButton.click();
       // The seed call routes straight to the renewal review on success
       await page.waitForURL(/\/renewal/, { timeout: 30_000 });

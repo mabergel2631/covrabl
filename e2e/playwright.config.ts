@@ -7,15 +7,19 @@ export default defineConfig({
   fullyParallel: false, // Demo account is shared state — sequential is safer
   workers: 1,
   retries: 0,
+  // Runs once before any tests; wipes + re-seeds the demo account so each
+  // run starts from a known-clean state.
+  globalSetup: require.resolve('./global-setup'),
   reporter: [
     ['list'],
     ['html', { open: 'never', outputFolder: 'playwright-report' }],
   ],
   use: {
-    // Default to localhost — these tests mutate state on the demo account
-    // (saved summaries, share links). Set E2E_BASE_URL=https://covrabl.com
-    // ONLY when you intentionally want to test against the live demo.
-    baseURL: process.env.E2E_BASE_URL || 'http://localhost:3000',
+    // Prod-by-default. The demo account on covrabl.com is a throwaway sandbox
+    // that gets reset by globalSetup before each run — no real user data is
+    // ever touched. Set E2E_BASE_URL=http://localhost:3000 to point at a
+    // local web instance (you'll also need a local API on :8000).
+    baseURL: process.env.E2E_BASE_URL || 'https://covrabl.com',
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
     video: 'retain-on-failure',

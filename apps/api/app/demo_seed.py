@@ -490,6 +490,8 @@ CLIENTS = [
             ("Home", "Chubb", "CHB-MAS-770202", 2800000, 10000, 12400, 175),
             ("Umbrella", "Chubb", "CHB-MAS-770203", 10000000, None, 2900, 175),
             ("Watercraft", "Chubb", "CHB-WAT-770204", 250000, 1000, 1850, 175),
+            # Second Auto so the Quote Comparison picker has a candidate.
+            ("Auto", "Mercury", "MER-AU-770205", 500000, 500, 2950, 175),
         ],
     ),
     dict(

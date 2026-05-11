@@ -14,8 +14,23 @@ export async function loginAsDemo(page: Page) {
   // is committed, then click into the agent dashboard like a real user would.
   await page.waitForURL(/\/policies/, { timeout: 15_000 });
   await page.waitForLoadState('networkidle').catch(() => {});
+  await openMobileMenuIfPresent(page);
   await page.getByRole('button', { name: /My Clients/i }).first().click();
   await page.waitForURL(/\/agent(\/|$|\?)/, { timeout: 15_000 });
+}
+
+/**
+ * On tablet/mobile viewports the sidebar collapses behind a hamburger labeled
+ * "Open navigation menu". On desktop the sidebar is always visible. We click
+ * the hamburger if it's there; on desktop the button doesn't exist and we
+ * fall through silently.
+ */
+export async function openMobileMenuIfPresent(page: Page) {
+  const burger = page.getByRole('button', { name: /Open navigation menu/i }).first();
+  if (await burger.isVisible().catch(() => false)) {
+    await burger.click();
+    await page.waitForTimeout(300); // sidebar slide-in
+  }
 }
 
 export async function loginAs(page: Page, email: string, password: string) {
