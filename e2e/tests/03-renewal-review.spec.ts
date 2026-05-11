@@ -9,7 +9,7 @@ test.describe('Renewal Review', () => {
     await settled(page);
 
     // Open Sarah Westlake's detail page
-    await page.getByText('sarah.westlake@demo.test', { exact: false }).first().click();
+    await page.getByText('sarah.westlake@demo.dev', { exact: false }).first().click();
     await page.waitForURL(/\/agent\/\d+/, { timeout: 15_000 });
     await settled(page);
 

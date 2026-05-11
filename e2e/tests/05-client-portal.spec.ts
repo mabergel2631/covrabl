@@ -6,7 +6,7 @@ test.describe('Client portal (consumer side)', () => {
     const v = viewportFromTestInfo(testInfo.project.name);
 
     // Log in as Sarah Westlake — one of the seeded client users (password: Covrabl)
-    await loginAs(page, 'sarah.westlake@demo.test', 'Covrabl');
+    await loginAs(page, 'sarah.westlake@demo.dev', 'Covrabl');
 
     // Client role lands at /policies, not /agent
     await page.waitForURL(/\/(policies|onboard|tour)/, { timeout: 15_000 });

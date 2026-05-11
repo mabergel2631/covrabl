@@ -35,6 +35,40 @@ VALID_POLICY_TYPES = [
     "directors_officers", "epli", "inland_marine", "other",
 ]
 
+# Human-readable / legacy spellings that should resolve to a canonical type.
+# Keys are lower-cased, whitespace-collapsed strings.
+POLICY_TYPE_ALIASES = {
+    "cyber liability": "cyber",
+    "cyber risk": "cyber",
+    "commercial general liability": "general_liability",
+    "general liability": "general_liability",
+    "workers compensation": "workers_comp",
+    "workers' compensation": "workers_comp",
+    "workers comp": "workers_comp",
+    "commercial auto": "commercial_auto",
+    "commercial property": "commercial_property",
+    "professional liability": "professional_liability",
+    "errors and omissions": "professional_liability",
+    "e&o": "professional_liability",
+    "directors and officers": "directors_officers",
+    "directors & officers": "directors_officers",
+    "d&o": "directors_officers",
+    "employment practices liability": "epli",
+    "inland marine": "inland_marine",
+    "business owners policy": "bop",
+    "business owner's policy": "bop",
+    "watercraft": "boat",
+    "condo": "home",
+    "condo (ho6)": "home",
+    "ho6": "home",
+    "ho-6": "home",
+}
+
+
+def _normalize_policy_type(v: str) -> str:
+    s = " ".join(v.strip().lower().split())
+    return POLICY_TYPE_ALIASES.get(s, s)
+
 
 class PolicyBase(BaseModel):
     scope: Literal["personal", "business"]
@@ -63,9 +97,10 @@ class PolicyBase(BaseModel):
     @field_validator("policy_type")
     @classmethod
     def validate_policy_type(cls, v: str) -> str:
-        if v.lower() not in VALID_POLICY_TYPES:
+        normalized = _normalize_policy_type(v)
+        if normalized not in VALID_POLICY_TYPES:
             raise ValueError(f"Invalid policy_type: {v}")
-        return v.lower()
+        return normalized
 
 
 class PolicyCreate(PolicyBase):
@@ -100,9 +135,12 @@ class PolicyUpdate(BaseModel):
     @field_validator("policy_type")
     @classmethod
     def validate_policy_type(cls, v: Optional[str]) -> Optional[str]:
-        if v is not None and v.lower() not in VALID_POLICY_TYPES:
+        if v is None:
+            return v
+        normalized = _normalize_policy_type(v)
+        if normalized not in VALID_POLICY_TYPES:
             raise ValueError(f"Invalid policy_type: {v}")
-        return v.lower() if v else v
+        return normalized
 
 
 class PolicyOut(PolicyBase):

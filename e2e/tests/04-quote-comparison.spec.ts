@@ -9,7 +9,7 @@ test.describe('Quote Comparison', () => {
     await settled(page);
 
     // Robert Thompson has 4 policies including Auto + Watercraft + Home + Umbrella — good candidate
-    await page.getByText('robert.thompson@demo.test', { exact: false }).first().click();
+    await page.getByText('robert.thompson@demo.dev', { exact: false }).first().click();
     await page.waitForURL(/\/agent\/\d+/, { timeout: 15_000 });
     await settled(page);
 

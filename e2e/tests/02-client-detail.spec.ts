@@ -9,7 +9,7 @@ test.describe('Client detail', () => {
     await settled(page);
 
     // Click into Sarah Westlake (3 policies: auto, home, umbrella)
-    await page.getByText('sarah.westlake@demo.test', { exact: false }).first().click();
+    await page.getByText('sarah.westlake@demo.dev', { exact: false }).first().click();
     await page.waitForURL(/\/agent\/\d+/, { timeout: 15_000 });
     await settled(page);
 
