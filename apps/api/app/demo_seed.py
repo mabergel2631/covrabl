@@ -440,7 +440,7 @@ BUSINESS_ENTITIES = [
 
 CLIENTS = [
     dict(
-        first="Sarah", last="Westlake", email="sarah.westlake@demo.test",
+        first="Sarah", last="Westlake", email="sarah.westlake@demo.dev",
         address="32 Magnolia Drive\nMill Valley, CA 94941",
         policies=[
             ("Auto", "Allstate", "ALL-AU-220011", 250000, 1000, 1980, 145),
@@ -449,7 +449,7 @@ CLIENTS = [
         ],
     ),
     dict(
-        first="Michael", last="Chen", email="michael.chen@demo.test",
+        first="Michael", last="Chen", email="michael.chen@demo.dev",
         address="1845 Vine Street\nBerkeley, CA 94703",
         policies=[
             ("Auto", "Progressive", "PRG-AU-501122", 100000, 500, 1620, 60),
@@ -457,7 +457,7 @@ CLIENTS = [
         ],
     ),
     dict(
-        first="Elena", last="Rodriguez", email="elena.rodriguez@demo.test",
+        first="Elena", last="Rodriguez", email="elena.rodriguez@demo.dev",
         address="2210 Sutter Street\nSan Francisco, CA 94115",
         policies=[
             ("Auto", "USAA", "USAA-AU-310445", 500000, 250, 2400, 200),
@@ -467,7 +467,7 @@ CLIENTS = [
         ],
     ),
     dict(
-        first="James", last="O'Brien", email="james.obrien@demo.test",
+        first="James", last="O'Brien", email="james.obrien@demo.dev",
         address="84 Buena Vista Drive\nSausalito, CA 94965",
         policies=[
             ("Auto", "Liberty Mutual", "LM-AU-998771", 300000, 1000, 2200, 35),
@@ -475,7 +475,7 @@ CLIENTS = [
         ],
     ),
     dict(
-        first="Priya", last="Patel", email="priya.patel@demo.test",
+        first="Priya", last="Patel", email="priya.patel@demo.dev",
         address="1701 Filbert Street\nSan Francisco, CA 94123",
         policies=[
             ("Condo (HO6)", "Travelers", "TRV-HO6-225001", 180000, 1000, 720, 92),
@@ -483,7 +483,7 @@ CLIENTS = [
         ],
     ),
     dict(
-        first="Robert", last="Thompson", email="robert.thompson@demo.test",
+        first="Robert", last="Thompson", email="robert.thompson@demo.dev",
         address="450 Spring Valley Road\nKentfield, CA 94904",
         policies=[
             ("Auto", "Chubb", "CHB-MAS-770201", 500000, 500, 3100, 175),
@@ -493,7 +493,7 @@ CLIENTS = [
         ],
     ),
     dict(
-        first="Anna", last="Kowalski", email="anna.kowalski@demo.test",
+        first="Anna", last="Kowalski", email="anna.kowalski@demo.dev",
         address="2900 Pacific Avenue\nSan Francisco, CA 94115",
         policies=[
             ("Auto", "Geico", "GEI-AU-115501", 100000, 500, 1320, 50),
@@ -502,7 +502,7 @@ CLIENTS = [
         ],
     ),
     dict(
-        first="David", last="Nakamura", email="david.nakamura@demo.test",
+        first="David", last="Nakamura", email="david.nakamura@demo.dev",
         address="180 Locust Avenue\nBurlingame, CA 94010",
         policies=[
             ("Auto", "State Farm", "SF-AU-650088", 250000, 500, 1980, 110),
@@ -511,7 +511,7 @@ CLIENTS = [
         ],
     ),
     dict(
-        first="Linda", last="Goldberg", email="linda.goldberg@demo.test",
+        first="Linda", last="Goldberg", email="linda.goldberg@demo.dev",
         address="221 California Street, Unit 17B\nSan Francisco, CA 94111",
         policies=[
             ("Condo (HO6)", "AIG", "AIG-HO6-808811", 350000, 1000, 1450, 230),
@@ -520,7 +520,7 @@ CLIENTS = [
         ],
     ),
     dict(
-        first="Marcus", last="Williams", email="marcus.williams@demo.test",
+        first="Marcus", last="Williams", email="marcus.williams@demo.dev",
         address="76 Marlin Cove\nRedwood Shores, CA 94065",
         policies=[
             ("Auto", "Nationwide", "NW-AU-440099", 300000, 500, 2150, 80),
@@ -836,13 +836,132 @@ def _simple_coverages_for(policy_type: str, coverage: Optional[int], deductible:
     ]
 
 
+def _wipe_demo(db: Session) -> int:
+    """Remove every row tied to the demo account. Used by reset=true. Returns
+    a deletion count. Order matters: child rows first, then parents.
+
+    Touches ONLY the demo agent (demo@covrabl.com) and the seeded client users
+    (emails ending in @demo.dev or @demo.test legacy). Real user data is not
+    touched.
+    """
+    from sqlalchemy import or_, delete as sa_delete
+    from .models_documents import Document
+    from .models_features import (
+        PolicyShare, PolicyDelta, RenewalReview, QuoteComparison,
+        DismissedRecommendation, AuditLog, UserEvent, CoverageScore,
+        ComplianceCheck, LeaseRequirement, EmergencyCard, PremiumHistory,
+        DeltaExplanation, RenewalReminder, InboundAddress, InboundEmail,
+        PolicyDraft, Certificate, CertificateReminder,
+    )
+    from .models_features import Premium, Claim
+    from .models_agent import AgentNote, AgentPolicyAccess
+
+    demo_agent = db.execute(
+        select(User).where(User.email == DEMO_AGENT_EMAIL)
+    ).scalar_one_or_none()
+    if not demo_agent:
+        return 0
+
+    # Find all demo users (agent + clients)
+    demo_users = db.execute(
+        select(User).where(or_(
+            User.email == DEMO_AGENT_EMAIL,
+            User.email.like("%@demo.dev"),
+            User.email.like("%@demo.test"),  # legacy from first seed
+        ))
+    ).scalars().all()
+    demo_user_ids = [u.id for u in demo_users]
+
+    # Find all policies owned by demo users
+    demo_policies = db.execute(
+        select(Policy).where(Policy.user_id.in_(demo_user_ids))
+    ).scalars().all()
+    demo_policy_ids = [p.id for p in demo_policies]
+
+    deleted = 0
+
+    if demo_policy_ids:
+        # Child rows referencing policies — delete in dependency order
+        for table_cls in [
+            Premium, Claim, RenewalReminder, PolicyDelta, RenewalReview,
+            QuoteComparison, Document, PolicyShare, PremiumHistory,
+            AgentPolicyAccess,
+        ]:
+            try:
+                col = (
+                    table_cls.policy_id if hasattr(table_cls, "policy_id")
+                    else getattr(table_cls, "incumbent_policy_id", None)
+                )
+                if col is not None:
+                    n = db.execute(
+                        sa_delete(table_cls).where(col.in_(demo_policy_ids))
+                    ).rowcount or 0
+                    deleted += n
+            except Exception as e:
+                logger.warning("wipe: could not delete from %s: %s", table_cls.__tablename__, e)
+
+        # DeltaExplanation FK is on PolicyDelta.id which we just deleted — orphans cleaned
+        # PolicyDraft.matched_policy_id is SET NULL on policy delete — no-op needed
+
+        # Now delete the policies themselves
+        db.execute(sa_delete(Policy).where(Policy.id.in_(demo_policy_ids)))
+        deleted += len(demo_policy_ids)
+
+    # Exposures owned by demo users
+    db.execute(sa_delete(Exposure).where(Exposure.user_id.in_(demo_user_ids)))
+
+    # User-scoped rows
+    for table_cls in [
+        AuditLog, UserEvent, CoverageScore, ComplianceCheck, LeaseRequirement,
+        EmergencyCard, AgentNote, AgentClient, AgentPolicyAccess,
+        InboundAddress, InboundEmail, PolicyDraft, Certificate, PolicyShare,
+        DismissedRecommendation,
+    ]:
+        try:
+            col = getattr(table_cls, "user_id", None) or getattr(table_cls, "owner_id", None) or getattr(table_cls, "agent_id", None) or getattr(table_cls, "client_id", None)
+            if col is not None:
+                db.execute(sa_delete(table_cls).where(col.in_(demo_user_ids)))
+        except Exception as e:
+            logger.warning("wipe: could not clear %s: %s", getattr(table_cls, "__tablename__", "?"), e)
+
+    # Profiles
+    from .models_profile import UserProfile
+    db.execute(sa_delete(UserProfile).where(UserProfile.user_id.in_(demo_user_ids)))
+
+    # Agency-of-One for the demo agent
+    agency_members = db.execute(
+        select(AgencyMember).where(AgencyMember.user_id.in_(demo_user_ids))
+    ).scalars().all()
+    agency_ids = list({m.agency_id for m in agency_members})
+    db.execute(sa_delete(AgencyMember).where(AgencyMember.user_id.in_(demo_user_ids)))
+    if agency_ids:
+        # Also clear any agent_clients referencing this agency
+        db.execute(sa_delete(AgentClient).where(AgentClient.agency_id.in_(agency_ids)))
+        db.execute(sa_delete(Agency).where(Agency.id.in_(agency_ids)))
+
+    # Finally, the users themselves
+    db.execute(sa_delete(User).where(User.id.in_(demo_user_ids)))
+    deleted += len(demo_user_ids)
+
+    db.commit()
+    return deleted
+
+
 @router.post("")
-def seed_demo(db: Session = Depends(get_db)):
-    """One-shot, idempotent seed for the public demo account. No auth needed —
-    this endpoint always produces the same `demo@covrabl.com` account with the
-    same data, so it carries no privilege escalation risk.
+def seed_demo(reset: bool = False, db: Session = Depends(get_db)):
+    """One-shot seed for the public demo account.
+
+    By default idempotent — second call returns `already_seeded` and does nothing.
+
+    Pass `?reset=true` to wipe the existing demo account (agent + 10 clients +
+    all their policies, PDFs, deltas, share links) and re-seed from scratch.
+    Use this when the seed data shape changes; testers will lose any saved
+    summaries / share links they generated on prior demo data.
     """
     try:
+        if reset:
+            deleted = _wipe_demo(db)
+            logger.info("Demo wipe: removed %s rows", deleted)
         return _do_seed(db)
     except Exception as e:
         logger.exception("Seed-demo failed")
