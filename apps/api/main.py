@@ -39,6 +39,7 @@ from app.routes_scores import router as scores_router
 from app.routes_inbound import router as inbound_router
 from app.routes_agent import router as agent_router
 from app.routes_renewal_review import router as renewal_review_router, quote_router as quote_comparison_public_router
+from app.demo_seed import router as demo_seed_router
 from app.routes_admin import router as admin_router, public_router as announcements_router
 from app.routes_exposures import router as exposures_router
 from app.routes_certificates import router as certificates_router
@@ -398,6 +399,7 @@ app.include_router(inbound_router)
 app.include_router(agent_router)
 app.include_router(renewal_review_router)
 app.include_router(quote_comparison_public_router)
+app.include_router(demo_seed_router)
 app.include_router(admin_router)
 app.include_router(announcements_router)
 app.include_router(exposures_router)
