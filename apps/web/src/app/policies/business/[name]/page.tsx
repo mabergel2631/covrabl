@@ -197,9 +197,9 @@ export default function BusinessEntityPage() {
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
               <div style={{ width: 10, height: 10, borderRadius: '50%', backgroundColor: entityStatus === 'alert' ? 'var(--color-danger)' : entityStatus === 'warning' ? 'var(--color-warning)' : 'var(--color-success)' }} />
               <span style={{ fontSize: 15, fontWeight: 600, color: 'var(--color-text)' }}>
-                {entityStatus === 'alert' ? `${highGaps} coverage gap${highGaps > 1 ? 's' : ''} detected`
+                {entityStatus === 'alert' ? `${highGaps} item${highGaps > 1 ? 's' : ''} to review`
                   : entityStatus === 'warning' ? `${mediumGaps} item${mediumGaps > 1 ? 's' : ''} to review`
-                  : 'No coverage gaps detected'}
+                  : 'Nothing flagged for review'}
               </span>
             </div>
           </div>
@@ -293,11 +293,11 @@ export default function BusinessEntityPage() {
           ))}
         </section>
 
-        {/* Coverage Gaps */}
+        {/* Items to Review */}
         {data.gaps.length > 0 && (
           <section style={{ marginBottom: 40 }}>
             <h2 style={{ fontSize: 14, fontWeight: 600, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 16 }}>
-              Coverage Gaps ({data.gaps.filter(g => g.severity !== 'info').length})
+              Items to Review ({data.gaps.filter(g => g.severity !== 'info').length})
             </h2>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               {data.gaps.filter(g => g.severity !== 'info').map((gap) => (

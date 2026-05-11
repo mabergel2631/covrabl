@@ -84,7 +84,7 @@ const WALKTHROUGH_STEPS = [
   {
     step: 4,
     title: 'Get instant insights',
-    description: 'See coverage gaps, compare policies, and ask the AI chat anything about your coverage — all based on your actual policy documents.',
+    description: 'See items to review, compare policies, and ask anything about your coverage — all based on your actual policy documents.',
     visual: [
       { severity: 'high', text: 'No umbrella liability policy detected' },
       { severity: 'medium', text: 'Dwelling coverage may be below replacement cost' },
@@ -330,8 +330,8 @@ export default function DemoPage() {
           ))}
         </div>
 
-        {/* Coverage Gaps */}
-        <h2 style={{ fontSize: 18, fontWeight: 600, margin: '0 0 16px', color: '#111827' }}>Coverage Gaps &amp; Insights</h2>
+        {/* Items to Review */}
+        <h2 style={{ fontSize: 18, fontWeight: 600, margin: '0 0 16px', color: '#111827' }}>Items to Review &amp; Insights</h2>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 40 }}>
           {SAMPLE_GAPS.map((gap, i) => {
             const colors = {

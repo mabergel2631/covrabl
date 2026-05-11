@@ -126,7 +126,7 @@ export default function LoginPage() {
           <div style={{ marginTop: 40, display: 'flex', flexDirection: 'column', gap: 16 }}>
             {[
               ['Never search again', 'All your policies organized in one secure place'],
-              ['Spot gaps before they cost you', 'See exactly what\'s covered and what\'s missing'],
+              ['See what changed before the renewal call', 'Year-over-year comparisons your agent shares with you'],
               ['Be ready for anything', 'Emergency cards, claims steps, and renewal alerts'],
             ].map(([title, desc]) => (
               <div key={title} style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>

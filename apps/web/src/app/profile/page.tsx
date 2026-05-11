@@ -11,11 +11,11 @@ import BackButton from '../components/BackButton';
 import MfaSection from '../components/MfaSection';
 
 const CONTEXT_FLAGS: { key: keyof UserProfile; label: string; help: string }[] = [
-  { key: 'is_homeowner', label: 'I own a home', help: 'Helps identify homeowners insurance gaps' },
-  { key: 'is_renter', label: 'I rent', help: 'Helps identify renters insurance gaps' },
+  { key: 'is_homeowner', label: 'I own a home', help: 'Surfaces items to review on homeowners coverage' },
+  { key: 'is_renter', label: 'I rent', help: 'Surfaces items to review on renters coverage' },
   { key: 'has_dependents', label: 'I have dependents', help: 'Flags life and disability insurance needs' },
-  { key: 'has_vehicle', label: 'I have a vehicle', help: 'Elevates auto insurance gap severity' },
-  { key: 'owns_business', label: 'I own a business', help: 'Elevates business coverage gap severity' },
+  { key: 'has_vehicle', label: 'I have a vehicle', help: 'Surfaces items to review on auto coverage' },
+  { key: 'owns_business', label: 'I own a business', help: 'Surfaces items to review on business coverage' },
   { key: 'high_net_worth', label: 'High net worth', help: 'Flags umbrella and excess liability needs' },
 ];
 
@@ -432,7 +432,7 @@ export default function ProfilePage() {
         }}>
           <h2 style={{ margin: 0, fontSize: 16, fontWeight: 700 }}>Coverage Context</h2>
           <p style={{ margin: '6px 0 0', fontSize: 13, color: 'var(--color-text-secondary)' }}>
-            These help Covrabl identify coverage gaps relevant to you.
+            These help Covrabl surface the right items to review for your situation.
           </p>
         </div>
 

@@ -37,11 +37,11 @@ export default function TermsPage() {
           What {APP_NAME} is
         </h2>
         <p>
-          {APP_NAME} is an intelligent insurance analysis platform. We use AI to help you organize your
-          policies, score your protection, detect coverage gaps, track renewal deadlines, and explain
-          policy changes — so you always know where you stand. We are <strong>not</strong> an insurance company,
-          broker, agent, or financial advisor. We do not sell, recommend, or underwrite insurance products.
-          We do not provide insurance advice.
+          {APP_NAME} is an intelligent insurance organization platform. We use AI to help you organize your
+          policies, identify items to review, track renewal deadlines, and explain policy changes — so
+          you always know where you stand. We are <strong>not</strong> an insurance company, broker, agent,
+          or financial advisor. We do not sell, recommend, or underwrite insurance products. We do not
+          provide insurance advice.
         </p>
 
         <h2 style={{ fontSize: 20, fontWeight: 700, margin: '40px 0 12px', color: 'var(--color-text)' }}>

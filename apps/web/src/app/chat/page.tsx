@@ -15,7 +15,7 @@ type DisplayMessage = {
 
 const SUGGESTED_QUESTIONS = [
   'What policies do I have?',
-  'What are my coverage gaps?',
+  'What should I review on my coverage?',
   'Am I covered for flood damage?',
   'When do my policies renew?',
 ];

@@ -14,7 +14,7 @@ const SEVERITY_STYLES: Record<string, { bg: string; color: string; label: string
 };
 
 const CATEGORY_LABELS: Record<string, string> = {
-  coverage_gap: 'Coverage Gap',
+  coverage_gap: 'Item to Review',
   sublimit_difference: 'Sublimit Difference',
   exclusion_difference: 'Exclusion Difference',
   deductible: 'Deductible',
@@ -584,7 +584,7 @@ function CompareContent() {
                     {[
                       'Which policy provides better overall coverage?',
                       'What are the most important exclusion differences?',
-                      'Are there critical coverage gaps between these?',
+                      'What should I review between these two policies?',
                       'Which deductible structure is more cost-effective?',
                     ].map(q => (
                       <button
