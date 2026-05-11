@@ -15,20 +15,56 @@ async function globalSetup() {
   const apiBase = resolveApiBase();
   const url = `${apiBase}/admin/seed-demo?reset=true`;
 
-  console.log(`[globalSetup] Resetting demo account at ${url}`);
-  const t0 = Date.now();
+  // The reset endpoint is heavy (~30s — generates 42 PDFs, uploads to R2,
+  // inserts 50+ rows). On a freshly-deployed Railway service the gateway can
+  // 502 if workers are still warming. Retry on 5xx so transient failures
+  // don't fail the entire suite.
+  const maxAttempts = 4;
+  const baseDelayMs = 15_000;
 
-  const resp = await fetch(url, { method: 'POST' });
-  const body = await resp.text();
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    console.log(`[globalSetup] Resetting demo account at ${url} (attempt ${attempt}/${maxAttempts})`);
+    const t0 = Date.now();
 
-  if (!resp.ok) {
-    throw new Error(
-      `[globalSetup] Demo reset failed: ${resp.status} ${resp.statusText}\n${body}`
-    );
+    let resp: Response;
+    let body: string;
+    try {
+      resp = await fetch(url, { method: 'POST' });
+      body = await resp.text();
+    } catch (err: any) {
+      // Network error (Railway gateway dropped the connection mid-flight)
+      if (attempt === maxAttempts) throw err;
+      console.warn(`[globalSetup] Network error on attempt ${attempt}: ${err.message}; retrying in ${baseDelayMs / 1000}s`);
+      await sleep(baseDelayMs);
+      continue;
+    }
+
+    if (resp.ok) {
+      const elapsed = ((Date.now() - t0) / 1000).toFixed(1);
+      console.log(`[globalSetup] Demo reseeded in ${elapsed}s — ${body}`);
+      return;
+    }
+
+    // 4xx is a real failure (auth, bad request) — don't retry
+    if (resp.status >= 400 && resp.status < 500) {
+      throw new Error(
+        `[globalSetup] Demo reset failed (non-retryable): ${resp.status} ${resp.statusText}\n${body}`
+      );
+    }
+
+    // 5xx: retry with linear backoff
+    if (attempt === maxAttempts) {
+      throw new Error(
+        `[globalSetup] Demo reset failed after ${maxAttempts} attempts: ${resp.status} ${resp.statusText}\n${body}`
+      );
+    }
+    console.warn(`[globalSetup] ${resp.status} on attempt ${attempt}; retrying in ${baseDelayMs / 1000}s`);
+    await sleep(baseDelayMs);
   }
+}
 
-  const elapsed = ((Date.now() - t0) / 1000).toFixed(1);
-  console.log(`[globalSetup] Demo reseeded in ${elapsed}s — ${body}`);
+function sleep(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms));
 }
 
 /**

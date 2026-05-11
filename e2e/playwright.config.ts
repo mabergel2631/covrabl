@@ -27,17 +27,18 @@ export default defineConfig({
     navigationTimeout: 30_000,
   },
   projects: [
-    {
-      name: 'desktop',
-      use: { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 900 } },
-    },
-    {
-      name: 'tablet',
-      use: { ...devices['Desktop Chrome'], viewport: { width: 768, height: 1024 } },
-    },
-    {
-      name: 'mobile',
-      use: { ...devices['Desktop Chrome'], viewport: { width: 375, height: 812 } },
-    },
+    // Desktop / tablet baselines
+    { name: 'desktop',         use: { ...devices['Desktop Chrome'], viewport: { width: 1440, height:  900 } } },
+    { name: 'tablet',          use: { ...devices['Desktop Chrome'], viewport: { width:  768, height: 1024 } } },
+
+    // Mobile matrix — catch scaling bugs across the real range of phones.
+    // iPhone 13 (375×812) is the iOS reference; small-Android (360×800) is
+    // the Galaxy S20 / Pixel-class width that's most common globally; large
+    // (430×932) is iPhone 14/15 Pro Max; landscape (812×375) catches layouts
+    // that assume portrait-only stacking.
+    { name: 'mobile',          use: { ...devices['Desktop Chrome'], viewport: { width:  375, height:  812 } } },
+    { name: 'mobile-small',    use: { ...devices['Desktop Chrome'], viewport: { width:  360, height:  800 } } },
+    { name: 'mobile-large',    use: { ...devices['Desktop Chrome'], viewport: { width:  430, height:  932 } } },
+    { name: 'mobile-landscape',use: { ...devices['Desktop Chrome'], viewport: { width:  812, height:  375 } } },
   ],
 });
