@@ -87,7 +87,18 @@ export default function LoginPage() {
       }
 
       const returnTo = new URLSearchParams(window.location.search).get('returnTo');
-      router.push(returnTo || '/policies');
+      if (returnTo) {
+        router.push(returnTo);
+      } else {
+        // Land agents / admins on /agent (their primary workspace); everyone
+        // else on /policies. One extra API call but worth saving the click.
+        try {
+          const me = await authApi.me();
+          router.push(me.role === 'agent' || me.role === 'admin' ? '/agent' : '/policies');
+        } catch {
+          router.push('/policies');
+        }
+      }
     } catch (err: any) {
       setError(err.message || 'Something went wrong');
     } finally {
@@ -105,7 +116,16 @@ export default function LoginPage() {
       const res = await authApi.loginMfa(mfaChallengeToken, mfaCode.trim());
       login(res.access_token);
       const returnTo = new URLSearchParams(window.location.search).get('returnTo');
-      router.push(returnTo || '/policies');
+      if (returnTo) {
+        router.push(returnTo);
+      } else {
+        try {
+          const me = await authApi.me();
+          router.push(me.role === 'agent' || me.role === 'admin' ? '/agent' : '/policies');
+        } catch {
+          router.push('/policies');
+        }
+      }
     } catch (err: any) {
       setError(err?.message || 'Invalid code — try again');
     } finally {

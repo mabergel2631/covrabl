@@ -9,14 +9,10 @@ export const DEMO_PASSWORD = 'Covrabl';
  */
 export async function loginAsDemo(page: Page) {
   await loginAs(page, DEMO_EMAIL, DEMO_PASSWORD);
-  // Login redirects to /policies for everyone; agents reach /agent via the
-  // sidebar "My Clients" link. Wait for /policies to settle so the auth state
-  // is committed, then click into the agent dashboard like a real user would.
-  await page.waitForURL(/\/policies/, { timeout: 15_000 });
-  await page.waitForLoadState('networkidle').catch(() => {});
-  await openMobileMenuIfPresent(page);
-  await page.getByRole('button', { name: /My Clients/i }).first().click();
+  // After login, agents land directly on /agent (their primary workspace).
+  // Consumers go to /policies — see loginAs / test 05 for that case.
   await page.waitForURL(/\/agent(\/|$|\?)/, { timeout: 15_000 });
+  await page.waitForLoadState('networkidle').catch(() => {});
 }
 
 /**

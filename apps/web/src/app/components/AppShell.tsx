@@ -17,7 +17,7 @@ const NAV_SECTIONS: NavSection[] = [
     label: 'MAIN',
     items: [
       { href: '/', label: 'Dashboard', icon: '🏠' },
-      { href: '/policies', label: 'Policies', icon: '📋' },
+      { href: '/policies', label: 'My Policies', icon: '📋' },
       { href: '/certificates', label: 'Compliance', icon: '📜', feature: 'certificates' },
       { href: '/emergency', label: 'Emergency', icon: '🚨', urgent: true },
     ],
@@ -156,7 +156,10 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             // Inject compliance badge
             const complianceItem = sections[0].items.find(i => i.href === '/certificates');
             if (complianceItem && complianceBadge > 0) complianceItem.badge = complianceBadge;
-            if (role === 'agent') sections[0].items.push({ href: '/agent', label: 'My Clients', icon: '👥' });
+            // Agents get "My Clients" at the TOP of MAIN — it's their
+            // primary workspace and the highest-traffic surface. Personal
+            // policies + compliance remain accessible just below.
+            if (role === 'agent') sections[0].items.unshift({ href: '/agent', label: 'My Clients', icon: '👥' });
             if (role === 'admin') {
               sections[0].items.push({ href: '/agent', label: 'Agent Dashboard', icon: '👥' });
               sections[0].items.push({ href: '/admin', label: 'Admin', icon: '⚙️' });

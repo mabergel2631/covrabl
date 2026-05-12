@@ -50,7 +50,7 @@ test.describe('Touch-target audit (mobile only)', () => {
       await openMobileMenuIfPresent(page);
       const navText: Record<string, RegExp> = {
         '/agent':    /My Clients/i,
-        '/policies': /^📋?\s*Policies/i,
+        '/policies': /My Policies/i,
         '/profile':  /^👤?\s*Profile/i,
         '/renewals': /^🔄?\s*Renewals/i,
         '/audit':    /^🔔?\s*Alerts/i,
