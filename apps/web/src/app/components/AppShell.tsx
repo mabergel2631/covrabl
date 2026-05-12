@@ -143,7 +143,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           </button>
           <button
             onClick={() => window.open('/?preview=1', '_blank')}
-            style={{ marginTop: 8, background: 'none', border: 'none', color: 'rgba(255,255,255,0.4)', fontSize: 11, cursor: 'pointer', padding: 0, textDecoration: 'underline' }}
+            style={{ marginTop: 6, background: 'none', border: 'none', color: 'rgba(255,255,255,0.4)', fontSize: 11, cursor: 'pointer', padding: '6px 4px', textDecoration: 'underline' }}
           >
             Visit site &#8599;
           </button>
@@ -282,7 +282,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           <button
             onClick={() => setSidebarOpen(!sidebarOpen)}
             aria-label={sidebarOpen ? 'Close navigation menu' : 'Open navigation menu'}
-            style={{ background: 'none', border: 'none', color: '#fff', fontSize: 22, cursor: 'pointer', padding: 0 }}
+            style={{ background: 'none', border: 'none', color: '#fff', fontSize: 22, cursor: 'pointer', padding: '8px 10px', margin: '-8px 0' }}
           >
             ☰
           </button>
@@ -290,7 +290,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           <button
             onClick={() => { logout(); router.replace('/'); }}
             aria-label="Sign out"
-            style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.8)', fontSize: 13, cursor: 'pointer', padding: 0 }}
+            style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.8)', fontSize: 13, cursor: 'pointer', padding: '8px 10px', margin: '-8px 0' }}
           >
             Sign Out
           </button>

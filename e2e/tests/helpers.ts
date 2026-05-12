@@ -80,3 +80,50 @@ export async function settled(page: Page) {
 export function viewportFromTestInfo(projectName: string): string {
   return projectName.toLowerCase();
 }
+
+export type TouchTargetViolation = {
+  text: string;
+  width: number;
+  height: number;
+  selector: string;
+};
+
+/**
+ * Find visible interactive elements smaller than the given pixel threshold.
+ * Touch targets below 24×24 are essentially un-tappable on a phone; Apple HIG
+ * recommends 44×44 for primary actions. We default to 24 (definite bugs) and
+ * let callers tighten where appropriate.
+ *
+ * Returns a list of violations rather than asserting — lets callers decide
+ * what's acceptable per-page (a "× Close" affordance on a card can legitimately
+ * be 18×18 if the whole card is the tap target).
+ */
+export async function detectSmallTouchTargets(
+  page: Page,
+  minPx = 24,
+): Promise<TouchTargetViolation[]> {
+  return await page.evaluate((min) => {
+    const interactive = Array.from(
+      document.querySelectorAll<HTMLElement>(
+        'button, a, input:not([type="hidden"]), select, textarea, [role="button"], [role="link"]'
+      )
+    );
+    const violations: TouchTargetViolation[] = [];
+    for (const el of interactive) {
+      const rect = el.getBoundingClientRect();
+      const cs = window.getComputedStyle(el);
+      if (cs.visibility === 'hidden' || cs.display === 'none') continue;
+      if (rect.width === 0 || rect.height === 0) continue;
+      if (rect.bottom <= 0 || rect.top >= window.innerHeight) continue; // off-screen
+      if (rect.width < min || rect.height < min) {
+        violations.push({
+          text: (el.textContent || el.getAttribute('aria-label') || '').trim().slice(0, 40),
+          width: Math.round(rect.width),
+          height: Math.round(rect.height),
+          selector: el.tagName.toLowerCase() + (el.id ? `#${el.id}` : ''),
+        });
+      }
+    }
+    return violations;
+  }, minPx);
+}

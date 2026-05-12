@@ -95,7 +95,7 @@ function PolicyCard({ policy }: { policy: RenewalPolicySummary }) {
           <div>
             <button
               onClick={() => { trackClick('renewals_view_policy'); router.push(`/policies/${policy.id}`); }}
-              style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontSize: 16, fontWeight: 600, color: 'var(--color-text)', textAlign: 'left' }}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '4px 2px', margin: '-4px -2px', fontSize: 16, fontWeight: 600, color: 'var(--color-text)', textAlign: 'left' }}
             >
               {policy.carrier}
               {policy.nickname && <span style={{ color: 'var(--color-text-muted)', fontWeight: 400 }}> &middot; {policy.nickname}</span>}
