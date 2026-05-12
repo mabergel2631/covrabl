@@ -156,10 +156,15 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             // Inject compliance badge
             const complianceItem = sections[0].items.find(i => i.href === '/certificates');
             if (complianceItem && complianceBadge > 0) complianceItem.badge = complianceBadge;
-            // Agents get "My Clients" at the TOP of MAIN — it's their
-            // primary workspace and the highest-traffic surface. Personal
-            // policies + compliance remain accessible just below.
-            if (role === 'agent') sections[0].items.unshift({ href: '/agent', label: 'My Clients', icon: '👥' });
+            // Agents: replace "Dashboard" with "My Clients" at the top of
+            // MAIN. The Dashboard route (/) redirects agents to /agent
+            // anyway, so the two items were functionally identical and
+            // confusing. My Clients IS the agent's dashboard.
+            if (role === 'agent') {
+              const dashIdx = sections[0].items.findIndex(i => i.href === '/');
+              if (dashIdx >= 0) sections[0].items.splice(dashIdx, 1);
+              sections[0].items.unshift({ href: '/agent', label: 'My Clients', icon: '👥' });
+            }
             if (role === 'admin') {
               sections[0].items.push({ href: '/agent', label: 'Agent Dashboard', icon: '👥' });
               sections[0].items.push({ href: '/admin', label: 'Admin', icon: '⚙️' });

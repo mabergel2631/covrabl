@@ -379,11 +379,20 @@ export default function Home() {
   //   - Agents/admins go to /agent (their dashboard with This Week + clients)
   //   - Consumers see the Dashboard component
   // Tenant referrals and ?preview=1 still see the public landing.
-  if (token && !isReferral && !isPreview) {
-    if (role === 'agent' || role === 'admin') {
-      if (typeof window !== 'undefined') router.replace('/agent');
-      return null;
+  //
+  // role is hydrated asynchronously from sessionStorage / /auth/me. Until it
+  // resolves, render nothing rather than briefly flashing the consumer
+  // Dashboard at an agent — otherwise the agent sees their personal-policies
+  // view for half a second before being redirected to /agent.
+  useEffect(() => {
+    if (token && !isReferral && !isPreview && (role === 'agent' || role === 'admin')) {
+      router.replace('/agent');
     }
+  }, [token, role, isReferral, isPreview, router]);
+
+  if (token && !isReferral && !isPreview) {
+    if (role === null) return null;                       // hydrating
+    if (role === 'agent' || role === 'admin') return null; // useEffect will redirect
     return <Dashboard />;
   }
 
