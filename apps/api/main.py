@@ -346,28 +346,13 @@ def on_startup():
         if "policies" in existing_tables and "is_quote" not in policy_cols:
             conn.execute(text("ALTER TABLE policies ADD COLUMN is_quote BOOLEAN DEFAULT FALSE NOT NULL"))
             logging.info("Self-heal: added is_quote to policies")
-        if "quote_comparisons" not in existing_tables:
-            conn.execute(text("""
-                CREATE TABLE quote_comparisons (
-                    id SERIAL PRIMARY KEY,
-                    incumbent_policy_id INTEGER NOT NULL REFERENCES policies(id) ON DELETE CASCADE,
-                    quote_policy_id INTEGER NOT NULL REFERENCES policies(id) ON DELETE CASCADE,
-                    agent_id INTEGER NOT NULL REFERENCES users(id),
-                    agency_id INTEGER REFERENCES agencies(id),
-                    summary_text TEXT,
-                    share_token VARCHAR(60) UNIQUE,
-                    shared_at TIMESTAMP,
-                    dismissed_items_json TEXT,
-                    created_at TIMESTAMP DEFAULT NOW(),
-                    updated_at TIMESTAMP DEFAULT NOW()
-                )
-            """))
-            conn.execute(text("CREATE INDEX ix_quote_comparisons_incumbent ON quote_comparisons(incumbent_policy_id)"))
-            conn.execute(text("CREATE INDEX ix_quote_comparisons_quote ON quote_comparisons(quote_policy_id)"))
-            conn.execute(text("CREATE INDEX ix_quote_comparisons_agent_id ON quote_comparisons(agent_id)"))
-            conn.execute(text("CREATE INDEX ix_quote_comparisons_agency_id ON quote_comparisons(agency_id)"))
-            conn.execute(text("CREATE INDEX ix_quote_comparisons_share_token ON quote_comparisons(share_token)"))
-            logging.info("Self-heal: created quote_comparisons table")
+    if "quote_comparisons" not in existing_tables:
+        # Use SQLAlchemy DDL so the table is created with the correct syntax
+        # for whatever dialect is in use (Postgres on Railway, SQLite locally).
+        # Raw SQL with SERIAL/NOW() blows up on SQLite at startup.
+        from app.models_features import QuoteComparison
+        QuoteComparison.__table__.create(engine, checkfirst=True)
+        logging.info("Self-heal: created quote_comparisons table via SQLAlchemy DDL")
 
     # Idempotent data normalization
     with engine.begin() as conn:
