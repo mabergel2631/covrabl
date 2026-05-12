@@ -491,7 +491,7 @@ export default function Home() {
             Insurance relationships shouldn&apos;t disappear between renewals.
           </h1>
           <p style={{ fontSize: 18, opacity: 0.95, margin: '0 0 12px', lineHeight: 1.7, maxWidth: 760, marginLeft: 'auto', marginRight: 'auto', fontWeight: 500 }}>
-            Covrabl gives agencies the visibility, reviews, and outreach intelligence to stay genuinely engaged with their book — every week, not just at renewal.
+            Covrabl uses AI to help clients understand their coverage and agents spot what&apos;s worth their time — between every renewal.
           </p>
           <p style={{ fontSize: 14, opacity: 0.65, margin: '0 0 32px', lineHeight: 1.6, maxWidth: 640, marginLeft: 'auto', marginRight: 'auto', letterSpacing: 'var(--letter-spacing-wide)' }}>
             Sits on top of your AMS and CRM. Doesn&apos;t replace them.
