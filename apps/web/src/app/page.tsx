@@ -513,6 +513,14 @@ export default function Home() {
           <div style={{ fontSize: 13, opacity: 0.6, letterSpacing: 'var(--letter-spacing-wide)' }}>
             $59/mo per agent · founding partner pricing · locks for 12 months
           </div>
+          <div style={{ marginTop: 18 }}>
+            <span onClick={() => { trackClick('landing_invited_by_agent'); router.push('/how-it-works'); }} style={{
+              fontSize: 13, color: '#fff', opacity: 0.75, cursor: 'pointer',
+              borderBottom: '1px solid rgba(255,255,255,0.3)', paddingBottom: 1,
+            }}>
+              Invited by your agent? See how it works &rarr;
+            </span>
+          </div>
         </div>
 
         {/* This Week feed mock — the killer screenshot, inline as JSX */}
@@ -901,6 +909,7 @@ export default function Home() {
             ))}
           </div>
           <div style={{ display: 'flex', justifyContent: 'center', gap: 24, marginBottom: 16, flexWrap: 'wrap' }}>
+            <span onClick={() => { trackClick('landing_footer_for_clients'); router.push('/how-it-works'); }} style={{ cursor: 'pointer' }}>For clients</span>
             <span onClick={() => { trackClick('landing_footer_privacy'); router.push('/privacy'); }} style={{ cursor: 'pointer' }}>Privacy</span>
             <span onClick={() => { trackClick('landing_footer_terms'); router.push('/terms'); }} style={{ cursor: 'pointer' }}>Terms</span>
             <span onClick={() => { trackClick('landing_footer_security'); router.push('/security'); }} style={{ cursor: 'pointer' }}>Security</span>

@@ -12,6 +12,11 @@
  * It does not affect any other user.
  */
 async function globalSetup() {
+  if (process.env.E2E_SKIP_RESET === '1') {
+    console.log('[globalSetup] E2E_SKIP_RESET=1 — skipping demo reset (use for specs that do not read demo data, e.g. marketing pages).');
+    return;
+  }
+
   const apiBase = resolveApiBase();
   const url = `${apiBase}/admin/seed-demo?reset=true`;
 
