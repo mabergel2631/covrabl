@@ -848,108 +848,12 @@ function HowItWorksInner() {
         </div>
       </section>
 
-      {/* ── MORE YOU CAN DO HERE (Compare + Requirement Check) ───────── */}
-      <section id="more-tools" style={{ padding: '80px 24px', background: 'var(--color-surface)' }}>
-        <div style={{ maxWidth: 960, margin: '0 auto' }}>
-          <h2 style={{ fontSize: 28, fontWeight: 700, margin: '0 0 10px', textAlign: 'center', color: 'var(--color-text)' }}>
-            More you can do here
-          </h2>
-          <p style={{ fontSize: 15, color: 'var(--color-text-secondary)', textAlign: 'center', margin: '0 0 48px', maxWidth: 620, marginLeft: 'auto', marginRight: 'auto' }}>
-            Two everyday situations Covrabl makes simpler — for you and the agent who reviews them with you.
-          </p>
-
-          <div className="landing-steps" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24 }}>
-            {/* ── Compare side-by-side ─────────────────────────────── */}
-            <div style={{
-              backgroundColor: '#fff', border: '1px solid var(--color-border)',
-              borderRadius: 'var(--radius-lg)', padding: 24, display: 'flex', flexDirection: 'column', gap: 14,
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <span style={{ fontSize: 22, lineHeight: 1 }}>⚖️</span>
-                <h3 style={{ fontSize: 18, fontWeight: 700, margin: 0, color: 'var(--color-text)' }}>Compare policies side-by-side</h3>
-              </div>
-              <p style={{ fontSize: 14, color: 'var(--color-text-secondary)', margin: 0, lineHeight: 1.6 }}>
-                Got a renewal quote, or shopping a second carrier? Drop both in and see the differences in plain language — limits, deductibles, what&apos;s covered, what changed.
-              </p>
-              {/* Mini comparison mock */}
-              <div style={{
-                backgroundColor: 'var(--color-surface)', border: '1px solid var(--color-border)',
-                borderRadius: 'var(--radius-md)', padding: 12,
-              }}>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, alignItems: 'center' }}>
-                  <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase' }}>Coverage</div>
-                  <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', textAlign: 'center' }}>Current</div>
-                  <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', textAlign: 'center' }}>Quote</div>
-                </div>
-                {[
-                  { label: 'Liability', current: '$300K', quote: '$500K', changed: true, direction: 'up' },
-                  { label: 'Deductible', current: '$500', quote: '$1,000', changed: true, direction: 'up' },
-                  { label: 'Premium', current: '$1,840', quote: '$1,720', changed: true, direction: 'down' },
-                ].map(row => (
-                  <div key={row.label} style={{
-                    display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, alignItems: 'center',
-                    padding: '8px 0', borderTop: '1px solid var(--color-border)',
-                  }}>
-                    <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-text)' }}>{row.label}</div>
-                    <div style={{ fontSize: 12, color: 'var(--color-text-secondary)', textAlign: 'center' }}>{row.current}</div>
-                    <div style={{
-                      fontSize: 12, fontWeight: 600, textAlign: 'center',
-                      color: row.changed
-                        ? (row.direction === 'up' ? 'var(--color-success)' : 'var(--color-info)')
-                        : 'var(--color-text-secondary)',
-                    }}>
-                      {row.quote}{row.changed && (row.direction === 'up' ? ' ↑' : ' ↓')}
-                    </div>
-                  </div>
-                ))}
-              </div>
-              <div style={{ fontSize: 12, color: 'var(--color-text-muted)', lineHeight: 1.5 }}>
-                Used for renewals, quote shopping, and the &ldquo;is this actually the same coverage?&rdquo; question.
-              </div>
-            </div>
-
-            {/* ── Requirement / lease check ────────────────────────── */}
-            <div style={{
-              backgroundColor: '#fff', border: '1px solid var(--color-border)',
-              borderRadius: 'var(--radius-lg)', padding: 24, display: 'flex', flexDirection: 'column', gap: 14,
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <span style={{ fontSize: 22, lineHeight: 1 }}>📜</span>
-                <h3 style={{ fontSize: 18, fontWeight: 700, margin: 0, color: 'var(--color-text)' }}>Check a lease or requirement</h3>
-              </div>
-              <p style={{ fontSize: 14, color: 'var(--color-text-secondary)', margin: 0, lineHeight: 1.6 }}>
-                Landlord, lender, or contract requiring specific coverage? Upload it and Covrabl compares the requirements against the policy you have on file — line by line.
-              </p>
-              {/* Mini compliance mock */}
-              <div style={{
-                backgroundColor: 'var(--color-surface)', border: '1px solid var(--color-border)',
-                borderRadius: 'var(--radius-md)', padding: 12, display: 'flex', flexDirection: 'column', gap: 6,
-              }}>
-                {[
-                  { req: 'General Liability ≥ $1M', status: 'Meets', color: '#16a34a' },
-                  { req: 'Additional Insured', status: 'Meets', color: '#16a34a' },
-                  { req: 'Workers’ Comp', status: 'Not found', color: '#dc2626' },
-                  { req: 'Waiver of Subrogation', status: 'Unclear', color: '#d97706' },
-                ].map(r => (
-                  <div key={r.req} style={{
-                    display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                    padding: '8px 10px', backgroundColor: '#fff', border: '1px solid var(--color-border)',
-                    borderRadius: 'var(--radius-md)',
-                  }}>
-                    <span style={{ fontSize: 12, color: 'var(--color-text)', fontWeight: 500 }}>{r.req}</span>
-                    <span style={{ fontSize: 11, fontWeight: 700, color: r.color }}>{r.status}</span>
-                  </div>
-                ))}
-              </div>
-              <div style={{ fontSize: 12, color: 'var(--color-text-muted)', lineHeight: 1.5 }}>
-                A certificate says you have coverage. Covrabl shows whether the actual policy meets the terms.
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
       {/* ── EMERGENCY ACCESS ─────────────────────────────────────────── */}
+      {/* Moved above "More you can do here": Emergency is universally
+          relevant (every client has an emergency scenario, not every
+          client needs to compare quotes or check a lease), and the red
+          gradient breaks the visual monotony between two white-bg
+          sections (timeline above, More-tools below). */}
       <section ref={emergencyRef} style={{
         padding: '80px 24px',
         background: 'linear-gradient(160deg, #fef2f2 0%, #fff1f2 50%, #fff 100%)',
@@ -1016,6 +920,109 @@ function HowItWorksInner() {
               }}>
                 <span style={{ fontSize: 12 }}>📋</span>
                 <span style={{ fontSize: 10, color: 'var(--color-text-secondary)' }}>Step-by-step emergency checklists included for each policy</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ── MORE YOU CAN DO HERE (Compare + Requirement Check) ───────── */}
+      {/* Background flipped to #fff after the swap so we don't have two
+          surface-colored sections back-to-back (Trust below is surface). */}
+      <section id="more-tools" style={{ padding: '80px 24px', background: '#fff' }}>
+        <div style={{ maxWidth: 960, margin: '0 auto' }}>
+          <h2 style={{ fontSize: 28, fontWeight: 700, margin: '0 0 10px', textAlign: 'center', color: 'var(--color-text)' }}>
+            More you can do here
+          </h2>
+          <p style={{ fontSize: 15, color: 'var(--color-text-secondary)', textAlign: 'center', margin: '0 0 48px', maxWidth: 620, marginLeft: 'auto', marginRight: 'auto' }}>
+            Two everyday situations Covrabl makes simpler — for you and the agent who reviews them with you.
+          </p>
+
+          <div className="landing-steps" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24 }}>
+            {/* ── Compare side-by-side ─────────────────────────────── */}
+            <div style={{
+              backgroundColor: 'var(--color-surface)', border: '1px solid var(--color-border)',
+              borderRadius: 'var(--radius-lg)', padding: 24, display: 'flex', flexDirection: 'column', gap: 14,
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <span style={{ fontSize: 22, lineHeight: 1 }}>⚖️</span>
+                <h3 style={{ fontSize: 18, fontWeight: 700, margin: 0, color: 'var(--color-text)' }}>Compare policies side-by-side</h3>
+              </div>
+              <p style={{ fontSize: 14, color: 'var(--color-text-secondary)', margin: 0, lineHeight: 1.6 }}>
+                Got a renewal quote, or shopping a second carrier? Drop both in and see the differences in plain language — limits, deductibles, what&apos;s covered, what changed.
+              </p>
+              {/* Mini comparison mock */}
+              <div style={{
+                backgroundColor: '#fff', border: '1px solid var(--color-border)',
+                borderRadius: 'var(--radius-md)', padding: 12,
+              }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, alignItems: 'center' }}>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase' }}>Coverage</div>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', textAlign: 'center' }}>Current</div>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', textAlign: 'center' }}>Quote</div>
+                </div>
+                {[
+                  { label: 'Liability', current: '$300K', quote: '$500K', changed: true, direction: 'up' },
+                  { label: 'Deductible', current: '$500', quote: '$1,000', changed: true, direction: 'up' },
+                  { label: 'Premium', current: '$1,840', quote: '$1,720', changed: true, direction: 'down' },
+                ].map(row => (
+                  <div key={row.label} style={{
+                    display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, alignItems: 'center',
+                    padding: '8px 0', borderTop: '1px solid var(--color-border)',
+                  }}>
+                    <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-text)' }}>{row.label}</div>
+                    <div style={{ fontSize: 12, color: 'var(--color-text-secondary)', textAlign: 'center' }}>{row.current}</div>
+                    <div style={{
+                      fontSize: 12, fontWeight: 600, textAlign: 'center',
+                      color: row.changed
+                        ? (row.direction === 'up' ? 'var(--color-success)' : 'var(--color-info)')
+                        : 'var(--color-text-secondary)',
+                    }}>
+                      {row.quote}{row.changed && (row.direction === 'up' ? ' ↑' : ' ↓')}
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div style={{ fontSize: 12, color: 'var(--color-text-muted)', lineHeight: 1.5 }}>
+                Used for renewals, quote shopping, and the &ldquo;is this actually the same coverage?&rdquo; question.
+              </div>
+            </div>
+
+            {/* ── Requirement / lease check ────────────────────────── */}
+            <div style={{
+              backgroundColor: 'var(--color-surface)', border: '1px solid var(--color-border)',
+              borderRadius: 'var(--radius-lg)', padding: 24, display: 'flex', flexDirection: 'column', gap: 14,
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <span style={{ fontSize: 22, lineHeight: 1 }}>📜</span>
+                <h3 style={{ fontSize: 18, fontWeight: 700, margin: 0, color: 'var(--color-text)' }}>Check a lease or requirement</h3>
+              </div>
+              <p style={{ fontSize: 14, color: 'var(--color-text-secondary)', margin: 0, lineHeight: 1.6 }}>
+                Landlord, lender, or contract requiring specific coverage? Upload it and Covrabl compares the requirements against the policy you have on file — line by line.
+              </p>
+              {/* Mini compliance mock */}
+              <div style={{
+                backgroundColor: '#fff', border: '1px solid var(--color-border)',
+                borderRadius: 'var(--radius-md)', padding: 12, display: 'flex', flexDirection: 'column', gap: 6,
+              }}>
+                {[
+                  { req: 'General Liability ≥ $1M', status: 'Meets', color: '#16a34a' },
+                  { req: 'Additional Insured', status: 'Meets', color: '#16a34a' },
+                  { req: 'Workers’ Comp', status: 'Not found', color: '#dc2626' },
+                  { req: 'Waiver of Subrogation', status: 'Unclear', color: '#d97706' },
+                ].map(r => (
+                  <div key={r.req} style={{
+                    display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                    padding: '8px 10px', backgroundColor: '#fff', border: '1px solid var(--color-border)',
+                    borderRadius: 'var(--radius-md)',
+                  }}>
+                    <span style={{ fontSize: 12, color: 'var(--color-text)', fontWeight: 500 }}>{r.req}</span>
+                    <span style={{ fontSize: 11, fontWeight: 700, color: r.color }}>{r.status}</span>
+                  </div>
+                ))}
+              </div>
+              <div style={{ fontSize: 12, color: 'var(--color-text-muted)', lineHeight: 1.5 }}>
+                A certificate says you have coverage. Covrabl shows whether the actual policy meets the terms.
               </div>
             </div>
           </div>

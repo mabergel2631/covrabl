@@ -59,6 +59,24 @@ test.describe('/how-it-works orientation page', () => {
       page.getByRole('heading', { name: /check a lease or requirement/i })
     ).toBeVisible();
 
+    // Section order: Emergency Access must come BEFORE "More you can do here".
+    // The reorder was an intentional editorial choice — Emergency is
+    // universally relevant, the tiles are supplementary capabilities —
+    // and the red gradient breaks visual monotony between two white-bg
+    // sections. Lock the order so a future edit doesn't regress it.
+    const emergencyTop = await page
+      .getByRole('heading', { name: /when something happens.*one place/i })
+      .first()
+      .evaluate((el) => el.getBoundingClientRect().top + window.scrollY);
+    const moreToolsTop = await page
+      .getByRole('heading', { name: /more you can do here/i })
+      .first()
+      .evaluate((el) => el.getBoundingClientRect().top + window.scrollY);
+    expect(
+      emergencyTop,
+      `Emergency (y=${emergencyTop}) must appear above More-you-can-do (y=${moreToolsTop})`
+    ).toBeLessThan(moreToolsTop);
+
     // The four step labels are stable signposts.
     for (const label of ['Step 1', 'Step 2', 'Step 3', 'Step 4']) {
       await expect(page.getByText(label, { exact: true }).first()).toBeVisible();
