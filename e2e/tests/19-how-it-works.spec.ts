@@ -37,9 +37,26 @@ test.describe('/how-it-works orientation page', () => {
     // The "Welcome" eyebrow only appears for invited clients; this must NOT.
     await expect(page.getByText(/Welcome/, { exact: true })).toHaveCount(0);
 
+    // ProductDemo: the 6-scene browser mockup just below the hero. The
+    // section is identified by aria-label="Product demo"; we also assert
+    // the demo's chrome ("app.covrabl.com" address bar) is present.
+    await expect(page.locator('section[aria-label="Product demo"]')).toBeVisible();
+    await expect(page.getByText('app.covrabl.com', { exact: true })).toBeVisible();
+
     // Step section anchor is present.
     await expect(
       page.getByRole('heading', { name: /what you'?ll do here/i })
+    ).toBeVisible();
+
+    // "More you can do here" tile section with Compare + Requirement Check.
+    await expect(
+      page.getByRole('heading', { name: /more you can do here/i })
+    ).toBeVisible();
+    await expect(
+      page.getByRole('heading', { name: /compare policies side-by-side/i })
+    ).toBeVisible();
+    await expect(
+      page.getByRole('heading', { name: /check a lease or requirement/i })
     ).toBeVisible();
 
     // The four step labels are stable signposts.

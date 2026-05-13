@@ -54,6 +54,375 @@ function useTimelineFill() {
   return { containerRef, lineRef, activeDots };
 }
 
+/* ── ProductDemo: auto-playing 6-scene browser mockup ───────────────────
+   Lifted from the pre-rewrite landing (commit 64a58d5^). Six scenes loop:
+   upload → extract → ask → compliance → emergency → summary. The demo
+   starts when ~30% of the section enters the viewport and replays as
+   long as the user has it in view. Scenes pause/resume implicitly via
+   the IntersectionObserver. */
+const DEMO_SCENES = [
+  { id: 'upload', duration: 4500, label: 'Upload a policy — personal or business' },
+  { id: 'extract', duration: 6000, label: 'Limits, terms, and dates extracted automatically' },
+  { id: 'chat', duration: 7500, label: 'Ask plain questions, get grounded answers' },
+  { id: 'compliance', duration: 6000, label: 'Check a lease or contract against your coverage' },
+  { id: 'emergency', duration: 5000, label: 'Emergency access when it matters most' },
+  { id: 'summary', duration: 5000, label: 'Everything in one place — for you and your agent' },
+];
+const TOTAL_DURATION = DEMO_SCENES.reduce((s, sc) => s + sc.duration, 0);
+
+function ProductDemo() {
+  const [elapsed, setElapsed] = useState(0);
+  const [isVisible, setIsVisible] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const obs = new IntersectionObserver(
+      ([e]) => { if (e.isIntersecting) setIsVisible(true); },
+      { threshold: 0.3 }
+    );
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, []);
+
+  useEffect(() => {
+    if (!isVisible) return;
+    const tick = setInterval(() => setElapsed(p => (p + 50) % TOTAL_DURATION), 50);
+    return () => clearInterval(tick);
+  }, [isVisible]);
+
+  let cumulative = 0;
+  let activeIdx = 0;
+  let sceneProgress = 0;
+  for (let i = 0; i < DEMO_SCENES.length; i++) {
+    if (elapsed < cumulative + DEMO_SCENES[i].duration) {
+      activeIdx = i;
+      sceneProgress = (elapsed - cumulative) / DEMO_SCENES[i].duration;
+      break;
+    }
+    cumulative += DEMO_SCENES[i].duration;
+  }
+  const scene = DEMO_SCENES[activeIdx];
+  const overallProgress = elapsed / TOTAL_DURATION;
+  const fadeOpacity = sceneProgress < 0.08 ? sceneProgress / 0.08 : sceneProgress > 0.92 ? (1 - sceneProgress) / 0.08 : 1;
+
+  const extractFields = [
+    { label: 'Carrier', value: 'Hartford' },
+    { label: 'Policy #', value: 'HF-GL-440291' },
+    { label: 'Type', value: 'General Liability' },
+    { label: 'Per Occurrence', value: '$1,000,000' },
+    { label: 'Aggregate', value: '$2,000,000' },
+    { label: 'Premium', value: '$3,200/yr' },
+    { label: 'Renewal', value: 'Jun 1, 2026' },
+  ];
+
+  return (
+    <section ref={containerRef} style={{ padding: '64px 24px 80px', background: '#fff' }} aria-label="Product demo">
+      <div style={{ maxWidth: 720, margin: '0 auto' }}>
+        <div style={{ textAlign: 'center', marginBottom: 24 }}>
+          <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-text-muted)', letterSpacing: '0.04em' }}>
+            A 30-second look at the experience
+          </span>
+        </div>
+
+        <div style={{
+          borderRadius: 16, overflow: 'hidden', border: '1px solid #e5e7eb',
+          boxShadow: '0 8px 32px rgba(0,0,0,0.08)',
+          backgroundColor: '#111827',
+        }}>
+          {/* Browser chrome */}
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: 8, padding: '10px 16px',
+            backgroundColor: '#1f2937', borderBottom: '1px solid #374151',
+          }}>
+            <div style={{ display: 'flex', gap: 6 }}>
+              <div style={{ width: 10, height: 10, borderRadius: '50%', backgroundColor: '#ef4444' }} />
+              <div style={{ width: 10, height: 10, borderRadius: '50%', backgroundColor: '#f59e0b' }} />
+              <div style={{ width: 10, height: 10, borderRadius: '50%', backgroundColor: '#22c55e' }} />
+            </div>
+            <div style={{
+              flex: 1, textAlign: 'center', fontSize: 11, color: '#9ca3af',
+              backgroundColor: '#374151', padding: '4px 12px', borderRadius: 6, marginLeft: 24, marginRight: 24,
+            }}>
+              app.covrabl.com
+            </div>
+          </div>
+
+          {/* Screen content */}
+          <div style={{ padding: '20px 28px', minHeight: 300, maxHeight: 360, backgroundColor: '#f8f9fa', position: 'relative', overflow: 'hidden' }}>
+            <div style={{ opacity: fadeOpacity, transition: 'opacity 0.15s ease' }}>
+
+              {/* Scene 1: Upload */}
+              {activeIdx === 0 && (
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: 252 }}>
+                  <div style={{
+                    width: '80%', maxWidth: 400, padding: '24px 28px',
+                    border: `2px dashed ${sceneProgress > 0.3 ? '#2563eb' : '#d1d5db'}`,
+                    borderRadius: 12, textAlign: 'center', backgroundColor: '#fff',
+                    transition: 'border-color 0.5s',
+                  }}>
+                    <div style={{ fontSize: 36, marginBottom: 10 }}>{sceneProgress > 0.4 ? '\u{1F4C4}' : '\u{2B06}\u{FE0F}'}</div>
+                    <div style={{ fontSize: 14, fontWeight: 600, color: '#111827', marginBottom: 4 }}>
+                      {sceneProgress > 0.4 ? 'Hartford_GL_2026.pdf' : 'Drop any policy here'}
+                    </div>
+                    <div style={{ fontSize: 12, color: '#9ca3af' }}>
+                      {sceneProgress > 0.4 ? '1.8 MB' : 'Personal, commercial, or professional'}
+                    </div>
+                    {sceneProgress > 0.3 && sceneProgress <= 0.6 && (
+                      <div style={{ marginTop: 14, height: 4, backgroundColor: '#e5e7eb', borderRadius: 2, overflow: 'hidden' }}>
+                        <div style={{ height: '100%', width: `${Math.min((sceneProgress - 0.3) * 333, 100)}%`, backgroundColor: '#2563eb', borderRadius: 2, transition: 'width 0.1s' }} />
+                      </div>
+                    )}
+                    {sceneProgress > 0.6 && (
+                      <>
+                        <div style={{ marginTop: 10, fontSize: 13, fontWeight: 600, color: '#16a34a' }}>
+                          {'✓'} Uploaded &mdash; reading coverage...
+                        </div>
+                        <div style={{ display: 'flex', gap: 6, justifyContent: 'center', marginTop: 10, flexWrap: 'wrap' }}>
+                          {['GL', 'Auto', 'Umbrella', 'Property'].map((t, i) => (
+                            <span key={t} style={{
+                              padding: '3px 10px', borderRadius: 10, fontSize: 10, fontWeight: 600,
+                              backgroundColor: i === 0 ? '#dbeafe' : '#f3f4f6',
+                              color: i === 0 ? '#1d4ed8' : '#6b7280',
+                              opacity: sceneProgress > 0.65 + i * 0.07 ? 1 : 0.3,
+                              transition: 'opacity 0.3s',
+                            }}>{t}</span>
+                          ))}
+                        </div>
+                      </>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Scene 2: Extract */}
+              {activeIdx === 1 && (
+                <div style={{ maxWidth: 400, margin: '0 auto' }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: '#111827', marginBottom: 3 }}>Reading your policy...</div>
+                  <div style={{ fontSize: 11, color: '#9ca3af', marginBottom: 12 }}>Hartford_GL_2026.pdf</div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+                    {extractFields.map((f, i) => {
+                      const fieldProgress = sceneProgress * (extractFields.length + 0.5);
+                      const isRevealed = fieldProgress > i;
+                      const isAnimating = fieldProgress > i && fieldProgress < i + 1;
+                      return (
+                        <div key={f.label} style={{
+                          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                          padding: '6px 12px', backgroundColor: '#fff', border: '1px solid #e5e7eb', borderRadius: 6,
+                          opacity: isRevealed ? 1 : 0.3, transition: 'opacity 0.3s',
+                        }}>
+                          <span style={{ fontSize: 11, fontWeight: 600, color: isRevealed ? '#6b7280' : '#d1d5db', textTransform: 'uppercase', transition: 'color 0.3s' }}>{f.label}</span>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <span style={{ fontSize: 12, fontWeight: 600, color: isRevealed ? '#111827' : '#d1d5db', transition: 'color 0.3s' }}>{isRevealed ? f.value : '—'}</span>
+                            {isRevealed && !isAnimating && <span style={{ color: '#16a34a', fontSize: 13, fontWeight: 700 }}>{'✓'}</span>}
+                            {isAnimating && <span style={{ color: '#2563eb', fontSize: 10 }}>{'●'}</span>}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* Scene 3: Ask */}
+              {activeIdx === 2 && (
+                <div style={{ maxWidth: 440, margin: '0 auto' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    {sceneProgress > 0.04 && (
+                      <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                        <div style={{ padding: '7px 12px', backgroundColor: '#2563eb', color: '#fff', borderRadius: '12px 12px 4px 12px', fontSize: 12, maxWidth: '80%' }}>
+                          Am I covered if a contractor gets hurt on my property?
+                        </div>
+                      </div>
+                    )}
+                    {sceneProgress > 0.15 && (
+                      <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
+                        <div style={{ padding: '7px 12px', backgroundColor: '#fff', border: '1px solid #e5e7eb', color: '#111827', borderRadius: '12px 12px 12px 4px', fontSize: 12, maxWidth: '88%', lineHeight: 1.5 }}>
+                          {sceneProgress > 0.35
+                            ? (<>Your Hartford GL policy (<strong>HF-GL-440291</strong>) provides <strong>$1M per occurrence</strong> for bodily injury on your premises. Worth confirming with your agent that contractors carry their own workers&apos; comp.</>)
+                            : (<span style={{ color: '#9ca3af' }}>Reading your policies...</span>)}
+                        </div>
+                      </div>
+                    )}
+                    {sceneProgress > 0.55 && (
+                      <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                        <div style={{ padding: '7px 12px', backgroundColor: '#2563eb', color: '#fff', borderRadius: '12px 12px 4px 12px', fontSize: 12, maxWidth: '80%' }}>
+                          Does my umbrella extend over this GL policy?
+                        </div>
+                      </div>
+                    )}
+                    {sceneProgress > 0.7 && (
+                      <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
+                        <div style={{ padding: '7px 12px', backgroundColor: '#fff', border: '1px solid #e5e7eb', color: '#111827', borderRadius: '12px 12px 12px 4px', fontSize: 12, maxWidth: '88%', lineHeight: 1.5 }}>
+                          {sceneProgress > 0.82
+                            ? (<>It looks that way. Your Chubb umbrella (<strong>$2M</strong>) lists your Hartford GL as an underlying policy. Your agent can confirm the layering for your specific scenario.</>)
+                            : (<span style={{ color: '#9ca3af' }}>Checking across your policies...</span>)}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Scene 4: Compliance */}
+              {activeIdx === 3 && (
+                <div style={{ maxWidth: 420, margin: '0 auto' }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: '#111827', marginBottom: 3 }}>Requirement Check</div>
+                  <div style={{ fontSize: 11, color: '#9ca3af', marginBottom: 14 }}>Comparing your coverage to lease requirements</div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    {[
+                      { req: 'General Liability ≥ $1,000,000', status: 'PASS', color: '#22c55e', bg: '#f0fdf4', delay: 0.1 },
+                      { req: 'Additional Insured endorsement', status: 'PASS', color: '#22c55e', bg: '#f0fdf4', delay: 0.25 },
+                      { req: 'Workers’ Comp coverage', status: 'NOT FOUND', color: '#ef4444', bg: '#fef2f2', delay: 0.4 },
+                      { req: 'Waiver of Subrogation', status: 'UNCLEAR', color: '#f59e0b', bg: '#fffbeb', delay: 0.55 },
+                      { req: 'Property Damage ≥ $500,000', status: 'PASS', color: '#22c55e', bg: '#f0fdf4', delay: 0.7 },
+                    ].map(item => (
+                      <div key={item.req} style={{
+                        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                        padding: '8px 12px', backgroundColor: sceneProgress > item.delay ? item.bg : '#fff',
+                        border: '1px solid #e5e7eb', borderRadius: 6,
+                        opacity: sceneProgress > item.delay ? 1 : 0.3, transition: 'all 0.4s',
+                      }}>
+                        <span style={{ fontSize: 12, color: '#374151', fontWeight: 500 }}>{item.req}</span>
+                        <span style={{
+                          fontSize: 10, fontWeight: 700, color: item.color, padding: '2px 8px',
+                          borderRadius: 4, backgroundColor: sceneProgress > item.delay ? `${item.color}15` : 'transparent',
+                        }}>
+                          {sceneProgress > item.delay ? item.status : '—'}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                  {sceneProgress > 0.8 && (
+                    <div style={{
+                      marginTop: 10, padding: '8px 12px', backgroundColor: '#fef2f2', borderRadius: 6,
+                      borderLeft: '3px solid #ef4444', fontSize: 11, color: '#991b1b', lineHeight: 1.4,
+                    }}>
+                      1 requirement not met. Worth a conversation with your agent before signing.
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Scene 5: Emergency Card */}
+              {activeIdx === 4 && (
+                <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: 252 }}>
+                  <div style={{
+                    width: 280, backgroundColor: '#fff', borderRadius: 14, padding: 18,
+                    border: '1px solid #e5e7eb', boxShadow: '0 4px 16px rgba(0,0,0,0.06)',
+                  }}>
+                    <div style={{ textAlign: 'center', marginBottom: 12 }}>
+                      <div style={{ fontSize: 22, marginBottom: 4 }}>{'\u{1F6D1}'}</div>
+                      <div style={{ fontSize: 14, fontWeight: 700, color: '#111827' }}>Emergency Card</div>
+                      <div style={{ fontSize: 11, color: '#9ca3af' }}>Instant access &mdash; no login needed</div>
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+                      {[
+                        { icon: '\u{1F697}', type: 'Auto', carrier: 'State Farm', number: 'SF-8834201' },
+                        { icon: '\u{1F3E0}', type: 'Home', carrier: 'Allstate', number: 'AL-7729104' },
+                      ].map((p, i) => (
+                        <div key={i} style={{
+                          display: 'flex', alignItems: 'center', gap: 8, padding: '6px 10px',
+                          backgroundColor: '#f9fafb', borderRadius: 8,
+                          opacity: sceneProgress > 0.15 + i * 0.2 ? 1 : 0.15, transition: 'opacity 0.4s',
+                        }}>
+                          <span style={{ fontSize: 14 }}>{p.icon}</span>
+                          <div style={{ flex: 1 }}>
+                            <div style={{ fontSize: 11, fontWeight: 600, color: '#111827' }}>{p.carrier}</div>
+                            <div style={{ fontSize: 10, color: '#9ca3af' }}>{p.type} {'·'} {p.number}</div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                    {sceneProgress > 0.4 && (
+                      <div style={{
+                        marginTop: 6, padding: '6px 10px', backgroundColor: '#f0f9ff', borderRadius: 8,
+                        display: 'flex', alignItems: 'center', gap: 8,
+                        opacity: sceneProgress > 0.4 ? 1 : 0, transition: 'opacity 0.4s',
+                      }}>
+                        <span style={{ fontSize: 12 }}>{'\u{1F4DE}'}</span>
+                        <div>
+                          <div style={{ fontSize: 10, fontWeight: 600, color: '#1e40af' }}>Your Agent: Mike Johnson</div>
+                          <div style={{ fontSize: 9, color: '#6b7280' }}>ABC Insurance &middot; (555) 012-3456</div>
+                        </div>
+                      </div>
+                    )}
+                    {sceneProgress > 0.55 && (
+                      <div style={{ marginTop: 5, padding: '5px 10px', backgroundColor: '#ecfdf5', borderRadius: 8, textAlign: 'center' }}>
+                        <div style={{ fontSize: 10, fontWeight: 600, color: '#059669' }}>Emergency Contact: 555-0199</div>
+                      </div>
+                    )}
+                    {sceneProgress > 0.7 && (
+                      <div style={{ marginTop: 4, textAlign: 'center', fontSize: 9, color: '#9ca3af' }}>
+                        Share with family via secure link
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Scene 6: Summary */}
+              {activeIdx === 5 && (
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: 252, textAlign: 'center' }}>
+                  <div style={{ fontSize: 20, fontWeight: 700, color: '#111827', marginBottom: 20 }}>
+                    Everything in one place
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10, alignItems: 'flex-start' }}>
+                    {[
+                      { text: 'See what you actually have — across every policy', delay: 0.05 },
+                      { text: 'Check coverage against any lease or contract', delay: 0.2 },
+                      { text: 'Stay ahead of renewals and changes', delay: 0.35 },
+                      { text: 'Reach your agent and your coverage in an emergency', delay: 0.5 },
+                    ].map((item, i) => (
+                      <div key={i} style={{
+                        display: 'flex', alignItems: 'center', gap: 10,
+                        opacity: sceneProgress > item.delay ? 1 : 0,
+                        transform: sceneProgress > item.delay ? 'translateX(0)' : 'translateX(-10px)',
+                        transition: 'all 0.4s ease',
+                      }}>
+                        <span style={{ color: '#16a34a', fontSize: 16, fontWeight: 700 }}>{'✓'}</span>
+                        <span style={{ fontSize: 14, fontWeight: 500, color: '#374151' }}>{item.text}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Bottom bar: label + scene indicators + progress */}
+          <div style={{ backgroundColor: '#111827' }}>
+            <div style={{ padding: '12px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <span style={{ fontSize: 11, fontWeight: 700, color: '#3fa7a3', fontVariantNumeric: 'tabular-nums' }}>
+                  {activeIdx + 1}/{DEMO_SCENES.length}
+                </span>
+                <span style={{ fontSize: 13, fontWeight: 500, color: '#e5e7eb' }}>{scene.label}</span>
+              </div>
+              <div style={{ display: 'flex', gap: 4 }}>
+                {DEMO_SCENES.map((_, i) => (
+                  <div key={i} style={{
+                    width: i === activeIdx ? 20 : 6, height: 6, borderRadius: 3,
+                    backgroundColor: i < activeIdx ? '#3fa7a3' : i === activeIdx ? '#fff' : '#374151',
+                    transition: 'all 0.3s',
+                  }} />
+                ))}
+              </div>
+            </div>
+            <div style={{ height: 3, backgroundColor: '#1f2937' }}>
+              <div style={{
+                height: '100%', width: `${overallProgress * 100}%`,
+                backgroundColor: '#3fa7a3', transition: 'width 0.05s linear',
+              }} />
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 function HowItWorksInner() {
   const { token } = useAuth();
   const router = useRouter();
@@ -139,6 +508,7 @@ function HowItWorksInner() {
           </div>
           <nav className="landing-nav-links">
             <span onClick={() => { trackClick('hiw_nav_steps'); scrollTo('how-it-works'); }} style={{ fontSize: 14, color: 'var(--color-text-secondary)', cursor: 'pointer' }}>How it works</span>
+            <span onClick={() => { trackClick('hiw_nav_more_tools'); scrollTo('more-tools'); }} style={{ fontSize: 14, color: 'var(--color-text-secondary)', cursor: 'pointer' }}>More tools</span>
             <span onClick={() => { trackClick('hiw_nav_security'); scrollTo('trust'); }} style={{ fontSize: 14, color: 'var(--color-text-secondary)', cursor: 'pointer' }}>Security</span>
             <span onClick={() => { trackClick('hiw_nav_faq'); scrollTo('faq'); }} style={{ fontSize: 14, color: 'var(--color-text-secondary)', cursor: 'pointer' }}>FAQ</span>
             <button onClick={() => { trackClick('hiw_nav_sign_in'); router.push(hasInvite ? `/login?invite=${encodeURIComponent(inviteToken!)}` : '/login'); }} style={{
@@ -166,6 +536,7 @@ function HowItWorksInner() {
           display: 'flex', flexDirection: 'column', gap: 4,
         }}>
           <button onClick={() => { trackClick('hiw_mobile_steps'); scrollTo('how-it-works'); }} style={{ padding: '12px 0', background: 'none', border: 'none', fontSize: 15, color: 'var(--color-text)', cursor: 'pointer', textAlign: 'left' }}>How it works</button>
+          <button onClick={() => { trackClick('hiw_mobile_more_tools'); scrollTo('more-tools'); }} style={{ padding: '12px 0', background: 'none', border: 'none', fontSize: 15, color: 'var(--color-text)', cursor: 'pointer', textAlign: 'left' }}>More tools</button>
           <button onClick={() => { trackClick('hiw_mobile_security'); scrollTo('trust'); }} style={{ padding: '12px 0', background: 'none', border: 'none', fontSize: 15, color: 'var(--color-text)', cursor: 'pointer', textAlign: 'left' }}>Security</button>
           <button onClick={() => { trackClick('hiw_mobile_faq'); scrollTo('faq'); }} style={{ padding: '12px 0', background: 'none', border: 'none', fontSize: 15, color: 'var(--color-text)', cursor: 'pointer', textAlign: 'left' }}>FAQ</button>
           <button onClick={() => { trackClick('hiw_mobile_sign_in'); router.push(hasInvite ? `/login?invite=${encodeURIComponent(inviteToken!)}` : '/login'); setMobileMenuOpen(false); }} style={{
@@ -223,6 +594,9 @@ function HowItWorksInner() {
           </div>
         </div>
       </section>
+
+      {/* ── PRODUCT DEMO ─────────────────────────────────────────────── */}
+      <ProductDemo />
 
       {/* ── 4 STEPS (HOW IT WORKS) ────────────────────────────────────── */}
       <section id="how-it-works" style={{ padding: '80px 24px', background: '#fff' }}>
@@ -468,6 +842,107 @@ function HowItWorksInner() {
                     </div>
                   ))}
                 </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ── MORE YOU CAN DO HERE (Compare + Requirement Check) ───────── */}
+      <section id="more-tools" style={{ padding: '80px 24px', background: 'var(--color-surface)' }}>
+        <div style={{ maxWidth: 960, margin: '0 auto' }}>
+          <h2 style={{ fontSize: 28, fontWeight: 700, margin: '0 0 10px', textAlign: 'center', color: 'var(--color-text)' }}>
+            More you can do here
+          </h2>
+          <p style={{ fontSize: 15, color: 'var(--color-text-secondary)', textAlign: 'center', margin: '0 0 48px', maxWidth: 620, marginLeft: 'auto', marginRight: 'auto' }}>
+            Two everyday situations Covrabl makes simpler — for you and the agent who reviews them with you.
+          </p>
+
+          <div className="landing-steps" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24 }}>
+            {/* ── Compare side-by-side ─────────────────────────────── */}
+            <div style={{
+              backgroundColor: '#fff', border: '1px solid var(--color-border)',
+              borderRadius: 'var(--radius-lg)', padding: 24, display: 'flex', flexDirection: 'column', gap: 14,
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <span style={{ fontSize: 22, lineHeight: 1 }}>⚖️</span>
+                <h3 style={{ fontSize: 18, fontWeight: 700, margin: 0, color: 'var(--color-text)' }}>Compare policies side-by-side</h3>
+              </div>
+              <p style={{ fontSize: 14, color: 'var(--color-text-secondary)', margin: 0, lineHeight: 1.6 }}>
+                Got a renewal quote, or shopping a second carrier? Drop both in and see the differences in plain language — limits, deductibles, what&apos;s covered, what changed.
+              </p>
+              {/* Mini comparison mock */}
+              <div style={{
+                backgroundColor: 'var(--color-surface)', border: '1px solid var(--color-border)',
+                borderRadius: 'var(--radius-md)', padding: 12,
+              }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, alignItems: 'center' }}>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase' }}>Coverage</div>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', textAlign: 'center' }}>Current</div>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', textAlign: 'center' }}>Quote</div>
+                </div>
+                {[
+                  { label: 'Liability', current: '$300K', quote: '$500K', changed: true, direction: 'up' },
+                  { label: 'Deductible', current: '$500', quote: '$1,000', changed: true, direction: 'up' },
+                  { label: 'Premium', current: '$1,840', quote: '$1,720', changed: true, direction: 'down' },
+                ].map(row => (
+                  <div key={row.label} style={{
+                    display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, alignItems: 'center',
+                    padding: '8px 0', borderTop: '1px solid var(--color-border)',
+                  }}>
+                    <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-text)' }}>{row.label}</div>
+                    <div style={{ fontSize: 12, color: 'var(--color-text-secondary)', textAlign: 'center' }}>{row.current}</div>
+                    <div style={{
+                      fontSize: 12, fontWeight: 600, textAlign: 'center',
+                      color: row.changed
+                        ? (row.direction === 'up' ? 'var(--color-success)' : 'var(--color-info)')
+                        : 'var(--color-text-secondary)',
+                    }}>
+                      {row.quote}{row.changed && (row.direction === 'up' ? ' ↑' : ' ↓')}
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div style={{ fontSize: 12, color: 'var(--color-text-muted)', lineHeight: 1.5 }}>
+                Used for renewals, quote shopping, and the &ldquo;is this actually the same coverage?&rdquo; question.
+              </div>
+            </div>
+
+            {/* ── Requirement / lease check ────────────────────────── */}
+            <div style={{
+              backgroundColor: '#fff', border: '1px solid var(--color-border)',
+              borderRadius: 'var(--radius-lg)', padding: 24, display: 'flex', flexDirection: 'column', gap: 14,
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <span style={{ fontSize: 22, lineHeight: 1 }}>📜</span>
+                <h3 style={{ fontSize: 18, fontWeight: 700, margin: 0, color: 'var(--color-text)' }}>Check a lease or requirement</h3>
+              </div>
+              <p style={{ fontSize: 14, color: 'var(--color-text-secondary)', margin: 0, lineHeight: 1.6 }}>
+                Landlord, lender, or contract requiring specific coverage? Upload it and Covrabl compares the requirements against the policy you have on file — line by line.
+              </p>
+              {/* Mini compliance mock */}
+              <div style={{
+                backgroundColor: 'var(--color-surface)', border: '1px solid var(--color-border)',
+                borderRadius: 'var(--radius-md)', padding: 12, display: 'flex', flexDirection: 'column', gap: 6,
+              }}>
+                {[
+                  { req: 'General Liability ≥ $1M', status: 'Meets', color: '#16a34a' },
+                  { req: 'Additional Insured', status: 'Meets', color: '#16a34a' },
+                  { req: 'Workers’ Comp', status: 'Not found', color: '#dc2626' },
+                  { req: 'Waiver of Subrogation', status: 'Unclear', color: '#d97706' },
+                ].map(r => (
+                  <div key={r.req} style={{
+                    display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                    padding: '8px 10px', backgroundColor: '#fff', border: '1px solid var(--color-border)',
+                    borderRadius: 'var(--radius-md)',
+                  }}>
+                    <span style={{ fontSize: 12, color: 'var(--color-text)', fontWeight: 500 }}>{r.req}</span>
+                    <span style={{ fontSize: 11, fontWeight: 700, color: r.color }}>{r.status}</span>
+                  </div>
+                ))}
+              </div>
+              <div style={{ fontSize: 12, color: 'var(--color-text-muted)', lineHeight: 1.5 }}>
+                A certificate says you have coverage. Covrabl shows whether the actual policy meets the terms.
               </div>
             </div>
           </div>
