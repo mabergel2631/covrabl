@@ -580,7 +580,7 @@ export default function Home() {
             <p style={{ fontSize: 16, color: 'var(--color-text-secondary)', maxWidth: 600, margin: '0 auto', lineHeight: 1.6 }}>Identify the conversation worth having. Make that conversation beautiful.</p>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(380px, 1fr))', gap: 24 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(380px, 100%), 1fr))', gap: 24 }}>
             <div ref={pillar1Ref} className="card" style={{ padding: 28 }}>
               <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--color-primary)', textTransform: 'uppercase', letterSpacing: 'var(--letter-spacing-wide)', marginBottom: 8 }}>Pillar 1</div>
               <h3 style={{ fontSize: 22, fontWeight: 700, color: 'var(--color-text)', margin: '0 0 8px' }}>Identify the conversation worth having</h3>
@@ -761,7 +761,7 @@ export default function Home() {
       {/* ── 4. A BETTER EXPERIENCE FOR YOUR CLIENTS ──────────────────── */}
       <section style={{ padding: '80px 24px', background: '#fff' }}>
         <div style={{ maxWidth: 1000, margin: '0 auto' }}>
-          <div ref={clientRef} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: 48, alignItems: 'center' }}>
+          <div ref={clientRef} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(360px, 100%), 1fr))', gap: 48, alignItems: 'center' }}>
             <div>
               <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--color-primary)', textTransform: 'uppercase', letterSpacing: 'var(--letter-spacing-wide)', marginBottom: 12 }}>For your book</div>
               <h2 style={{ fontSize: 32, fontWeight: 700, color: 'var(--color-text)', margin: '0 0 16px', letterSpacing: 'var(--letter-spacing-tight)' }}>This is what your book sees.</h2>

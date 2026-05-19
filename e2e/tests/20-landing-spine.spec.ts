@@ -125,9 +125,11 @@ test.describe('Public landing — "Invited by your agent?" navigation', () => {
   // for an invited client who scrolled past the hero.
 
   test('desktop nav exposes "Invited by your agent?" and routes to /how-it-works', async ({ page }, testInfo) => {
+    // The CSS hides .landing-nav-links at viewport ≤768px (tablet width inclusive).
+    // Anything ≥769px shows the inline nav: desktop (1440) and mobile-landscape (812).
     test.skip(
-      testInfo.project.name !== 'desktop' && testInfo.project.name !== 'tablet' && testInfo.project.name !== 'mobile-landscape',
-      'desktop/tablet/landscape only — narrow viewports collapse the nav into a hamburger',
+      testInfo.project.name !== 'desktop' && testInfo.project.name !== 'mobile-landscape',
+      'inline nav only — tablet and narrower collapse to the hamburger',
     );
 
     await page.goto('/');
@@ -144,9 +146,11 @@ test.describe('Public landing — "Invited by your agent?" navigation', () => {
   });
 
   test('mobile hamburger menu exposes the same "Invited by your agent?" entry', async ({ page }, testInfo) => {
+    // Hamburger shows at viewport ≤768px: tablet + every portrait mobile.
+    // (mobile-landscape at 812px stays in the inline-nav test above.)
     test.skip(
-      !testInfo.project.name.startsWith('mobile') || testInfo.project.name === 'mobile-landscape',
-      'portrait mobile only — landscape and desktop show the inline nav instead',
+      testInfo.project.name === 'desktop' || testInfo.project.name === 'mobile-landscape',
+      'tablet + portrait mobiles only — wider viewports show inline nav',
     );
 
     await page.goto('/');
