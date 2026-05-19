@@ -32,7 +32,7 @@ from sqlalchemy.orm import Session
 
 from .auth import hash_password
 from .db import get_db
-from .models import User, Policy, Exposure
+from .models import User, Policy, Exposure, Contact
 from .models_documents import Document
 from .models_agent import AgentClient
 from .models_agency import Agency, AgencyMember
@@ -201,6 +201,24 @@ def _put_pdf(pdf_bytes: bytes, object_key: str) -> None:
 
 def _today_offset(days: int) -> date:
     return date.today() + timedelta(days=days)
+
+
+# Per-policy demo contacts. Keyed by policy_number so the seed stays in sync
+# with PERSONAL_POLICIES below without duplicating identifiers. Phones are
+# kept obviously-fake (555 area code) to avoid any chance a demo user dials
+# a real carrier line. The SOS card and ID Card both surface these in
+# emergency-priority order (claims → broker → agent → customer_service).
+DEMO_PERSONAL_CONTACTS: dict[str, list[dict]] = {
+    "GEI-1029-A0042": [  # Auto / Geico
+        dict(role="claims", phone="800-555-0142", name=None),
+        dict(role="broker", phone="415-555-0101", name="Avery Chen"),
+        dict(role="agent", phone="415-555-0188", name="Demo Agent (Covrabl)"),
+    ],
+    "SF-HO3-77821": [  # Home / State Farm
+        dict(role="claims", phone="800-555-7828", name=None),
+        dict(role="broker", phone="415-555-0101", name="Avery Chen"),
+    ],
+}
 
 
 PERSONAL_POLICIES = [
@@ -613,6 +631,19 @@ def _do_seed(db: Session) -> dict:
             object_key=object_key, doc_type="policy",
             uploaded_by_user_id=agent_id,
         ))
+
+        # Demo contacts (broker / claims / agent) so the SOS card and ID
+        # Card actually have something to render. Without these the new
+        # "Who to contact" block stays hidden on the demo, defeating its
+        # purpose as a showcase.
+        for c in DEMO_PERSONAL_CONTACTS.get(pol["policy_number"], []):
+            db.add(Contact(
+                policy_id=p.id,
+                role=c["role"],
+                name=c.get("name"),
+                phone=c.get("phone"),
+            ))
+
         counts["personal"] += 1
         counts["pdfs"] += 1
 
