@@ -1042,7 +1042,23 @@ function PolicyDetailContent() {
         details.forEach(d => { det[d.field_name] = d.field_value; });
         const kc: Record<string, Contact> = {};
         contacts.forEach(c => { if (c.role && !kc[c.role]) kc[c.role] = c; });
-        const claimsPhone = kc.claims?.phone || kc.customer_service?.phone;
+
+        // Emergency-priority order, same as the SOS card. Phone is required
+        // (the actionable bit); name is shown only when it's on the record.
+        const idCardContactOrder = ['claims', 'broker', 'agent', 'customer_service'] as const;
+        const idCardRoleLabels: Record<string, string> = {
+          claims: 'Claims',
+          broker: 'Broker',
+          agent: 'Agent',
+          customer_service: 'Customer Service',
+        };
+        type IdCardContact = { role: string; label: string; name?: string; phone: string };
+        const idCardContacts: IdCardContact[] = [];
+        for (const role of idCardContactOrder) {
+          const c = kc[role];
+          if (!c || !c.phone || !c.phone.trim()) continue;
+          idCardContacts.push({ role, label: idCardRoleLabels[role], name: c.name?.trim() || undefined, phone: c.phone });
+        }
 
         // Gather vehicles
         const vehicles: { desc: string; vin?: string }[] = [];
@@ -1209,10 +1225,15 @@ function PolicyDetailContent() {
                 </div>
               )}
 
-              {claimsPhone && (
-                <div style={{ fontSize: 12, marginBottom: 6 }}>
-                  <span style={{ color: 'var(--color-text-muted)', fontSize: 10, fontWeight: 600, textTransform: 'uppercase' }}>Claims: </span>
-                  <a href={`tel:${cleanPhone(claimsPhone)}`} style={{ color: 'var(--color-accent)', fontWeight: 500, textDecoration: 'none' }}>{formatPhone(claimsPhone)}</a>
+              {idCardContacts.length > 0 && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 6 }}>
+                  {idCardContacts.map(c => (
+                    <div key={c.role} style={{ fontSize: 12 }}>
+                      <span style={{ color: 'var(--color-text-muted)', fontSize: 10, fontWeight: 600, textTransform: 'uppercase' }}>{c.label}: </span>
+                      <a href={`tel:${cleanPhone(c.phone)}`} style={{ color: 'var(--color-accent)', fontWeight: 500, textDecoration: 'none' }}>{formatPhone(c.phone)}</a>
+                      {c.name && <span style={{ color: 'var(--color-text-secondary)' }}> · {c.name}</span>}
+                    </div>
+                  ))}
                 </div>
               )}
 

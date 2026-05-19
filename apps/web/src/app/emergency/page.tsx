@@ -242,6 +242,46 @@ export default function EmergencyPage() {
   const getClaimsContact = (contacts: Contact[]) =>
     contacts.find(c => c.role === 'claims') || contacts.find(c => c.role === 'customer_service');
 
+  // Emergency-priority order. Claims first (the call you make at the scene),
+  // then broker/agent (your relationship contact), then customer service.
+  // Only roles with a phone number on file are returned — the phone is what's
+  // actionable; a name without a phone is useless on a card meant for tap-to-call.
+  const CONTACT_ROLE_ORDER = ['claims', 'broker', 'agent', 'customer_service'] as const;
+  const ROLE_LABELS: Record<string, string> = {
+    claims: 'Claims',
+    broker: 'Broker',
+    agent: 'Agent',
+    customer_service: 'Customer Service',
+  };
+  const getCallableContacts = (contacts: Contact[]): { role: string; label: string; name?: string; phone: string }[] => {
+    const out: { role: string; label: string; name?: string; phone: string }[] = [];
+    for (const role of CONTACT_ROLE_ORDER) {
+      const c = contacts.find(x => x.role === role && x.phone && x.phone.trim());
+      if (c) out.push({ role, label: ROLE_LABELS[role] || role, name: c.name?.trim() || undefined, phone: c.phone! });
+    }
+    return out;
+  };
+
+  // Auto policies can list up to 10 vehicles, each with its own VIN. The
+  // single-field fallback covers older one-car extractions where only `VIN`
+  // was stored at the top level.
+  const getVehicles = (details: PolicyDetail[]): { desc?: string; vin?: string }[] => {
+    const det: Record<string, string> = {};
+    details.forEach(d => { det[d.field_name] = d.field_value; });
+    const vehicles: { desc?: string; vin?: string }[] = [];
+    for (let i = 1; i <= 10; i++) {
+      const d = det[`vehicle_${i}_description`];
+      const v = det[`vehicle_${i}_VIN`];
+      if (d || v) vehicles.push({ desc: d, vin: v });
+    }
+    if (vehicles.length === 0) {
+      const fallbackVin = det.VIN || det.vin;
+      const fallbackDesc = det.vehicle_description || [det.year, det.make, det.model].filter(Boolean).join(' ').trim();
+      if (fallbackVin || fallbackDesc) vehicles.push({ desc: fallbackDesc || undefined, vin: fallbackVin });
+    }
+    return vehicles;
+  };
+
   const getIdCard = (docs: DocMeta[]) =>
     docs.find(d => d.doc_type === 'insurance_card');
 
@@ -776,9 +816,10 @@ export default function EmergencyPage() {
                   {expandedItem && (() => {
                     const { policy: p, contacts, docs, details } = expandedItem;
                     const claimsContact = getClaimsContact(contacts);
+                    const callableContacts = getCallableContacts(contacts);
                     const idCard = getIdCard(docs);
                     const decPage = getDecPage(docs);
-                    const vin = getDetail(details, 'VIN') || getDetail(details, 'vin');
+                    const vehicles = p.policy_type.toLowerCase() === 'auto' ? getVehicles(details) : [];
                     const address = getDetail(details, 'property_address') || getDetail(details, 'address');
                     const playbook = EMERGENCY_PLAYBOOK[p.policy_type.toLowerCase()] || DEFAULT_PLAYBOOK;
 
@@ -840,6 +881,73 @@ export default function EmergencyPage() {
                             )}
                           </div>
 
+                          {/* Who to contact — phone always; name only when on record */}
+                          {callableContacts.length > 0 && (
+                            <div style={{
+                              backgroundColor: '#fff', border: '1px solid var(--color-border)',
+                              borderRadius: 'var(--radius-md)', padding: 14, marginBottom: 16,
+                            }}>
+                              <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 10 }}>
+                                Who to contact
+                              </div>
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                                {callableContacts.map(c => (
+                                  <div key={c.role} style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                                    <span style={{
+                                      fontSize: 11, fontWeight: 700, color: 'var(--color-text-muted)',
+                                      textTransform: 'uppercase', letterSpacing: 0.5,
+                                      minWidth: 96,
+                                    }}>{c.label}</span>
+                                    <a
+                                      href={`tel:${cleanPhone(c.phone)}`}
+                                      onClick={() => trackClick('emergency_call_contact', { role: c.role })}
+                                      style={{ fontSize: 14, fontWeight: 600, color: 'var(--color-accent)', textDecoration: 'none' }}
+                                    >
+                                      {formatPhone(c.phone)}
+                                    </a>
+                                    {c.name && (
+                                      <span style={{ fontSize: 13, color: 'var(--color-text-secondary)' }}>
+                                        · {c.name}
+                                      </span>
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Vehicles (auto, 2+ — single-vehicle stays in Quick-copy as VIN) */}
+                          {vehicles.length > 1 && (
+                            <div style={{
+                              backgroundColor: '#fff', border: '1px solid var(--color-border)',
+                              borderRadius: 'var(--radius-md)', padding: 14, marginBottom: 16,
+                            }}>
+                              <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 10 }}>
+                                Vehicles
+                              </div>
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                                {vehicles.map((v, i) => (
+                                  <div key={i} style={{ display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap' }}>
+                                    {v.desc && (
+                                      <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-text)' }}>{v.desc}</span>
+                                    )}
+                                    {v.vin && (
+                                      <button
+                                        onClick={() => copyToClipboard(v.vin!, `VIN${v.desc ? ` (${v.desc})` : ''}`)}
+                                        style={{
+                                          background: 'none', border: 'none', cursor: 'pointer', padding: 0,
+                                          fontFamily: 'monospace', fontSize: 12, color: 'var(--color-text-secondary)',
+                                        }}
+                                      >
+                                        VIN: {v.vin}
+                                      </button>
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+
                           {/* Quick-copy fields */}
                           <div className="form-grid-2" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 16 }}>
                             <CopyField
@@ -869,11 +977,11 @@ export default function EmergencyPage() {
                                 onCopy={() => copyToClipboard(String(p.deductible), 'Deductible')}
                               />
                             )}
-                            {vin && (
+                            {vehicles.length === 1 && vehicles[0].vin && (
                               <CopyField
                                 label="VIN"
-                                value={vin}
-                                onCopy={() => copyToClipboard(vin, 'VIN')}
+                                value={vehicles[0].vin!}
+                                onCopy={() => copyToClipboard(vehicles[0].vin!, 'VIN')}
                               />
                             )}
                             {address && (
