@@ -685,8 +685,8 @@ export default function Home() {
             boxShadow: '0 8px 32px rgba(0,0,0,0.08)',
           }}>
             {/* Header bar */}
-            <div style={{ padding: '14px 20px', backgroundColor: 'var(--color-bg)', borderBottom: '1px solid var(--color-border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div>
+            <div style={{ padding: '14px 20px', backgroundColor: 'var(--color-bg)', borderBottom: '1px solid var(--color-border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+              <div style={{ minWidth: 0, flex: '1 1 auto' }}>
                 <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: 'var(--letter-spacing-wide)' }}>Coverage Review · 2026 renewal</div>
                 <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--color-text)' }}>Sarah Westlake · Auto · Allstate</div>
               </div>
@@ -746,9 +746,9 @@ export default function Home() {
             </div>
 
             {/* Engagement footer — what feeds back into This Week */}
-            <div style={{ padding: '10px 20px', backgroundColor: 'var(--color-bg)', borderTop: '1px solid var(--color-border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div style={{ padding: '10px 20px', backgroundColor: 'var(--color-bg)', borderTop: '1px solid var(--color-border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
               <span style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>Sarah viewed this 2x · last opened 14 minutes ago</span>
-              <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--color-primary)' }}>Appears in This Week →</span>
+              <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--color-primary)', whiteSpace: 'nowrap' }}>Appears in This Week →</span>
             </div>
           </div>
 
