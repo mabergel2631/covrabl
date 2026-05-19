@@ -371,6 +371,7 @@ export default function Home() {
   const pillar1Ref = useScrollReveal();
   const pillar2Ref = useScrollReveal();
   const tableRef = useScrollReveal();
+  const sharedRef = useScrollReveal();
   const clientRef = useScrollReveal();
   const trustRef = useScrollReveal();
   const pricingRef = useScrollReveal();
@@ -431,6 +432,10 @@ export default function Home() {
             <span onClick={() => { trackClick('landing_nav_pillars'); scrollTo('pillars'); }} style={{ fontSize: 14, color: 'var(--color-text-secondary)', cursor: 'pointer' }}>How it works</span>
             <span onClick={() => { trackClick('landing_nav_pricing'); scrollTo('pricing'); }} style={{ fontSize: 14, color: 'var(--color-text-secondary)', cursor: 'pointer' }}>Pricing</span>
             <span onClick={() => { trackClick('landing_nav_faq'); scrollTo('faq'); }} style={{ fontSize: 14, color: 'var(--color-text-secondary)', cursor: 'pointer' }}>FAQ</span>
+            <span onClick={() => { trackClick('landing_nav_invited_by_agent'); router.push('/how-it-works'); }} style={{
+              fontSize: 13, color: 'var(--color-text-muted)', cursor: 'pointer',
+              borderLeft: '1px solid var(--color-border)', paddingLeft: 16,
+            }}>Invited by your agent?</span>
             <button onClick={() => { trackClick('landing_nav_sign_in'); router.push('/login'); }} style={{
               padding: '8px 20px', fontSize: 14, fontWeight: 600,
               backgroundColor: 'var(--color-primary)', color: '#fff',
@@ -458,6 +463,7 @@ export default function Home() {
           <button onClick={() => { trackClick('landing_mobile_pillars'); scrollTo('pillars'); }} style={{ padding: '12px 0', background: 'none', border: 'none', fontSize: 15, color: 'var(--color-text)', cursor: 'pointer', textAlign: 'left' }}>How it works</button>
           <button onClick={() => { trackClick('landing_mobile_pricing'); scrollTo('pricing'); }} style={{ padding: '12px 0', background: 'none', border: 'none', fontSize: 15, color: 'var(--color-text)', cursor: 'pointer', textAlign: 'left' }}>Pricing</button>
           <button onClick={() => { trackClick('landing_mobile_faq'); scrollTo('faq'); }} style={{ padding: '12px 0', background: 'none', border: 'none', fontSize: 15, color: 'var(--color-text)', cursor: 'pointer', textAlign: 'left' }}>FAQ</button>
+          <button onClick={() => { trackClick('landing_mobile_invited_by_agent'); router.push('/how-it-works'); setMobileMenuOpen(false); }} style={{ padding: '12px 0', background: 'none', border: 'none', fontSize: 14, color: 'var(--color-text-muted)', cursor: 'pointer', textAlign: 'left', borderTop: '1px solid var(--color-border)' }}>Invited by your agent?</button>
           <button onClick={() => { trackClick('landing_mobile_sign_in'); router.push('/login'); setMobileMenuOpen(false); }} style={{
             padding: '10px 20px', fontSize: 15, fontWeight: 600, marginTop: 4,
             backgroundColor: 'var(--color-primary)', color: '#fff',
@@ -658,6 +664,96 @@ export default function Home() {
           </div>
           <p style={{ fontSize: 14, color: 'var(--color-text-muted)', textAlign: 'center', margin: '20px 0 0', fontStyle: 'italic' }}>
             AMS and CRM are systems of record. Covrabl is a system of engagement that sits on top of them — additive, not replacement.
+          </p>
+        </div>
+      </section>
+
+      {/* ── 4a. SHARED COVERAGE REVIEW (collaborative workspace) ─────── */}
+      <section style={{ padding: '80px 24px', background: '#fff' }}>
+        <div style={{ maxWidth: 1000, margin: '0 auto' }}>
+          <div style={{ textAlign: 'center', marginBottom: 36 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--color-primary)', textTransform: 'uppercase', letterSpacing: 'var(--letter-spacing-wide)', marginBottom: 12 }}>The same page — literally</div>
+            <h2 style={{ fontSize: 32, fontWeight: 700, color: 'var(--color-text)', margin: '0 0 12px', letterSpacing: 'var(--letter-spacing-tight)' }}>Coverage Reviews are a workspace, not a PDF.</h2>
+            <p style={{ fontSize: 16, color: 'var(--color-text-secondary)', margin: '0 auto', maxWidth: 640, lineHeight: 1.6 }}>
+              You prep it in Covrabl. Your client opens it from the share link. Both of you are looking at the same view — with your notes, the year-over-year changes, and context Covrabl adds quietly underneath.
+            </p>
+          </div>
+          <div ref={sharedRef} style={{
+            maxWidth: 720, margin: '0 auto',
+            backgroundColor: '#fff', border: '1px solid var(--color-border)',
+            borderRadius: 'var(--radius-lg)', overflow: 'hidden',
+            boxShadow: '0 8px 32px rgba(0,0,0,0.08)',
+          }}>
+            {/* Header bar */}
+            <div style={{ padding: '14px 20px', backgroundColor: 'var(--color-bg)', borderBottom: '1px solid var(--color-border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: 'var(--letter-spacing-wide)' }}>Coverage Review · 2026 renewal</div>
+                <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--color-text)' }}>Sarah Westlake · Auto · Allstate</div>
+              </div>
+              <span style={{ fontSize: 11, fontWeight: 600, color: '#15803d', background: '#dcfce7', padding: '4px 10px', borderRadius: 12, whiteSpace: 'nowrap' }}>Shared with Sarah</span>
+            </div>
+
+            {/* Side-by-side comparison */}
+            <div style={{ padding: '20px 20px 12px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr 1fr', gap: 12, alignItems: 'center' }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: 'var(--letter-spacing-wide)' }}></div>
+                <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: 'var(--letter-spacing-wide)', textAlign: 'center' }}>Last year</div>
+                <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--color-primary)', textTransform: 'uppercase', letterSpacing: 'var(--letter-spacing-wide)', textAlign: 'center' }}>Renewal</div>
+              </div>
+              {[
+                { label: 'Bodily injury liability', last: '$300K', next: '$500K', dir: 'up' },
+                { label: 'Deductible', last: '$500', next: '$1,000', dir: 'up' },
+                { label: 'Annual premium', last: '$1,840', next: '$2,065', dir: 'up' },
+              ].map((row, i) => (
+                <div key={i} style={{
+                  display: 'grid', gridTemplateColumns: '1.4fr 1fr 1fr', gap: 12, alignItems: 'center',
+                  padding: '10px 0', borderTop: '1px solid var(--color-border)',
+                }}>
+                  <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--color-text)' }}>{row.label}</div>
+                  <div style={{ fontSize: 13, color: 'var(--color-text-muted)', textAlign: 'center' }}>{row.last}</div>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--color-text)', textAlign: 'center' }}>
+                    {row.next} <span style={{ fontSize: 11, color: 'var(--color-warning-dark)', marginLeft: 4 }}>↑</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Agent note */}
+            <div style={{ padding: '14px 20px', backgroundColor: '#f0f9ff', borderTop: '1px solid var(--color-border)', display: 'flex', gap: 12 }}>
+              <div style={{
+                width: 32, height: 32, borderRadius: '50%', flexShrink: 0,
+                backgroundColor: 'var(--color-primary)', color: '#fff',
+                fontSize: 12, fontWeight: 700,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }}>MJ</div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--color-primary-dark)', marginBottom: 2 }}>Mike Johnson · your agent</div>
+                <div style={{ fontSize: 13, color: 'var(--color-text)', lineHeight: 1.5 }}>
+                  Premium is up but you&apos;re getting a real bump in liability — worth discussing on our Tuesday call. I&apos;ve put a 30-min hold on your calendar.
+                </div>
+              </div>
+            </div>
+
+            {/* Covrabl context — assistive, not advisory */}
+            <div style={{ padding: '12px 20px', backgroundColor: 'var(--color-surface)', borderTop: '1px solid var(--color-border)', display: 'flex', gap: 12, alignItems: 'flex-start' }}>
+              <span style={{ fontSize: 14, flexShrink: 0, marginTop: 2 }}>✨</span>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: 'var(--letter-spacing-wide)', marginBottom: 2 }}>Context from Covrabl</div>
+                <div style={{ fontSize: 12, color: 'var(--color-text-secondary)', lineHeight: 1.5 }}>
+                  Liability now exceeds the recommended minimum for your household. Deductible doubled — out-of-pocket on a claim has changed. Worth confirming with Mike.
+                </div>
+              </div>
+            </div>
+
+            {/* Engagement footer — what feeds back into This Week */}
+            <div style={{ padding: '10px 20px', backgroundColor: 'var(--color-bg)', borderTop: '1px solid var(--color-border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>Sarah viewed this 2x · last opened 14 minutes ago</span>
+              <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--color-primary)' }}>Appears in This Week →</span>
+            </div>
+          </div>
+
+          <p style={{ fontSize: 13, color: 'var(--color-text-muted)', textAlign: 'center', margin: '20px auto 0', maxWidth: 600, lineHeight: 1.6, fontStyle: 'italic' }}>
+            Your client sees what you wrote. You see when they engaged. Covrabl adds context, never advice — the agent stays the authority.
           </p>
         </div>
       </section>
