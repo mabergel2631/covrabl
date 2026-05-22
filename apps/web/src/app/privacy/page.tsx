@@ -11,7 +11,7 @@ export default function PrivacyPage() {
   const router = useRouter();
   const { token } = useAuth();
   const [exporting, setExporting] = useState(false);
-  const effectiveDate = 'February 12, 2026';
+  const effectiveDate = 'May 21, 2026';
 
   const handleExport = async () => {
     setExporting(true);
@@ -162,7 +162,7 @@ export default function PrivacyPage() {
           <li style={{ marginBottom: 8 }}><strong>Password security:</strong> Your password is hashed using bcrypt with a high work factor. We never store or have access to your plain-text password</li>
           <li style={{ marginBottom: 8 }}><strong>Authentication:</strong> Sessions are managed via secure, time-limited JWT tokens</li>
           <li style={{ marginBottom: 8 }}><strong>Access controls:</strong> Your data is isolated to your account. Other users cannot access your information unless you explicitly grant them permission</li>
-          <li style={{ marginBottom: 8 }}><strong>Audit logging:</strong> All significant actions are logged so you can review access and changes to your data</li>
+          <li style={{ marginBottom: 8 }}><strong>Audit logging:</strong> Significant actions on your account — sign-ins, document downloads, policy edits, share-link creation and revocation, agency-membership changes — are recorded. Account owners and agency owners can review their log. Coverage is expanding over time; see our <Link href="/security" style={{ color: 'var(--color-primary)' }}>Security page</Link> for the current scope.</li>
         </ul>
         <p>
           No system is perfectly secure. While we implement strong protections, we cannot guarantee
