@@ -8,3 +8,7 @@ node_modules/
 *.db
 uploads/
 nul
+
+# Pitch drafts — names specific companies and the broker-mediated intro
+# path. Not for a public repo. Kept locally only.
+pitch/
