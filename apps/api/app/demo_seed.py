@@ -1068,6 +1068,15 @@ def _wipe_demo(db: Session) -> int:
     from .models_profile import UserProfile
     db.execute(sa_delete(UserProfile).where(UserProfile.user_id.in_(demo_user_ids)))
 
+    # Chat conversations — FK to users is not CASCADE, so demo users
+    # can't be deleted while conversations still reference them.
+    # ChatMessage cascades on conversations.id automatically.
+    try:
+        from .models_chat import Conversation
+        db.execute(sa_delete(Conversation).where(Conversation.user_id.in_(demo_user_ids)))
+    except Exception as e:
+        logger.warning("wipe: could not clear chat conversations: %s", e)
+
     # Agency-of-One for the demo agent
     agency_members = db.execute(
         select(AgencyMember).where(AgencyMember.user_id.in_(demo_user_ids))
