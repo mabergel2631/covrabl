@@ -8,6 +8,7 @@ export const APP_DESCRIPTION = 'AI-powered coverage analysis that checks your pr
 export const APP_THEME_COLOR = '#1e3a5f';
 export const APP_CONTACT_EMAIL = 'support@covrabl.com';
 export const APP_PRIVACY_EMAIL = 'privacy@covrabl.com';
+export const APP_SECURITY_EMAIL = 'security@covrabl.com';
 
 export const ANNOUNCEMENT_BAR = {
   enabled: false,

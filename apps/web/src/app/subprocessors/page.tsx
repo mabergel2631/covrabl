@@ -33,11 +33,25 @@ const SUBPROCESSORS: Array<{
     website: 'https://vercel.com/legal/privacy-policy',
   },
   {
+    vendor: 'Anthropic',
+    category: 'AI document extraction (primary)',
+    data: 'Text extracted from uploaded policy documents is sent to Anthropic (Claude) for structured-field extraction — carrier, policy number, coverage amounts, deductibles, renewal dates, and similar fields. Per Anthropic’s API terms, customer data submitted to the API is NOT used to train models. Documents themselves are not sent to the model; only the extracted text.',
+    location: 'United States',
+    website: 'https://www.anthropic.com/legal/privacy',
+  },
+  {
     vendor: 'OpenAI',
-    category: 'AI document extraction',
-    data: 'Text extracted from uploaded policy documents is sent to OpenAI for structured-field extraction (carrier, premium, deductible, etc.). Per OpenAI’s API policy, this data is NOT used to train models. Documents themselves are not sent — only the extracted text.',
+    category: 'AI chat / Ask-the-policy assistant',
+    data: 'Question text and the relevant policy-text excerpts are sent to OpenAI when a user uses the "Ask Covrabl" chat to ask a question about their coverage. Per OpenAI’s API policy, this data is NOT used to train models. Not used for document extraction.',
     location: 'United States',
     website: 'https://openai.com/policies/privacy-policy',
+  },
+  {
+    vendor: 'Stripe',
+    category: 'Payment processing',
+    data: 'Billing email, subscription identifiers, and payment-method tokens (never raw card numbers — Stripe collects these directly via their secure elements). Covrabl stores only the Stripe customer and subscription IDs on its own servers.',
+    location: 'United States',
+    website: 'https://stripe.com/privacy',
   },
   {
     vendor: 'Resend',
@@ -57,7 +71,7 @@ const SUBPROCESSORS: Array<{
 
 export default function SubprocessorsPage() {
   const router = useRouter();
-  const lastUpdated = 'May 8, 2026';
+  const lastUpdated = 'May 21, 2026';
 
   return (
     <div style={{ maxWidth: 860, margin: '0 auto', padding: '48px 24px 80px' }}>
