@@ -22,12 +22,25 @@ from sqlalchemy.orm import Session
 
 from .models import Policy, User
 from .models_features import AuditLog, UserEvent
+from .renewal_config import (
+    STAGE_LABELS,
+    STAGE_COLORS,
+    STAGE_SEVERITY,
+    STAGE_REASON_TEMPLATES,
+    STAGE_SUGGESTED_ACTIONS,
+    classify_stage,
+    resolve_thresholds,
+    _normalize_policy_type,
+)
 
 
 # ── Tunable thresholds ──────────────────────────────────
 
 
-RENEWAL_WINDOW_DAYS = 60        # surface renewals due within this window
+# Hard cap on the wider renewal window — covers commercial 120/90/60/30
+# defaults so a single DB query pulls everything the classifier might
+# care about. classify_stage() does the per-policy-type filtering after.
+RENEWAL_MAX_WINDOW_DAYS = 120
 STALLED_DAYS = 90               # client with no recent activity
 RECENT_UPLOAD_DAYS = 14         # client uploaded a doc in last N days
 RECENT_SHARE_VIEW_DAYS = 7      # client opened a share link in last N days
@@ -40,6 +53,7 @@ def compute_this_week(
     db: Session,
     client_ids: list[int],
     *,
+    agency_id: int | None = None,
     today: date | None = None,
 ) -> list[dict[str, Any]]:
     """Return ranked outreach items for the given list of client user ids.
@@ -80,7 +94,9 @@ def compute_this_week(
         }
 
     # ── 1. Upcoming renewals ─────────────────────────────
-    cutoff = today + timedelta(days=RENEWAL_WINDOW_DAYS)
+    # Pull every renewal within the widest possible window (120 days);
+    # classify_stage() filters per policy-type threshold below.
+    cutoff = today + timedelta(days=RENEWAL_MAX_WINDOW_DAYS)
     upcoming = db.execute(
         select(Policy).where(
             Policy.user_id.in_(client_ids),
@@ -92,17 +108,28 @@ def compute_this_week(
 
     for p in upcoming:
         days = (p.renewal_date - today).days
-        # Severity ladder: <=7 high, <=30 medium, else low
-        sev = "high" if days <= 7 else ("medium" if days <= 30 else "low")
-        action = "Schedule renewal call" if days <= 30 else "Review renewal with client"
+        thresholds = resolve_thresholds(db, agency_id, p.policy_type)
+        stage = classify_stage(days, thresholds)
+        if stage is None:
+            # Outside this policy-type's watched window — skip.
+            continue
+        reason = STAGE_REASON_TEMPLATES[stage].format(
+            carrier=p.carrier or "",
+            policy_type=p.policy_type or "policy",
+            days=days,
+        ).strip()
         items.append(_make_row(
             p.user_id,
             category="renewal",
-            reason=f"{p.carrier} {p.policy_type} renews in {days} day{'s' if days != 1 else ''}",
-            suggested_action=action,
-            severity=sev,
+            reason=reason,
+            suggested_action=STAGE_SUGGESTED_ACTIONS[stage],
+            severity=STAGE_SEVERITY[stage],
             date=str(p.renewal_date),
             entity_id=p.id,
+            stage=stage,
+            stage_label=STAGE_LABELS[stage],
+            stage_color=STAGE_COLORS[stage],
+            policy_type=_normalize_policy_type(p.policy_type),
         ))
 
     # ── 2. Recent client uploads ──────────────────────────
@@ -195,11 +222,22 @@ def compute_this_week(
         ))
 
     # ── Rank ─────────────────────────────────────────────
+    # Severity drives priority. Within severity, renewal stage rank keeps
+    # finalization above market above discussion above upcoming so the
+    # things needing decision-time aren't pushed off the 7-row cap by
+    # 110-day-out planning rows.
     severity_rank = {"high": 0, "medium": 1, "low": 2}
     category_rank = {"renewal": 0, "upload": 1, "share_view": 1, "stalled": 2}
+    stage_rank = {
+        "finalization": 0,
+        "market_active": 1,
+        "client_discussion": 2,
+        "upcoming_review": 3,
+    }
     items.sort(key=lambda x: (
         severity_rank.get(x.get("severity", "low"), 9),
         category_rank.get(x.get("category", ""), 9),
+        stage_rank.get(x.get("stage") or "", 9),
         x.get("date") or "9999",
     ))
 

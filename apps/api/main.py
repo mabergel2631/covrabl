@@ -15,8 +15,10 @@ from app.models_chat import Conversation, ChatMessage  # noqa: F401
 from app.models_admin import EmailLog, Announcement  # noqa: F401
 from app.models_agent import AgentClient, AgentNote, AgentPolicyAccess  # noqa: F401
 from app.models_agency import Agency, AgencyMember  # noqa: F401
+from app.models_agency_settings import AgencyRenewalThreshold  # noqa: F401
 
 from app.routes_auth import router as auth_router
+from app.routes_agency_settings import router as agency_settings_router
 from app.routes_policies import router as policies_router
 from app.routes_documents_upload import router as documents_router
 from app.routes_audit import router as audit_router
@@ -382,6 +384,7 @@ app.include_router(deltas_router)
 app.include_router(scores_router)
 app.include_router(inbound_router)
 app.include_router(agent_router)
+app.include_router(agency_settings_router)
 app.include_router(renewal_review_router)
 app.include_router(quote_comparison_public_router)
 app.include_router(demo_seed_router)

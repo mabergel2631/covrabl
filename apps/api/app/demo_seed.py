@@ -33,6 +33,7 @@ from sqlalchemy.orm import Session
 from .auth import hash_password
 from .db import get_db
 from .models import User, Policy, Exposure, Contact
+from .models_agency_settings import AgencyRenewalThreshold
 from .models_documents import Document
 from .models_agent import AgentClient
 from .models_agency import Agency, AgencyMember
@@ -460,34 +461,52 @@ CLIENTS = [
     dict(
         first="Sarah", last="Westlake", email="sarah.westlake@demo.dev",
         address="32 Magnolia Drive\nMill Valley, CA 94941",
+        # Mixed personal + business — Westlake Design Studio.
+        # Business policy at 25 days lands in Finalization stage.
+        business_name="Westlake Design Studio",
+        business_address="240 Miller Avenue, Suite 12\nMill Valley, CA 94941",
         policies=[
             ("Auto", "Allstate", "ALL-AU-220011", 250000, 1000, 1980, 145),
             ("Home", "Allstate", "ALL-HO-220012", 720000, 2500, 2900, 145),
             ("Umbrella", "Allstate", "ALL-PUL-220013", 2000000, None, 480, 145),
+        ],
+        business_policies=[
+            ("Business Owners", "Hiscox", "HIX-BOP-330044", 1000000, 1000, 1850, 25),
         ],
     ),
     dict(
         first="Michael", last="Chen", email="michael.chen@demo.dev",
         address="1845 Vine Street\nBerkeley, CA 94703",
         policies=[
-            ("Auto", "Progressive", "PRG-AU-501122", 100000, 500, 1620, 60),
-            ("Renters", "Progressive", "PRG-RT-501123", 35000, 500, 220, 60),
+            # Auto at 58 days lands in Upcoming Review (personal_fast: 58 <= 60).
+            ("Auto", "Progressive", "PRG-AU-501122", 100000, 500, 1620, 58),
+            ("Renters", "Progressive", "PRG-RT-501123", 35000, 500, 220, 58),
         ],
     ),
     dict(
         first="Elena", last="Rodriguez", email="elena.rodriguez@demo.dev",
         address="2210 Sutter Street\nSan Francisco, CA 94115",
+        # Mixed personal + business — Rodriguez Family Dentistry.
+        # Business policy at 75 days lands in Client Discussion stage
+        # (commercial 120/90/60/30: 75 <= 90, > 60 = discussion).
+        business_name="Rodriguez Family Dentistry PC",
+        business_address="500 Sutter Street, Suite 400\nSan Francisco, CA 94108",
         policies=[
             ("Auto", "USAA", "USAA-AU-310445", 500000, 250, 2400, 200),
             ("Home", "USAA", "USAA-HO-310446", 1250000, 5000, 5200, 200),
             ("Umbrella", "USAA", "USAA-PUL-310447", 5000000, None, 1100, 200),
             ("Life", "USAA Life", "USAA-LIFE-31044", 2000000, None, 1450, 365),
         ],
+        business_policies=[
+            ("Professional Liability", "Medical Protective", "MEDPRO-PL-660122", 1000000, 0, 7800, 75),
+        ],
     ),
     dict(
         first="James", last="O'Brien", email="james.obrien@demo.dev",
         address="84 Buena Vista Drive\nSausalito, CA 94965",
         policies=[
+            # Auto/Home at 35 days lands in Client Discussion (personal_fast:
+            # 35 <= 45 = discussion, 35 > 30 so not market).
             ("Auto", "Liberty Mutual", "LM-AU-998771", 300000, 1000, 2200, 35),
             ("Home", "Liberty Mutual", "LM-HO-998772", 1850000, 5000, 7400, 35),
         ],
@@ -503,6 +522,11 @@ CLIENTS = [
     dict(
         first="Robert", last="Thompson", email="robert.thompson@demo.dev",
         address="450 Spring Valley Road\nKentfield, CA 94904",
+        # Mixed personal + business — Thompson Capital Advisors LLC.
+        # Business E&O at 110 days lands in Upcoming Review stage
+        # (commercial 120/90/60/30: 110 <= 120, > 90 = upcoming_review).
+        business_name="Thompson Capital Advisors LLC",
+        business_address="100 Larkspur Landing Circle, Suite 200\nLarkspur, CA 94939",
         policies=[
             ("Auto", "Chubb", "CHB-MAS-770201", 500000, 500, 3100, 175),
             ("Home", "Chubb", "CHB-MAS-770202", 2800000, 10000, 12400, 175),
@@ -510,6 +534,9 @@ CLIENTS = [
             ("Watercraft", "Chubb", "CHB-WAT-770204", 250000, 1000, 1850, 175),
             # Second Auto so the Quote Comparison picker has a candidate.
             ("Auto", "Mercury", "MER-AU-770205", 500000, 500, 2950, 175),
+        ],
+        business_policies=[
+            ("Professional Liability", "AIG", "AIG-PL-770301", 2000000, 10000, 9400, 110),
         ],
     ),
     dict(
@@ -542,10 +569,18 @@ CLIENTS = [
     dict(
         first="Marcus", last="Williams", email="marcus.williams@demo.dev",
         address="76 Marlin Cove\nRedwood Shores, CA 94065",
+        # Mixed personal + business — Williams Construction LLC.
+        # Business CGL at 45 days lands in Market Active stage
+        # (commercial 120/90/60/30: 45 <= 60, > 30 = market_active).
+        business_name="Williams Construction LLC",
+        business_address="200 Industrial Way\nSan Carlos, CA 94070",
         policies=[
             ("Auto", "Nationwide", "NW-AU-440099", 300000, 500, 2150, 80),
             ("Home", "Nationwide", "NW-HO-440100", 1100000, 2500, 3800, 80),
             ("Life", "Northwestern Mutual", "NM-TERM-44010", 1500000, None, 920, 365),
+        ],
+        business_policies=[
+            ("Commercial General Liability", "Liberty Mutual", "LM-CGL-440201", 2000000, 5000, 6800, 45),
         ],
     ),
 ]
@@ -783,7 +818,79 @@ def _do_seed(db: Session) -> dict:
             ))
             counts["client_policies"] += 1
             counts["pdfs"] += 1
+
+        # Client business policies (mixed personal + business books).
+        # Realistic — many policyholders have an LLC, a side business, or a
+        # practice on the same broker relationship as their personal lines.
+        if c.get("business_policies") and c.get("business_name"):
+            biz_name = c["business_name"]
+            biz_addr = c.get("business_address") or c["address"]
+            biz_exp = Exposure(
+                user_id=client_user.id,
+                name=biz_name,
+                exposure_type="business_entity",
+                description=f"Demo client business entity at {biz_addr.splitlines()[0]}",
+            )
+            db.add(biz_exp)
+            db.flush()
+            for (ptype, carrier, pnum, coverage, deductible, premium, offset_days) in c["business_policies"]:
+                eff = _today_offset(offset_days - 365)
+                exp_date = _today_offset(offset_days)
+                bp = Policy(
+                    user_id=client_user.id,
+                    scope="business",
+                    policy_type=ptype,
+                    carrier=carrier,
+                    policy_number=pnum,
+                    business_name=biz_name,
+                    exposure_id=biz_exp.id,
+                    coverage_amount=coverage,
+                    deductible=deductible,
+                    premium_amount=premium,
+                    renewal_date=exp_date,
+                    status="active",
+                )
+                db.add(bp)
+                db.flush()
+                coverages = _simple_coverages_for(ptype, coverage, deductible)
+                pdf_bytes = _generate_policy_pdf(
+                    carrier=carrier, policy_type=ptype,
+                    policy_number=pnum,
+                    named_insured=biz_name,
+                    address=biz_addr,
+                    effective=eff, expiration=exp_date,
+                    premium=premium,
+                    coverages=coverages,
+                    deductible=deductible,
+                )
+                slug = ptype.lower().replace(" ", "_").replace("/", "_").replace("(", "").replace(")", "")
+                filename = f"test_{slug}_dec.pdf"
+                object_key = f"policies/client_business/{bp.id}/{uuid.uuid4()}-{filename}"
+                _put_pdf(pdf_bytes, object_key)
+                db.add(Document(
+                    policy_id=bp.id, filename=filename, content_type="application/pdf",
+                    object_key=object_key, doc_type="policy",
+                    uploaded_by_user_id=agent_id,
+                ))
+                counts["client_policies"] += 1
+                counts["pdfs"] += 1
+
         counts["clients"] += 1
+
+    # ── Renewal threshold override (demo) ───────────
+    # Seed one agency-level override so the live demo exercises the
+    # per-policy-type override path. Pushing the auto window slightly
+    # wider than the default (60/45/30/14 → 75/55/35/17) — the value of
+    # this row is that the GET /agency/renewal-thresholds endpoint will
+    # return is_override=true for "auto", which the E2E spec asserts.
+    db.add(AgencyRenewalThreshold(
+        agency_id=agency_id,
+        policy_type="auto",
+        upcoming_days=75,
+        discussion_days=55,
+        market_days=35,
+        finalization_days=17,
+    ))
 
     db.commit()
 

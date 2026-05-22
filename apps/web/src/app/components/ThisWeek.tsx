@@ -62,19 +62,35 @@ export default function ThisWeek() {
       <p style={{ fontSize: 12, color: 'var(--color-text-muted)', margin: '0 0 12px', lineHeight: 1.5 }}>
         Items come from real activity on your book — upcoming renewals, recent client uploads, share-link views, stalled accounts. No predictive scoring.
       </p>
-      <div style={{
-        border: '1px solid var(--color-border)',
-        borderRadius: 'var(--radius-md)',
-        overflow: 'hidden',
-        backgroundColor: 'var(--color-surface)',
-      }}>
+      <div
+        data-testid="this-week-feed"
+        style={{
+          border: '1px solid var(--color-border)',
+          borderRadius: 'var(--radius-md)',
+          overflow: 'hidden',
+          backgroundColor: 'var(--color-surface)',
+        }}
+      >
         {items.map((item, i) => {
           const badge = CATEGORY_BADGE[item.category];
+          // For renewals with a stage, the stage label + color replace the
+          // generic category badge so the planning vs. binding distinction
+          // is visible at a glance.
+          const isRenewalWithStage = item.category === 'renewal' && !!item.stage;
+          const displayLabel = isRenewalWithStage
+            ? (item.stage_label || CATEGORY_LABELS[item.category])
+            : CATEGORY_LABELS[item.category];
+          const bandColor = isRenewalWithStage ? item.stage_color : undefined;
+
           return (
             <div
               key={`${item.client_id}-${i}`}
+              data-testid="this-week-row"
+              data-category={item.category}
+              data-stage={item.stage || ''}
+              data-stage-color={item.stage_color || ''}
               onClick={() => {
-                trackClick('this_week_row', { client_id: item.client_id, category: item.category });
+                trackClick('this_week_row', { client_id: item.client_id, category: item.category, stage: item.stage });
                 router.push(`/agent/${item.client_id}`);
               }}
               style={{
@@ -84,6 +100,9 @@ export default function ThisWeek() {
                 gap: 16,
                 padding: '14px 16px',
                 borderTop: i === 0 ? 'none' : '1px solid var(--color-border)',
+                // Left band carries the renewal stage color when present.
+                // Falls back to no band so non-renewal rows stay visually quiet.
+                borderLeft: bandColor ? `4px solid ${bandColor}` : '4px solid transparent',
                 cursor: 'pointer',
                 transition: 'background-color 0.15s',
               }}
@@ -105,9 +124,11 @@ export default function ThisWeek() {
                   </span>
                   <span style={{
                     padding: '1px 8px', borderRadius: 10, fontSize: 10, fontWeight: 600,
-                    backgroundColor: badge.bg, color: badge.fg,
+                    backgroundColor: isRenewalWithStage ? `${bandColor}22` : badge.bg,
+                    color: isRenewalWithStage ? '#1f2937' : badge.fg,
+                    border: isRenewalWithStage ? `1px solid ${bandColor}66` : 'none',
                   }}>
-                    {CATEGORY_LABELS[item.category]}
+                    {displayLabel}
                   </span>
                 </div>
                 <div style={{ fontSize: 13, color: 'var(--color-text-secondary)', lineHeight: 1.4 }}>

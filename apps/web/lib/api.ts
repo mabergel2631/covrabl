@@ -1742,6 +1742,21 @@ export type ThisWeekItem = {
   severity: 'high' | 'medium' | 'low';
   date: string | null;
   entity_id: number | null;
+  // Renewal-stage classification — only present when category === 'renewal'.
+  // See apps/web/src/app/renewal_constants.ts for label + color lookups.
+  stage?: 'upcoming_review' | 'client_discussion' | 'market_active' | 'finalization' | null;
+  stage_label?: string | null;
+  stage_color?: string | null;
+  policy_type?: string | null;
+};
+
+export type AgencyRenewalThresholds = {
+  policy_type: string;
+  upcoming_days: number;
+  discussion_days: number;
+  market_days: number;
+  finalization_days: number;
+  is_override: boolean; // true if the agency has saved an override; false = default
 };
 
 export type AgentClient = {

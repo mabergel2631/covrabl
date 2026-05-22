@@ -2452,7 +2452,8 @@ def this_week_feed(agent: User = Depends(require_agent), db: Session = Depends(g
     if not client_ids:
         return []
     from .outreach import compute_this_week
-    return compute_this_week(db, client_ids)
+    agency_id = _agency_id_for(db, agent.id)
+    return compute_this_week(db, client_ids, agency_id=agency_id)
 
 
 # ── Agency: introspection ───────────────────────────────
