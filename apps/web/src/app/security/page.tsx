@@ -131,6 +131,12 @@ export default function SecurityPage() {
           <Link href="/privacy" style={{ color: '#0369a1', fontWeight: 600 }}>Privacy Policy</Link>.
         </p>
       </div>
+
+      <div style={{ textAlign: 'center', marginTop: 32, fontSize: 14 }}>
+        <Link href="/commitments" style={{ color: 'var(--color-primary)', fontWeight: 600, textDecoration: 'underline', textUnderlineOffset: 3 }}>
+          See our public commitments &rarr;
+        </Link>
+      </div>
     </div>
   );
 }

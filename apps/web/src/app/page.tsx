@@ -668,6 +668,27 @@ export default function Home() {
         </div>
       </section>
 
+      {/* ── 3b. PUBLIC COMMITMENTS TRUST BAND ────────────────────────── */}
+      <section style={{ padding: '72px 24px', background: '#f8fafc', borderTop: '1px solid var(--color-border)', borderBottom: '1px solid var(--color-border)' }}>
+        <div style={{ maxWidth: 720, margin: '0 auto', textAlign: 'center' }}>
+          <h2 style={{ fontSize: 22, fontWeight: 700, color: 'var(--color-text)', margin: '0 0 20px', letterSpacing: 'var(--letter-spacing-tight)' }}>
+            What we won&apos;t build.
+          </h2>
+          <p style={{ fontSize: 16, color: 'var(--color-text-secondary)', margin: '0 0 16px', lineHeight: 1.65 }}>
+            No carrier marketplace. No selling your data. No marketing to your clients. No becoming an AMS.
+          </p>
+          <p style={{ fontSize: 14, color: 'var(--color-text-muted)', fontStyle: 'italic', margin: '0 0 20px', lineHeight: 1.6 }}>
+            These are written commitments, dated and signed.
+          </p>
+          <span onClick={() => { trackClick('landing_commitments_read'); router.push('/commitments'); }} style={{
+            fontSize: 15, fontWeight: 600, color: 'var(--color-primary)',
+            cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: 3,
+          }}>
+            Read the full version &rarr;
+          </span>
+        </div>
+      </section>
+
       {/* ── 4a. SHARED COVERAGE REVIEW (collaborative workspace) ─────── */}
       <section style={{ padding: '80px 24px', background: '#fff' }}>
         <div style={{ maxWidth: 1000, margin: '0 auto' }}>
@@ -1010,6 +1031,7 @@ export default function Home() {
             <span onClick={() => { trackClick('landing_footer_terms'); router.push('/terms'); }} style={{ cursor: 'pointer' }}>Terms</span>
             <span onClick={() => { trackClick('landing_footer_security'); router.push('/security'); }} style={{ cursor: 'pointer' }}>Security</span>
             <span onClick={() => { trackClick('landing_footer_subprocessors'); router.push('/subprocessors'); }} style={{ cursor: 'pointer' }}>Subprocessors</span>
+            <span onClick={() => { trackClick('landing_footer_commitments'); router.push('/commitments'); }} style={{ cursor: 'pointer' }}>Our Commitments</span>
             <span onClick={() => { trackClick('landing_footer_support'); router.push('/support'); }} style={{ cursor: 'pointer' }}>Support</span>
             <a href={`mailto:${APP_CONTACT_EMAIL}`} style={{ color: 'var(--color-text-muted)', textDecoration: 'none' }}>{APP_CONTACT_EMAIL}</a>
           </div>

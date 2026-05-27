@@ -381,6 +381,15 @@ function PricingContent() {
             <p style={{ margin: 0, fontSize: 14, color: 'var(--color-text-secondary)', lineHeight: 1.6 }}>{faq.a}</p>
           </div>
         ))}
+
+        <div style={{ textAlign: 'center', marginTop: 40, fontSize: 14 }}>
+          <span onClick={() => { trackClick('pricing_commitments_link'); router.push('/commitments'); }} style={{
+            color: 'var(--color-primary)', fontWeight: 600, cursor: 'pointer',
+            textDecoration: 'underline', textUnderlineOffset: 3,
+          }}>
+            See our public commitments &rarr;
+          </span>
+        </div>
       </div>
     </div>
   );
