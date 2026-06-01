@@ -1040,12 +1040,70 @@ function CertificatesContent() {
             {docStep === 3 && docSavedReq && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
                 <p style={{ fontSize: 13, color: 'var(--color-text-secondary)', margin: 0 }}>
-                  Now compare your requirements against evidence. Upload a COI or select an existing policy.
+                  Now compare your requirements against evidence. Pick an existing policy you've already uploaded \u2014 fastest \u2014 or upload a fresh document.
                 </p>
 
-                {/* Upload COI */}
+                {/* Compare against existing policies \u2014 FIRST because it uses already-extracted (and any user-edited) data without re-extracting */}
+                {policies.filter(p => p.status === 'active').length > 0 ? (
+                  <div style={{ padding: 16, backgroundColor: '#f0fdf4', border: '1px solid #86efac', borderRadius: 'var(--radius-md)' }}>
+                    <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: 'var(--color-text)', marginBottom: 4 }}>
+                      &#9989; Compare against an existing policy
+                    </label>
+                    <p style={{ margin: '0 0 10px', fontSize: 12, color: 'var(--color-text-secondary)' }}>
+                      Uses your already-uploaded policy data (including any coverage amounts you&apos;ve edited). No re-extraction.
+                    </p>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 220, overflowY: 'auto' }}>
+                      {policies.filter(p => p.status === 'active').map(p => (
+                        <button
+                          key={p.id}
+                          disabled={docBusy}
+                          onClick={async () => {
+                            setDocBusy(true);
+                            try {
+                              trackFeatureUse('compare_documents_check_policy');
+                              const res = await leaseComplianceApi.runCheck(docSavedReq.id, 'policy', { policyId: p.id });
+                              const results: ComplianceResultItem[] = res.results || (res.results_json ? JSON.parse(res.results_json) : []);
+                              setDocResults(results);
+                              setDocResultCounts({ pass: res.pass_count, fail: res.fail_count, unclear: res.unclear_count });
+                              setDocStep(4);
+                              load();
+                            } catch (err: any) {
+                              toast(err.message || 'Comparison failed', 'error');
+                            } finally {
+                              setDocBusy(false);
+                            }
+                          }}
+                          style={{ padding: '10px 14px', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)', backgroundColor: '#fff', cursor: docBusy ? 'wait' : 'pointer', textAlign: 'left', opacity: docBusy ? 0.7 : 1 }}
+                        >
+                          <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-text)' }}>{p.nickname || p.carrier || 'Unnamed Policy'}</div>
+                          <div style={{ fontSize: 11, color: 'var(--color-text-muted)', marginTop: 2 }}>
+                            {p.policy_type.replace(/_/g, ' ')}
+                            {p.business_name ? ` \u2022 ${p.business_name}` : ''}
+                            {p.coverage_amount ? ` \u2022 $${p.coverage_amount.toLocaleString()}` : ''}
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ) : (
+                  <div style={{ padding: 12, backgroundColor: '#f9fafb', border: '1px dashed var(--color-border)', borderRadius: 'var(--radius-md)', fontSize: 12, color: 'var(--color-text-muted)' }}>
+                    No active policies yet. Upload one in the Policies tab to use this path \u2014 otherwise upload a fresh document below.
+                  </div>
+                )}
+
+                {/* OR separator */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '4px 0' }}>
+                  <div style={{ flex: 1, height: 1, backgroundColor: 'var(--color-border)' }} />
+                  <span style={{ fontSize: 11, color: 'var(--color-text-muted)', fontWeight: 600 }}>OR UPLOAD A NEW DOCUMENT</span>
+                  <div style={{ flex: 1, height: 1, backgroundColor: 'var(--color-border)' }} />
+                </div>
+
+                {/* Upload COI (fallback path \u2014 re-extracts every time) */}
                 <div style={{ padding: 16, backgroundColor: '#f0f9ff', border: '1px dashed #93c5fd', borderRadius: 'var(--radius-md)' }}>
-                  <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: 'var(--color-text)', marginBottom: 8 }}>Upload COI or Insurance Document (PDF)</label>
+                  <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: 'var(--color-text)', marginBottom: 4 }}>&#128206; Upload COI or Insurance Document (PDF)</label>
+                  <p style={{ margin: '0 0 10px', fontSize: 12, color: 'var(--color-text-secondary)' }}>
+                    Use this when you have a new document not yet in your policies. We extract coverage data from the PDF.
+                  </p>
                   <input ref={docCoiRef} type="file" accept=".pdf" style={{ fontSize: 13, width: '100%' }} />
                   <button
                     onClick={async () => {
@@ -1091,45 +1149,6 @@ function CertificatesContent() {
                     {docBusy ? 'Comparing...' : 'Upload & Compare'}
                   </button>
                 </div>
-
-                {/* Or compare against existing policies */}
-                {policies.filter(p => p.status === 'active').length > 0 && (
-                  <>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '4px 0' }}>
-                      <div style={{ flex: 1, height: 1, backgroundColor: 'var(--color-border)' }} />
-                      <span style={{ fontSize: 11, color: 'var(--color-text-muted)', fontWeight: 600 }}>OR COMPARE AGAINST POLICY</span>
-                      <div style={{ flex: 1, height: 1, backgroundColor: 'var(--color-border)' }} />
-                    </div>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 180, overflowY: 'auto' }}>
-                      {policies.filter(p => p.status === 'active').map(p => (
-                        <button
-                          key={p.id}
-                          disabled={docBusy}
-                          onClick={async () => {
-                            setDocBusy(true);
-                            try {
-                              trackFeatureUse('compare_documents_check_policy');
-                              const res = await leaseComplianceApi.runCheck(docSavedReq.id, 'policy', { policyId: p.id });
-                              const results: ComplianceResultItem[] = res.results || (res.results_json ? JSON.parse(res.results_json) : []);
-                              setDocResults(results);
-                              setDocResultCounts({ pass: res.pass_count, fail: res.fail_count, unclear: res.unclear_count });
-                              setDocStep(4);
-                              load();
-                            } catch (err: any) {
-                              toast(err.message || 'Comparison failed', 'error');
-                            } finally {
-                              setDocBusy(false);
-                            }
-                          }}
-                          style={{ padding: '10px 14px', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)', backgroundColor: '#fff', cursor: docBusy ? 'wait' : 'pointer', textAlign: 'left', opacity: docBusy ? 0.7 : 1 }}
-                        >
-                          <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-text)' }}>{p.nickname || p.carrier || 'Unnamed Policy'}</div>
-                          <div style={{ fontSize: 11, color: 'var(--color-text-muted)', marginTop: 2 }}>{p.policy_type.replace(/_/g, ' ')}{p.business_name ? ` \u2022 ${p.business_name}` : ''}</div>
-                        </button>
-                      ))}
-                    </div>
-                  </>
-                )}
 
                 <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
                   <button onClick={() => setDocStep(2)} disabled={docBusy} style={{ padding: '10px 20px', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', backgroundColor: '#fff', cursor: 'pointer', fontSize: 14 }}>Back</button>

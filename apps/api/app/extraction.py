@@ -4,11 +4,61 @@ Supports Anthropic (Claude) and OpenAI. Controlled by LLM_PROVIDER env var.
 """
 
 import json
+import logging
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import Optional
 
 from .config import settings
+
+logger = logging.getLogger(__name__)
+
+# Character ceilings on text sent to the model. Claude Sonnet 4 has a 200K-token
+# context (~800K chars). Policies and COIs are typically short declarations
+# pages — 50K is plenty. Leases are the outlier: a commercial lease can run
+# 100–300 pages with the insurance clause buried deep, so a 50K cap silently
+# drops the very content we're trying to find. 400K leaves headroom for the
+# system prompt + response without risking a context-window overflow.
+POLICY_TEXT_LIMIT = 50_000
+LEASE_TEXT_LIMIT = 400_000
+
+# Hard timeout on every LLM extraction call. Without this, a hung Anthropic/
+# OpenAI request can leave a ComplianceCheck row in `processing` forever — no
+# error, no progress, no user feedback. 180s is a generous upper bound for a
+# 20-page document; anything past that we treat as a hang and surface to the
+# user as an error state instead of letting them wait.
+EXTRACTION_TIMEOUT_SECONDS = 180.0
+
+# Coverage-amount sanity ceiling. Even large commercial umbrella towers cap at
+# a few hundred million; anything above $1B for a single coverage_amount is
+# almost certainly a parsing error or a model hallucination — drop to None and
+# log so the human edits the value rather than us silently storing nonsense.
+COVERAGE_AMOUNT_SANITY_CEILING = 1_000_000_000
+
+
+def _sanitize_coverage_amount(value, field_label: str = "coverage_amount") -> Optional[int]:
+    """Coerce to int and reject obviously-broken extractions.
+
+    Returns None for missing / unparseable / implausibly-large values. Logs a
+    warning when a value is rejected so we can spot prompt-quality regressions.
+    """
+    if value is None or value == "":
+        return None
+    try:
+        amount = int(value)
+    except (TypeError, ValueError):
+        logger.warning("extraction: %s not an integer (%r); dropping", field_label, value)
+        return None
+    if amount < 0:
+        logger.warning("extraction: %s negative (%d); dropping", field_label, amount)
+        return None
+    if amount > COVERAGE_AMOUNT_SANITY_CEILING:
+        logger.warning(
+            "extraction: %s exceeds $1B sanity ceiling (%d); dropping so the human can correct",
+            field_label, amount,
+        )
+        return None
+    return amount
 
 SYSTEM_PROMPT = """You are an expert insurance policy document parser. Your job is to extract EVERY piece of useful data from insurance policy documents. Be thorough and aggressive — extract as much as possible.
 
@@ -18,7 +68,7 @@ Return ONLY valid JSON with this exact schema (use null for missing fields):
   "policy_number": "string or null - the policy number, certificate number, or policy ID",
   "policy_type": "string or null - one of: auto, motorcycle, boat, rv, home, health, dental, vision, renters, life, disability, pet, flood, earthquake, liability, umbrella, general_liability, professional_liability, commercial_property, commercial_auto, cyber, bop, workers_comp, directors_officers, epli, inland_marine, other",
   "scope": "string or null - personal or business",
-  "coverage_amount": "integer or null - the COVERAGE LIMIT (max payout), NOT the premium. For auto this is the liability limit. For home this is the dwelling coverage. Example: 300000 for $300k coverage",
+  "coverage_amount": "integer or null - the COVERAGE LIMIT (max payout) in DOLLARS, NOT the premium. Return the number EXACTLY as it appears on the document. DO NOT multiply by 100. DO NOT convert to cents. DO NOT sum multiple line items. Commas are thousands separators. $300,000 → 300000. $2,115,887 → 2115887. $1.5M → 1500000. For auto this is the liability limit. For home this is the dwelling coverage. If the policy shows multiple limits (e.g. per-occurrence + aggregate), return the PRIMARY single-limit value, not their sum.",
   "deductible": "integer or null - primary deductible in dollars",
   "renewal_date": "string or null - YYYY-MM-DD format (policy expiration or renewal date)",
   "effective_date": "string or null - YYYY-MM-DD format (policy start/effective date)",
@@ -149,19 +199,19 @@ class BaseExtractor(ABC):
 class AnthropicExtractor(BaseExtractor):
     def extract(self, text: str) -> ExtractionResult:
         import anthropic
-        client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
+        client = anthropic.Anthropic(api_key=settings.anthropic_api_key, timeout=EXTRACTION_TIMEOUT_SECONDS)
         message = client.messages.create(
             model="claude-sonnet-4-20250514",
             max_tokens=4096,
             system=SYSTEM_PROMPT,
-            messages=[{"role": "user", "content": f"Extract data from this insurance policy document:\n\n{text[:50000]}"}],
+            messages=[{"role": "user", "content": f"Extract data from this insurance policy document:\n\n{text[:POLICY_TEXT_LIMIT]}"}],
         )
         raw = message.content[0].text
         return _parse_response(raw)
 
     def extract_images(self, images: list[bytes]) -> ExtractionResult:
         import anthropic, base64
-        client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
+        client = anthropic.Anthropic(api_key=settings.anthropic_api_key, timeout=EXTRACTION_TIMEOUT_SECONDS)
         content: list[dict] = [{"type": "text", "text": "Extract data from this insurance policy document (scanned pages):"}]
         for img in images[:20]:  # cap at 20 pages
             content.append({"type": "image", "source": {"type": "base64", "media_type": "image/png", "data": base64.b64encode(img).decode()}})
@@ -176,18 +226,18 @@ class AnthropicExtractor(BaseExtractor):
 
     def extract_coi(self, text: str) -> "COIExtractionResult":
         import anthropic
-        client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
+        client = anthropic.Anthropic(api_key=settings.anthropic_api_key, timeout=EXTRACTION_TIMEOUT_SECONDS)
         message = client.messages.create(
             model="claude-sonnet-4-20250514",
             max_tokens=4096,
             system=COI_SYSTEM_PROMPT,
-            messages=[{"role": "user", "content": f"Extract data from this Certificate of Insurance:\n\n{text[:50000]}"}],
+            messages=[{"role": "user", "content": f"Extract data from this Certificate of Insurance:\n\n{text[:POLICY_TEXT_LIMIT]}"}],
         )
         return _parse_coi_response(message.content[0].text)
 
     def extract_coi_images(self, images: list[bytes]) -> "COIExtractionResult":
         import anthropic, base64
-        client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
+        client = anthropic.Anthropic(api_key=settings.anthropic_api_key, timeout=EXTRACTION_TIMEOUT_SECONDS)
         content: list[dict] = [{"type": "text", "text": "Extract data from this Certificate of Insurance (scanned pages):"}]
         for img in images[:20]:
             content.append({"type": "image", "source": {"type": "base64", "media_type": "image/png", "data": base64.b64encode(img).decode()}})
@@ -201,18 +251,18 @@ class AnthropicExtractor(BaseExtractor):
 
     def extract_claim(self, text: str) -> "ClaimExtractionResult":
         import anthropic
-        client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
+        client = anthropic.Anthropic(api_key=settings.anthropic_api_key, timeout=EXTRACTION_TIMEOUT_SECONDS)
         message = client.messages.create(
             model="claude-sonnet-4-20250514",
             max_tokens=2048,
             system=CLAIM_SYSTEM_PROMPT,
-            messages=[{"role": "user", "content": f"Extract claim data from this insurance document:\n\n{text[:50000]}"}],
+            messages=[{"role": "user", "content": f"Extract claim data from this insurance document:\n\n{text[:POLICY_TEXT_LIMIT]}"}],
         )
         return _parse_claim_response(message.content[0].text)
 
     def extract_claim_images(self, images: list[bytes]) -> "ClaimExtractionResult":
         import anthropic, base64
-        client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
+        client = anthropic.Anthropic(api_key=settings.anthropic_api_key, timeout=EXTRACTION_TIMEOUT_SECONDS)
         content: list[dict] = [{"type": "text", "text": "Extract claim data from this insurance document (scanned pages):"}]
         for img in images[:20]:
             content.append({"type": "image", "source": {"type": "base64", "media_type": "image/png", "data": base64.b64encode(img).decode()}})
@@ -226,18 +276,18 @@ class AnthropicExtractor(BaseExtractor):
 
     def extract_lease(self, text: str) -> "LeaseExtractionResult":
         import anthropic
-        client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
+        client = anthropic.Anthropic(api_key=settings.anthropic_api_key, timeout=EXTRACTION_TIMEOUT_SECONDS)
         message = client.messages.create(
             model="claude-sonnet-4-20250514",
             max_tokens=4096,
             system=LEASE_SYSTEM_PROMPT,
-            messages=[{"role": "user", "content": f"Extract insurance requirements from this lease clause:\n\n{text[:50000]}"}],
+            messages=[{"role": "user", "content": f"Extract ALL insurance requirements from this lease, contract, or loan agreement. The insurance clause is often buried mid-document — scan every section carefully.\n\n{text[:LEASE_TEXT_LIMIT]}"}],
         )
         return _parse_lease_response(message.content[0].text)
 
     def extract_lease_images(self, images: list[bytes]) -> "LeaseExtractionResult":
         import anthropic, base64
-        client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
+        client = anthropic.Anthropic(api_key=settings.anthropic_api_key, timeout=EXTRACTION_TIMEOUT_SECONDS)
         content: list[dict] = [{"type": "text", "text": "Extract ALL insurance requirements from this lease document. Look through every page carefully for insurance-related sections, coverage requirements, endorsements, and certificate requirements:"}]
         for img in images:
             content.append({"type": "image", "source": {"type": "base64", "media_type": "image/png", "data": base64.b64encode(img).decode()}})
@@ -253,13 +303,13 @@ class AnthropicExtractor(BaseExtractor):
 class OpenAIExtractor(BaseExtractor):
     def extract(self, text: str) -> ExtractionResult:
         import openai
-        client = openai.OpenAI(api_key=settings.openai_api_key)
+        client = openai.OpenAI(api_key=settings.openai_api_key, timeout=EXTRACTION_TIMEOUT_SECONDS)
         response = client.chat.completions.create(
             model="gpt-4o",
             max_tokens=4096,
             messages=[
                 {"role": "system", "content": SYSTEM_PROMPT},
-                {"role": "user", "content": f"Extract data from this insurance policy document:\n\n{text[:50000]}"},
+                {"role": "user", "content": f"Extract data from this insurance policy document:\n\n{text[:POLICY_TEXT_LIMIT]}"},
             ],
         )
         raw = response.choices[0].message.content or ""
@@ -267,7 +317,7 @@ class OpenAIExtractor(BaseExtractor):
 
     def extract_images(self, images: list[bytes]) -> ExtractionResult:
         import openai, base64
-        client = openai.OpenAI(api_key=settings.openai_api_key)
+        client = openai.OpenAI(api_key=settings.openai_api_key, timeout=EXTRACTION_TIMEOUT_SECONDS)
         content: list[dict] = [{"type": "text", "text": "Extract data from this insurance policy document (scanned pages):"}]
         for img in images[:20]:
             content.append({"type": "image_url", "image_url": {"url": f"data:image/png;base64,{base64.b64encode(img).decode()}"}})
@@ -284,20 +334,20 @@ class OpenAIExtractor(BaseExtractor):
 
     def extract_coi(self, text: str) -> "COIExtractionResult":
         import openai
-        client = openai.OpenAI(api_key=settings.openai_api_key)
+        client = openai.OpenAI(api_key=settings.openai_api_key, timeout=EXTRACTION_TIMEOUT_SECONDS)
         response = client.chat.completions.create(
             model="gpt-4o",
             max_tokens=4096,
             messages=[
                 {"role": "system", "content": COI_SYSTEM_PROMPT},
-                {"role": "user", "content": f"Extract data from this Certificate of Insurance:\n\n{text[:50000]}"},
+                {"role": "user", "content": f"Extract data from this Certificate of Insurance:\n\n{text[:POLICY_TEXT_LIMIT]}"},
             ],
         )
         return _parse_coi_response(response.choices[0].message.content or "")
 
     def extract_coi_images(self, images: list[bytes]) -> "COIExtractionResult":
         import openai, base64
-        client = openai.OpenAI(api_key=settings.openai_api_key)
+        client = openai.OpenAI(api_key=settings.openai_api_key, timeout=EXTRACTION_TIMEOUT_SECONDS)
         content: list[dict] = [{"type": "text", "text": "Extract data from this Certificate of Insurance (scanned pages):"}]
         for img in images[:20]:
             content.append({"type": "image_url", "image_url": {"url": f"data:image/png;base64,{base64.b64encode(img).decode()}"}})
@@ -313,20 +363,20 @@ class OpenAIExtractor(BaseExtractor):
 
     def extract_claim(self, text: str) -> "ClaimExtractionResult":
         import openai
-        client = openai.OpenAI(api_key=settings.openai_api_key)
+        client = openai.OpenAI(api_key=settings.openai_api_key, timeout=EXTRACTION_TIMEOUT_SECONDS)
         response = client.chat.completions.create(
             model="gpt-4o",
             max_tokens=2048,
             messages=[
                 {"role": "system", "content": CLAIM_SYSTEM_PROMPT},
-                {"role": "user", "content": f"Extract claim data from this insurance document:\n\n{text[:50000]}"},
+                {"role": "user", "content": f"Extract claim data from this insurance document:\n\n{text[:POLICY_TEXT_LIMIT]}"},
             ],
         )
         return _parse_claim_response(response.choices[0].message.content or "")
 
     def extract_claim_images(self, images: list[bytes]) -> "ClaimExtractionResult":
         import openai, base64
-        client = openai.OpenAI(api_key=settings.openai_api_key)
+        client = openai.OpenAI(api_key=settings.openai_api_key, timeout=EXTRACTION_TIMEOUT_SECONDS)
         content: list[dict] = [{"type": "text", "text": "Extract claim data from this insurance document (scanned pages):"}]
         for img in images[:20]:
             content.append({"type": "image_url", "image_url": {"url": f"data:image/png;base64,{base64.b64encode(img).decode()}"}})
@@ -342,20 +392,20 @@ class OpenAIExtractor(BaseExtractor):
 
     def extract_lease(self, text: str) -> "LeaseExtractionResult":
         import openai
-        client = openai.OpenAI(api_key=settings.openai_api_key)
+        client = openai.OpenAI(api_key=settings.openai_api_key, timeout=EXTRACTION_TIMEOUT_SECONDS)
         response = client.chat.completions.create(
             model="gpt-4o",
             max_tokens=4096,
             messages=[
                 {"role": "system", "content": LEASE_SYSTEM_PROMPT},
-                {"role": "user", "content": f"Extract insurance requirements from this lease clause:\n\n{text[:50000]}"},
+                {"role": "user", "content": f"Extract ALL insurance requirements from this lease, contract, or loan agreement. The insurance clause is often buried mid-document — scan every section carefully.\n\n{text[:LEASE_TEXT_LIMIT]}"},
             ],
         )
         return _parse_lease_response(response.choices[0].message.content or "")
 
     def extract_lease_images(self, images: list[bytes]) -> "LeaseExtractionResult":
         import openai, base64
-        client = openai.OpenAI(api_key=settings.openai_api_key)
+        client = openai.OpenAI(api_key=settings.openai_api_key, timeout=EXTRACTION_TIMEOUT_SECONDS)
         content: list[dict] = [{"type": "text", "text": "Extract ALL insurance requirements from this lease document. Look through every page carefully for insurance-related sections, coverage requirements, endorsements, and certificate requirements:"}]
         for img in images:
             content.append({"type": "image_url", "image_url": {"url": f"data:image/png;base64,{base64.b64encode(img).decode()}"}})
@@ -510,8 +560,8 @@ def _parse_response(raw: str) -> ExtractionResult:
         policy_number=data.get("policy_number"),
         policy_type=policy_type,
         scope=data.get("scope"),
-        coverage_amount=int(data["coverage_amount"]) if data.get("coverage_amount") else None,
-        deductible=int(data["deductible"]) if data.get("deductible") else None,
+        coverage_amount=_sanitize_coverage_amount(data.get("coverage_amount"), "coverage_amount"),
+        deductible=_sanitize_coverage_amount(data.get("deductible"), "deductible"),
         renewal_date=data.get("renewal_date"),
         premium_amount=premium_amount,
         contacts=contacts,
@@ -642,6 +692,7 @@ Return ONLY valid JSON with this exact schema (use null for missing fields):
 }
 
 CRITICAL INSTRUCTIONS:
+0. SCAN THE ENTIRE DOCUMENT. The insurance clause in a long commercial lease is often buried 30–80 pages in, under headings like "Insurance", "Indemnification", "Risk of Loss", "Tenant's Insurance Obligations", "Required Coverages", or similar. Do not stop at the table of contents or the early pages — read every page before reporting "no requirements found".
 1. REQUIREMENTS: Extract EVERY insurance requirement mentioned. Be thorough — include coverage types, limits, endorsements, additional insured, waiver of subrogation, primary & non-contributory, notice of cancellation, insurer ratings (AM Best), certificate holder formatting.
 2. DOLLAR AMOUNTS: Normalize to integers. "$1,000,000" → "1000000". "$2M" → "2000000". "$500K" → "500000".
 3. CATEGORIES: Map each requirement to the most specific category. IMPORTANT INDUSTRY STANDARD MAPPINGS:
@@ -783,9 +834,7 @@ def _parse_coi_response(raw: str) -> COIExtractionResult:
     if isinstance(coverage_types, str):
         coverage_types = [t.strip() for t in coverage_types.split(",") if t.strip()]
 
-    amount = data.get("primary_coverage_amount")
-    if amount is not None:
-        amount = int(amount)
+    amount = _sanitize_coverage_amount(data.get("primary_coverage_amount"), "primary_coverage_amount")
 
     return COIExtractionResult(
         certificate_holder_name=data.get("certificate_holder_name"),

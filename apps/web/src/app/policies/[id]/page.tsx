@@ -803,6 +803,15 @@ function PolicyDetailContent() {
                 {policy.nickname && <p style={{ margin: '0 0 4px', color: 'var(--color-text-secondary)', fontSize: 15 }}>{policy.carrier} - {policy.policy_type}</p>}
                 <p style={{ margin: '0 0 8px', color: 'var(--color-text-muted)', fontSize: 14 }}>Policy # <span style={{ fontFamily: 'monospace' }}>{policy.policy_number}</span></p>
 
+                {/* Quick link to uploaded documents — Documents section is far below the fold on long policies, so surface it up top. */}
+                {docs.length > 0 && (
+                  <p style={{ margin: '0 0 8px', fontSize: 13 }}>
+                    <a href="#documents" style={{ color: 'var(--color-primary)', textDecoration: 'underline', textUnderlineOffset: 3 }}>
+                      &#128206; {docs.length} document{docs.length === 1 ? '' : 's'} attached &mdash; view &rarr;
+                    </a>
+                  </p>
+                )}
+
                 {/* Asset + Status tags */}
                 <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
                   {policy.exposure_name && (
@@ -1828,7 +1837,7 @@ function PolicyDetailContent() {
       )}
 
       {/* Documents */}
-      <div className="card" style={{ marginBottom: 32 }}>
+      <div id="documents" className="card" style={{ marginBottom: 32, scrollMarginTop: 80 }}>
         <h2 style={{ margin: '0 0 4px', fontSize: 18 }}>Documents</h2>
         <p style={{ margin: '0 0 16px', fontSize: 13, color: '#666' }}>Upload a policy PDF to auto-extract carrier, coverage, contacts and more.</p>
         {canEdit && (
