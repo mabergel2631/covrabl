@@ -53,7 +53,7 @@ ENV_PATH = Path(__file__).resolve().parents[1] / "apps" / "api" / ".env"
 # Production runs on OpenAI (LLM_PROVIDER=openai, gpt-4o), so that's the default
 # baseline — measures what actually ships. Swap provider/model via CLI for a
 # Claude head-to-head once an Anthropic key exists.
-DEFAULT_MODELS = {"openai": "gpt-4o", "anthropic": "claude-sonnet-4-20250514"}
+DEFAULT_MODELS = {"openai": "gpt-4o", "anthropic": "claude-sonnet-4-6"}
 MAX_TOKENS = 4096
 MAX_IMAGE_PAGES = 50          # cap pages sent in image mode (logged when it bites)
 IMG_LONG_SIDE = 1500          # px; Anthropic downscales above ~1568 anyway
@@ -212,10 +212,18 @@ def select_image_pages(texts: list[str], cap: int) -> list[int]:
     n = len(texts)
     if n <= cap:
         return list(range(n))
-    scored = {i for i, t in enumerate(texts) if any(k in t.lower() for k in KEYWORDS)}
-    scored.update([0, 1, n - 1])  # always include front matter + last page
-    picked = sorted(scored)[:cap]
-    return picked or list(range(cap))
+    keep = {i for i, t in enumerate(texts) if any(k in t.lower() for k in KEYWORDS)}
+    keep.update([0, 1, n - 1])  # always include front matter + last page
+    # Fully-scanned docs have no text layer to keyword-match, so `keep` collapses
+    # to ~3 pages and the buried insurance clause is never sent. Fill up to the
+    # cap with evenly-spaced pages so coverage is broad regardless.
+    if len(keep) < cap:
+        step = max(1, n // cap)
+        for i in range(0, n, step):
+            keep.add(i)
+            if len(keep) >= cap:
+                break
+    return sorted(keep)[:cap]
 
 
 def decide_mode(texts: list[str], force: str | None) -> str:
@@ -270,6 +278,8 @@ def extract_one(client, provider: str, model: str, path: Path, doc_type: str,
     _, schema_fields, _ = SCHEMAS[doc_type]
     for name, _ in schema_fields:
         f = raw.get(name) or {}
+        if isinstance(f, str):  # model returned a bare value instead of the field object
+            f = {"value": f, "page": None, "snippet": None, "confidence": "medium"}
         rec = {
             "value": f.get("value"),
             "page": f.get("page"),
@@ -465,6 +475,8 @@ def main():
     provider = args.provider
     model = args.model or DEFAULT_MODELS[provider]
 
+    global OUT_DIR  # provider-separated outputs so runs don't overwrite each other
+    OUT_DIR = OUT_DIR / provider
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     key = load_api_key(provider)
     if provider == "openai":
