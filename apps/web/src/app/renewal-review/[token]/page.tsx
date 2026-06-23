@@ -1,7 +1,7 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { useParams } from 'next/navigation';
+import { useEffect, useState, Suspense } from 'react';
+import { useParams, useSearchParams, useRouter } from 'next/navigation';
 import { agentApi, PublicRenewalReviewData, RenewalDelta } from '../../../../lib/api';
 
 const fieldLabels: Record<string, string> = {
@@ -50,9 +50,21 @@ function changeIndicator(d: RenewalDelta): string | null {
   return `${sign}$${Math.abs(diff).toLocaleString()}`;
 }
 
-export default function PublicRenewalReviewPage() {
+function PublicRenewalReviewContent() {
   const params = useParams();
+  const searchParams = useSearchParams();
+  const router = useRouter();
   const token = String(params.token || '');
+  // Preview mode: the agent opened this via the "Preview" button. We show an
+  // exit bar that returns to the exact agent screen. `return` is only honored
+  // when it's an internal /agent/ path (guards against open-redirect).
+  const rawReturn = searchParams.get('return') || '';
+  const returnUrl = rawReturn.startsWith('/agent/') ? rawReturn : '';
+  const isPreview = searchParams.get('preview') === '1';
+  const exitPreview = () => {
+    if (returnUrl) router.push(returnUrl);
+    else router.back();
+  };
   const [data, setData] = useState<PublicRenewalReviewData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -72,20 +84,56 @@ export default function PublicRenewalReviewPage() {
     return () => { cancelled = true; };
   }, [token]);
 
+  const previewBar = isPreview ? (
+    <div style={{
+      position: 'sticky', top: 0, zIndex: 50,
+      display: 'flex', alignItems: 'center', gap: 12,
+      padding: '10px 20px',
+      backgroundColor: '#0f172a', color: '#fff',
+      boxShadow: '0 1px 4px rgba(0,0,0,0.15)',
+    }}>
+      <button
+        onClick={exitPreview}
+        aria-label="Exit preview"
+        style={{
+          display: 'inline-flex', alignItems: 'center', gap: 6,
+          padding: '6px 12px',
+          backgroundColor: 'rgba(255,255,255,0.12)', color: '#fff',
+          border: '1px solid rgba(255,255,255,0.25)', borderRadius: 8,
+          fontSize: 13, fontWeight: 600, cursor: 'pointer',
+        }}
+      >
+        <span style={{ fontSize: 16, lineHeight: 1 }}>&larr;</span> Exit preview
+      </button>
+      <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.8)' }}>
+        Preview &mdash; this is what your client sees. They won&rsquo;t see this bar.
+      </span>
+    </div>
+  ) : null;
+
   if (loading) {
-    return <div style={{ padding: 40, textAlign: 'center', color: '#64748b' }}>Loading renewal review...</div>;
+    return (
+      <>
+        {previewBar}
+        <div style={{ padding: 40, textAlign: 'center', color: '#64748b' }}>Loading renewal review...</div>
+      </>
+    );
   }
   if (error || !data) {
     return (
-      <div style={{ padding: 40, textAlign: 'center' }}>
-        <p style={{ color: '#dc2626' }}>{error || 'Not found'}</p>
-        <p style={{ fontSize: 13, color: '#64748b', marginTop: 12 }}>Reach out to your agent for an updated link.</p>
-      </div>
+      <>
+        {previewBar}
+        <div style={{ padding: 40, textAlign: 'center' }}>
+          <p style={{ color: '#dc2626' }}>{error || 'Not found'}</p>
+          <p style={{ fontSize: 13, color: '#64748b', marginTop: 12 }}>Reach out to your agent for an updated link.</p>
+        </div>
+      </>
     );
   }
 
   return (
     <div style={{ minHeight: '100vh', backgroundColor: '#f8fafc' }}>
+      {previewBar}
       <div style={{ maxWidth: 800, margin: '0 auto', padding: '40px 24px' }}>
         <div style={{ marginBottom: 32 }}>
           <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>
@@ -285,5 +333,13 @@ export default function PublicRenewalReviewPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function PublicRenewalReviewPage() {
+  return (
+    <Suspense fallback={<div style={{ padding: 40, textAlign: 'center', color: '#64748b' }}>Loading renewal review...</div>}>
+      <PublicRenewalReviewContent />
+    </Suspense>
   );
 }

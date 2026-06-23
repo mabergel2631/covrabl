@@ -495,9 +495,8 @@ export default function RenewalReviewPage() {
                     {copied ? 'Copied' : 'Copy link'}
                   </button>
                   <a
-                    href={`/renewal-review/${data.share_token}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
+                    href={`/renewal-review/${data.share_token}?preview=1&return=${encodeURIComponent(`/agent/${clientId}/policies/${policyId}/renewal`)}`}
+                    onClick={() => trackClick('agent_renewal_preview', { policy_id: policyId })}
                     style={{
                       padding: '8px 14px',
                       border: '1px solid var(--color-border)',
