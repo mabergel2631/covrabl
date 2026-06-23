@@ -1751,7 +1751,10 @@ function PolicyDetailContent() {
                   const isDecrease = i > 0 && entry.amount < premiumHistory[i - 1].amount;
 
                   return (
-                    <div key={entry.id} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                    // height:100% + justify flex-end gives the inner bar a definite
+                    // parent height so its `${height}%` resolves against the 80px row
+                    // (without it the % is indeterminate and bars collapse to minHeight).
+                    <div key={entry.id} style={{ flex: 1, height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-end' }}>
                       <div
                         style={{
                           width: '100%',
