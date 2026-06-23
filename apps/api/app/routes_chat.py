@@ -657,8 +657,19 @@ def chat_send(body: ChatSendRequest, user: User = Depends(get_current_user), db:
                 if delta and delta.content:
                     full_response += delta.content
                     yield f"data: {json.dumps({'type': 'text', 'content': delta.content})}\n\n"
+        except openai.AuthenticationError as e:
+            # Almost always a stale/rotated/missing OPENAI_API_KEY in the deploy env.
+            # Log loudly with a key fingerprint (never the secret) so it's diagnosable.
+            key = settings.openai_api_key or ""
+            fp = f"len={len(key)} tail=…{key[-4:]}" if key else "MISSING"
+            logger.error("Chat OpenAI auth failed (check OPENAI_API_KEY in deploy env): %s | key %s", e, fp)
+            yield f"data: {json.dumps({'type': 'error', 'content': 'AI chat is temporarily unavailable (service authentication). Our team has been notified.'})}\n\n"
+        except openai.RateLimitError as e:
+            logger.error("Chat OpenAI rate-limited: %s", e)
+            yield f"data: {json.dumps({'type': 'error', 'content': 'Covrabl is handling a lot of requests right now — please try again in a moment.'})}\n\n"
         except Exception as e:
-            logger.error("Chat streaming error: %s", e)
+            # logger.exception captures the full traceback + exception type in Railway logs.
+            logger.exception("Chat streaming error (%s): %s", type(e).__name__, e)
             yield f"data: {json.dumps({'type': 'error', 'content': 'Sorry, something went wrong. Please try again.'})}\n\n"
 
         # Save assistant response
