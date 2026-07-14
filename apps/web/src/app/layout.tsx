@@ -28,8 +28,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en">
       <head>
-        <title>Covrabl — Know What You&apos;re Covered For</title>
-        <meta name="description" content="Upload your insurance policies and instantly see what's covered, where you have gaps, and what's coming up at renewal." />
+        <title>Covrabl — Coverage intelligence for insurance agencies</title>
+        <meta name="description" content="Covrabl helps independent insurance agencies catch what changed on a client's policy, spot coverage gaps, and stay in front of clients between renewals. Additive to your AMS — not a replacement." />
         <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
         <meta name="theme-color" content={APP_THEME_COLOR} />
         <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -37,16 +37,16 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <meta name="apple-mobile-web-app-title" content={APP_NAME} />
 
         {/* Open Graph */}
-        <meta property="og:title" content="Covrabl — Know What You're Covered For" />
-        <meta property="og:description" content="Upload your insurance policies and instantly see what's covered, where you have gaps, and what's coming up at renewal." />
+        <meta property="og:title" content="Covrabl — Coverage intelligence for insurance agencies" />
+        <meta property="og:description" content="Covrabl helps independent insurance agencies catch what changed on a client's policy, spot coverage gaps, and stay in front of clients between renewals. Additive to your AMS — not a replacement." />
         <meta property="og:type" content="website" />
         <meta property="og:url" content="https://covrabl.com" />
         <meta property="og:image" content="https://covrabl.com/brand/og-image.svg" />
 
         {/* Twitter */}
         <meta name="twitter:card" content="summary_large_image" />
-        <meta name="twitter:title" content="Covrabl — Know What You're Covered For" />
-        <meta name="twitter:description" content="Upload your insurance policies and instantly see what's covered, where you have gaps, and what's coming up at renewal." />
+        <meta name="twitter:title" content="Covrabl — Coverage intelligence for insurance agencies" />
+        <meta name="twitter:description" content="Covrabl helps independent insurance agencies catch what changed on a client's policy, spot coverage gaps, and stay in front of clients between renewals. Additive to your AMS — not a replacement." />
 
         <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
         <link rel="manifest" href="/manifest.json" />

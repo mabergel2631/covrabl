@@ -1201,7 +1201,7 @@ function HowItWorksInner() {
           <div style={{ display: 'flex', justifyContent: 'center', gap: 16, marginBottom: 20, flexWrap: 'wrap' }}>
             {[
               { icon: '\u{1F512}', label: 'AES-256 Encrypted' },
-              { icon: '\u{1F6E1}️', label: 'SOC 2 Standards' },
+              { icon: '\u{1F6E1}️', label: 'No AI training on your data' },
               { icon: '\u{1F4DC}', label: 'No data sold' },
             ].map(b => (
               <span key={b.label} onClick={() => { trackClick('hiw_footer_trust_badge', { label: b.label }); router.push('/security'); }} style={{
